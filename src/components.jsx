@@ -1037,11 +1037,15 @@ export function PlayerBar({ onOpenNowPlaying }) {
 }
 
 export function MiniPlayer({ onExpand }) {
-  const { currentTrack, isPlaying, togglePlay, next, loadingAudio } = usePlayer();
-  const { registerFill } = useScrubberBinding();
+  const { currentTrack, isPlaying, togglePlay, next, loadingAudio, registerProgressEl } = usePlayer();
   const { t, settings } = useUI();
   const [pulsing, setPulsing] = useState(false);
   const miniRef = useRef(null);
+  const ringCleanupRef = useRef(null);
+  const registerRing = useCallback((el) => {
+    ringCleanupRef.current?.();
+    ringCleanupRef.current = el ? registerProgressEl(el, "ring") : null;
+  }, [registerProgressEl]);
   const handleExpand = () => onExpand?.();
   const swipe = useVerticalSwipe({ active: !!currentTrack, direction: "up", onTrigger: handleExpand, dragRef: miniRef, threshold: 36, velocityThreshold: 0.35 });
   if (!currentTrack) return null;
@@ -1063,7 +1067,12 @@ export function MiniPlayer({ onExpand }) {
         onAnimationEnd={() => setPulsing(false)}
         aria-label={t("next")}
       ><SkipForward size={18} fill="currentColor" /></button>
-      <div className={`mini-progress ${loadingAudio ? "is-loading" : ""}`}>{loadingAudio ? <div className="skeleton-shine" /> : <div className="fill" ref={registerFill} />}</div>
+      <svg className={`mini-ring ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true" focusable="false">
+        <rect className="track" x="0" y="0" width="100%" height="100%" rx="23" ry="23" pathLength="1" />
+        {loadingAudio
+          ? <rect key="run" className="run" x="0" y="0" width="100%" height="100%" rx="23" ry="23" pathLength="1" />
+          : <rect key="fill" className="fill" x="0" y="0" width="100%" height="100%" rx="23" ry="23" pathLength="1" ref={registerRing} />}
+      </svg>
     </div>
   );
 }

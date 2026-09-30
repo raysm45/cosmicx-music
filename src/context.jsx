@@ -740,6 +740,7 @@ export function PlayerProvider({ children }) {
     progressElsRef.current.forEach((mode, el) => {
       if (!el) return;
       if (mode === "left") el.style.left = `${pct}%`;
+      else if (mode === "ring") { el.style.strokeDashoffset = String(1 - pct / 100); el.style.opacity = pct > 0 ? "1" : "0"; }
       else el.style.transform = `scaleX(${pct / 100})`;
     });
   }, []);
