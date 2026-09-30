@@ -55,3 +55,31 @@ export function isLowEndDevice() {
   lowEndCache = !!(saveData || slowNet || (mem && mem <= 4) || (cores && cores <= 4));
   return lowEndCache;
 }
+
+// Tingkat efek kaca (liquid glass). Diterapkan sebagai <html data-glass="...">.
+//  full  : blur 14px + saturasi  -> device normal/kencang
+//  lite  : blur 8px, tanpa saturasi -> device lawas (RAM <= 4GB / core <= 4 / data saver)
+//  solid : tanpa backdrop-filter, latar semi-solid -> device sangat lemah (RAM <= 2GB)
+// Bisa dipaksa manual: setGlassTier("full" | "lite" | "solid" | "auto").
+const GLASS_KEY = "aivy-glass";
+export function getGlassTier() {
+  try {
+    const saved = localStorage.getItem(GLASS_KEY);
+    if (saved === "full" || saved === "lite" || saved === "solid") return saved;
+  } catch {}
+  if (typeof navigator === "undefined") return "full";
+  const mem = navigator.deviceMemory;
+  if (mem && mem <= 2) return "solid";
+  return isLowEndDevice() ? "lite" : "full";
+}
+export function applyGlassTier() {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.glass = getGlassTier();
+}
+export function setGlassTier(tier) {
+  try {
+    if (tier === "auto") localStorage.removeItem(GLASS_KEY);
+    else localStorage.setItem(GLASS_KEY, tier);
+  } catch {}
+  applyGlassTier();
+}
