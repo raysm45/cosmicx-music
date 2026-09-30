@@ -8,7 +8,7 @@ import {
   SIDEBAR_COLLAPSED_W, RIGHTPANEL_COLLAPSED_W, RIGHTPANEL_PEEK_W,
 } from "./context.jsx";
 import {
-  ErrorBoundary, Sidebar, MobileTabBar, TopBar, PlayerBar, MiniPlayer, NowPlayingSheet, QueueSheet,
+  ErrorBoundary, Sidebar, TopBar, PlayerBar, MobileDock, NowPlayingSheet, QueueSheet,
   RightPanel, GlobalContextMenu, AddToPlaylistModal, CreditsModal, ToastHost, ViewLoading, LyricsOverlay,
   LyricsPrefetch, AiAssistantWidget,
 } from "./components.jsx";
@@ -123,9 +123,8 @@ function AppInner() {
       {!isMobile && <RightPanel />}
       <AiAssistantWidget />
 
-      {isMobile && !isImmersiveShorts && <MiniPlayer onExpand={() => setNowPlayingOpen(true)} />}
       {isMobile && <LyricsPrefetch />}
-      {isMobile && !isImmersiveShorts && <MobileTabBar />}
+      {isMobile && !isImmersiveShorts && <MobileDock onExpandPlayer={() => setNowPlayingOpen(true)} />}
       { }
       <NowPlayingSheet open={nowPlayingOpen} onClose={() => setNowPlayingOpen(false)} onOpenQueue={() => { setNowPlayingOpen(false); openMobileQueue(); }} />
       {isMobile && <QueueSheet open={mobileQueueOpen} onClose={closeMobileQueue} />}

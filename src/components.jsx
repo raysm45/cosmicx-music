@@ -1068,10 +1068,10 @@ export function MiniPlayer({ onExpand }) {
         aria-label={t("next")}
       ><SkipForward size={18} fill="currentColor" /></button>
       <svg className={`mini-ring ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true" focusable="false">
-        <rect className="track" x="0" y="0" width="100%" height="100%" rx="23" ry="23" pathLength="1" />
+        <rect className="track" x="0" y="0" width="100%" height="100%" rx="29" ry="29" pathLength="1" />
         {loadingAudio
-          ? <rect key="run" className="run" x="0" y="0" width="100%" height="100%" rx="23" ry="23" pathLength="1" />
-          : <rect key="fill" className="fill" x="0" y="0" width="100%" height="100%" rx="23" ry="23" pathLength="1" ref={registerRing} />}
+          ? <rect key="run" className="run" x="0" y="0" width="100%" height="100%" rx="29" ry="29" pathLength="1" />
+          : <rect key="fill" className="fill" x="0" y="0" width="100%" height="100%" rx="29" ry="29" pathLength="1" ref={registerRing} />}
       </svg>
     </div>
   );
@@ -3086,16 +3086,102 @@ export function Sidebar() {
   );
 }
 
-export function MobileTabBar() {
+// Dock collapse: scroll turun -> tab bar mengecil jadi lingkaran & mini player turun ke baris yang sama.
+// Tidak ada setState per frame: listener passive + rAF, state cuma berubah saat melewati ambang (histeresis).
+function useDockCollapse(routeName, enabled) {
+  const [collapsed, setCollapsed] = useState(false);
+  const stateRef = useRef(false);
+  const set = useCallback((v) => {
+    if (stateRef.current === v) return;
+    stateRef.current = v;
+    setCollapsed(v);
+  }, []);
+  useEffect(() => {
+    set(false);
+    if (!enabled) return undefined;
+    const el = document.getElementById("aivy-content-scroll");
+    if (!el) return undefined;
+    let lastY = el.scrollTop;
+    let acc = 0;
+    let raf = 0;
+    const run = () => {
+      raf = 0;
+      const y = Math.max(0, el.scrollTop);
+      const dy = y - lastY;
+      lastY = y;
+      if (y <= 8) { acc = 0; set(false); return; }
+      if (Math.abs(dy) < 1) return;
+      if ((dy > 0) !== (acc > 0)) acc = 0;
+      acc += dy;
+      if (acc > 28 && y > 56) set(true);
+      else if (acc < -14) set(false);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(run); };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => { el.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [routeName, enabled, set]);
+  return [collapsed && enabled, set];
+}
+
+export function MobileDock({ onExpandPlayer }) {
   const { name } = useRouter();
   const { t, settings } = useUI();
-  const visibleNavItems = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
+  const { currentTrack } = usePlayer();
+  const hasTrack = !!currentTrack;
+  const [collapsed, setDock] = useDockCollapse(name, hasTrack);
+
+  // will-change hanya aktif selama animasi (hemat memori GPU di device lawas)
+  const [morphing, setMorphing] = useState(false);
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return undefined; }
+    setMorphing(true);
+    const id = setTimeout(() => setMorphing(false), 520);
+    return () => clearTimeout(id);
+  }, [collapsed]);
+
+  const items = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
+  const searchItem = items.find((i) => i.route === "search");
+  const tabItems = items.filter((i) => i.route !== "search");
+  const shownRoute = tabItems.some((i) => i.route === name) ? name : tabItems[0]?.route;
+  const SearchIcon = searchItem?.icon;
+
+  // Saat mengecil, tap lingkaran = buka lagi (bukan pindah halaman)
+  const onNavClickCapture = (e) => {
+    if (!collapsed) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDock(false);
+  };
+
   return (
-    <nav className="aivy-tabbar">
-      {visibleNavItems.map(({ route, labelKey, icon: Icon }) => (
-        <Link key={route} to={route} className={`aivy-tab ${name === route ? "active" : ""}`}><Icon size={20} /><span>{t(labelKey)}</span></Link>
-      ))}
-    </nav>
+    <div
+      className={`aivy-dock ${collapsed ? "is-collapsed" : ""} ${morphing ? "is-morphing" : ""}`}
+      style={{ "--dock-search": searchItem ? 1 : 0 }}
+    >
+      {hasTrack && (
+        <div className="aivy-dock-slot slot-mini"><MiniPlayer onExpand={onExpandPlayer} /></div>
+      )}
+      <div className="aivy-dock-slot slot-tabs">
+        <nav className="aivy-tabbar" onClickCapture={onNavClickCapture}>
+          {tabItems.map(({ route, labelKey, icon: Icon }) => (
+            <Link
+              key={route} to={route}
+              className={`aivy-tab ${name === route ? "active" : ""} ${shownRoute === route ? "is-shown" : ""}`}
+              aria-label={t(labelKey)}
+              tabIndex={collapsed && shownRoute !== route ? -1 : undefined}
+            ><Icon size={21} /><span>{t(labelKey)}</span></Link>
+          ))}
+        </nav>
+      </div>
+      {searchItem && (
+        <div className="aivy-dock-slot slot-search">
+          <Link to="search" className={`aivy-dock-search ${name === "search" ? "active" : ""}`} aria-label={t(searchItem.labelKey)}>
+            <SearchIcon size={22} />
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
 
