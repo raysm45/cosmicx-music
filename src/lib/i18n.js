@@ -721,7 +721,7 @@ const dict = {
     rowExplore: "Explore",
     exploreEnd: "You've reached the end of today's exploring",
     exploreTrending: "Trending now",
-    exploreFeaturedArtists: "Featured artists",
+    exploreFeaturedArtists: "Featured Artists",
     exploreDiscover: "Discover new music",
 
     searchPlaceholder: "Search for a song or artist, then press Enter",

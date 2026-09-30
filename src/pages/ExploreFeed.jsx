@@ -87,6 +87,7 @@ function useExploreFeed() {
 
   return { cycles, loading, stalled, loadCycle };
 }
+
 function artistNames(track) {
   const list = track.artists?.length ? track.artists : (track.artist ? [track.artist] : []);
   return list.map((a) => a?.name).filter(Boolean).join(", ");
@@ -160,7 +161,7 @@ function ExploreCoverCard({ track, list }) {
     >
       {track.cover && <span className="bg" style={{ backgroundImage: `url(${JSON.stringify(track.cover)})` }} />}
       <span className="shade" />
-      <span className="play" aria-hidden="true">{isCurrent && isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" />}</span>
+      <span className="play" aria-hidden="true">{isCurrent && isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: 2 }} />}</span>
       <span className="t">{track.title}</span>
       <span className="a">{artistNames(track) || "\u2014"}</span>
       <button type="button" className="more" onClick={openMenu} aria-label={t("menuMore")}>
@@ -242,14 +243,16 @@ function ExploreCycle({ cycle }) {
 
 function ExploreSkeleton() {
   return (
-    <div className="aivy-xlist" style={{ pointerEvents: "none" }}>
+    <div className="aivy-xskel" aria-hidden="true">
+      <div className="aivy-skeleton aivy-xskel-title" />
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="aivy-xrow">
-          <span className="cover"><div className="aivy-skeleton" style={{ width: "100%", height: "100%" }} /></span>
-          <span className="meta">
-            <span className="aivy-skeleton" style={{ height: 12, width: "52%", borderRadius: 6 }} />
-            <span className="aivy-skeleton" style={{ height: 10, width: "32%", borderRadius: 6, marginTop: 6 }} />
-          </span>
+        <div key={i} className="aivy-xskel-row">
+          <div className="aivy-skeleton aivy-xskel-cover" />
+          <div className="aivy-xskel-meta">
+            <div className="aivy-skeleton aivy-xskel-line w1" />
+            <div className="aivy-skeleton aivy-xskel-line w2" />
+          </div>
+          <div className="aivy-skeleton aivy-xskel-dur" />
         </div>
       ))}
     </div>
