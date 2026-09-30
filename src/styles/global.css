@@ -2777,15 +2777,32 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-mini-player .meta .a{ color: color-mix(in srgb, var(--ink) 58%, transparent); }
 .aivy-mini-player .aivy-icon-btn{ border-radius: 50%; }
 .aivy-mini-player .aivy-icon-btn:active{ background: rgba(255,255,255,.18); }
-.aivy-mini-player .mini-progress{
-  left: 16px; right: 16px; bottom: 4px; height: 3px;
-  background: rgba(255,255,255,.18); border-radius: 3px;
+/* Bar durasi melingkar mengelilingi tepi mini player (searah jarum jam) */
+.aivy-mini-player{ padding: 8px 10px; }
+.aivy-mini-player .mini-ring{
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; overflow: hidden; z-index: 0;
 }
-.aivy-mini-player .mini-progress .fill{ background: var(--accent-strong); border-radius: 3px; box-shadow: 0 0 8px rgba(255,255,255,.55); }
-:root[data-theme="white"] .aivy-mini-player .mini-progress,
-:root[data-theme="latte"] .aivy-mini-player .mini-progress{ background: rgba(0,0,0,.12); }
-:root[data-theme="white"] .aivy-mini-player .mini-progress .fill,
-:root[data-theme="latte"] .aivy-mini-player .mini-progress .fill{ box-shadow: none; }
+.aivy-mini-player .mini-ring rect{
+  fill: none; stroke-width: 4; /* separuh terpotong tepi kartu -> 2px terlihat */
+}
+.aivy-mini-player .mini-ring .track{ stroke: rgba(255,255,255,.14); }
+.aivy-mini-player .mini-ring .fill{
+  stroke: var(--accent-strong); stroke-linecap: round;
+  stroke-dasharray: 1 1; stroke-dashoffset: 1; opacity: 0;
+  filter: drop-shadow(0 0 3px rgba(255,255,255,.65));
+  will-change: stroke-dashoffset;
+}
+.aivy-mini-player .mini-ring .run{
+  stroke: var(--accent-strong); stroke-linecap: round; opacity: .85;
+  stroke-dasharray: .16 .84; stroke-dashoffset: 0;
+  animation: aivy-ring-run 1.3s linear infinite;
+}
+@keyframes aivy-ring-run{ to{ stroke-dashoffset: -1; } }
+:root[data-theme="white"] .aivy-mini-player .mini-ring .track,
+:root[data-theme="latte"] .aivy-mini-player .mini-ring .track{ stroke: rgba(0,0,0,.10); }
+:root[data-theme="white"] .aivy-mini-player .mini-ring .fill,
+:root[data-theme="latte"] .aivy-mini-player .mini-ring .fill{ filter: none; }
 
 /* Toast & FAB ikut naik karena tab bar sekarang melayang */
 .aivy-toast-host.is-mobile{ bottom: calc(var(--tabbar-h) + var(--player-h-mobile) + var(--safe-b) + var(--lg-gap) * 2 + 18px); }
