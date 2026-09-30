@@ -2678,9 +2678,9 @@ body.aivy-artist-immersive .aivy-player{
   --dock-bottom: 10px;
   --dock-ease: cubic-bezier(.32,.72,0,1);
   --dock-dur: 420ms;
-  --lg-blur: 14px;
-  --lg-sat: 150%;
-  --lg-tint: rgba(14,14,14,.28);
+  --lg-blur: 6px;
+  --lg-sat: 140%;
+  --lg-tint: rgba(14,14,14,.16);
   --lg-rim-a: rgba(255,255,255,.55);
   --lg-rim-b: rgba(255,255,255,.05);
   --lg-rim-c: rgba(255,255,255,.24);
@@ -2700,7 +2700,7 @@ body.aivy-artist-immersive .aivy-player{
   --lg-top: inset 0 1px 0 rgba(255,255,255,.9);
 }
 /* Tier device lawas: blur kecil, tanpa saturate (satu pass filter lebih sedikit) */
-:root[data-glass="lite"]{ --lg-blur: 8px; --lg-tint: rgba(14,14,14,.42); --dock-dur: 340ms; }
+:root[data-glass="lite"]{ --lg-blur: 8px; --lg-tint: rgba(14,14,14,.40); --dock-dur: 340ms; }
 :root[data-glass="lite"][data-theme="white"], :root[data-glass="lite"][data-theme="latte"]{ --lg-tint: rgba(255,255,255,.55); }
 /* Tier sangat lemah: tanpa backdrop-filter */
 :root[data-glass="solid"]{ --lg-tint: rgba(20,20,20,.93); --dock-dur: 300ms; }
@@ -2727,7 +2727,7 @@ body.aivy-artist-immersive .aivy-player{
   left: 0; width: 100%;
   transform: translate3d(0, calc(-1 * (var(--dock-h) + var(--dock-gap))), 0);
   transition: transform var(--dock-dur) var(--dock-ease), width var(--dock-dur) var(--dock-ease);
-  animation: aivy-dock-in 320ms var(--ease) both;
+  animation: aivy-dock-in 320ms var(--ease) backwards;
 }
 @keyframes aivy-dock-in{ from{ opacity: 0; } to{ opacity: 1; } }
 /* Collapsed: [tab aktif] [mini player] [search] dalam satu baris */
@@ -2738,6 +2738,7 @@ body.aivy-artist-immersive .aivy-player{
 }
 
 /* ---------- Permukaan kaca (dipakai 3 elemen) ---------- */
+/* Struktur: [.lg-warp: backdrop blur + refraksi] [.lg-rim x2: highlight tepi] [konten] */
 .aivy-dock .aivy-tabbar,
 .aivy-dock .aivy-mini-player,
 .aivy-dock .aivy-dock-search{
@@ -2746,34 +2747,47 @@ body.aivy-artist-immersive .aivy-player{
   border: 0; border-radius: 999px;
   isolation: isolate; overflow: hidden;
   background: var(--lg-tint);
+  box-shadow: var(--lg-shadow);
+  text-shadow: 0 1px 10px rgba(0,0,0,.35);
+}
+.lg-warp{
+  position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
   -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
-  box-shadow: var(--lg-shadow), var(--lg-top);
 }
-:root[data-glass="lite"] .aivy-dock .aivy-tabbar,
-:root[data-glass="lite"] .aivy-dock .aivy-mini-player,
-:root[data-glass="lite"] .aivy-dock .aivy-dock-search{
-  backdrop-filter: blur(var(--lg-blur)); -webkit-backdrop-filter: blur(var(--lg-blur));
-  box-shadow: 0 4px 14px rgba(0,0,0,.28), var(--lg-top);
-}
-:root[data-glass="solid"] .aivy-dock .aivy-tabbar,
-:root[data-glass="solid"] .aivy-dock .aivy-mini-player,
-:root[data-glass="solid"] .aivy-dock .aivy-dock-search{
-  backdrop-filter: none; -webkit-backdrop-filter: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,.3), var(--lg-top);
-}
-/* Rim spekular: garis 1px bergradasi (terang di sudut kiri-atas & kanan-bawah) */
-.aivy-dock .aivy-tabbar::after,
-.aivy-dock .aivy-mini-player::after,
-.aivy-dock .aivy-dock-search::after{
-  content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none;
-  border-radius: inherit; padding: 1px;
-  background: linear-gradient(155deg, var(--lg-rim-a) 0%, var(--lg-rim-b) 30%, var(--lg-rim-b) 70%, var(--lg-rim-c) 100%);
+/* Refraksi (SVG displacement + chromatic aberration) — hanya tier full di Chromium, dan tidak saat animasi */
+:root[data-glass="full"][data-glass-fx="1"] .aivy-dock.lg-ready:not(.is-morphing) .aivy-tabbar .lg-warp{ filter: url(#lg-tabs); }
+:root[data-glass="full"][data-glass-fx="1"] .aivy-dock.lg-ready:not(.is-morphing) .aivy-mini-player .lg-warp{ filter: url(#lg-mini); }
+:root[data-glass="full"][data-glass-fx="1"] .aivy-dock.lg-ready:not(.is-morphing) .aivy-dock-search .lg-warp{ filter: url(#lg-search); }
+/* Rim spekular: dua lapis (screen + overlay) seperti library */
+.lg-rim{
+  position: absolute; inset: 0; z-index: 3; border-radius: inherit; pointer-events: none;
+  padding: 1.5px;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   mask-composite: exclude;
+  box-shadow: 0 0 0 .5px rgba(255,255,255,.5) inset, 0 1px 3px rgba(255,255,255,.25) inset, 0 1px 4px rgba(0,0,0,.35);
 }
+.lg-rim-screen{
+  mix-blend-mode: screen; opacity: .5;
+  background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.12) 33%, rgba(255,255,255,.4) 66%, rgba(255,255,255,0) 100%);
+}
+.lg-rim-overlay{
+  mix-blend-mode: overlay;
+  background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.32) 33%, rgba(255,255,255,.6) 66%, rgba(255,255,255,0) 100%);
+}
+/* Device lawas / non-Chromium: tanpa refraksi */
+:root[data-glass-fx="0"]{ --lg-blur: 12px; }
+:root[data-glass="lite"] .lg-warp{ backdrop-filter: blur(var(--lg-blur)); -webkit-backdrop-filter: blur(var(--lg-blur)); }
+:root[data-glass="lite"] .lg-rim, :root[data-glass="solid"] .lg-rim{ mix-blend-mode: normal; opacity: .32; }
+:root[data-glass="lite"] .aivy-dock .aivy-tabbar,
+:root[data-glass="lite"] .aivy-dock .aivy-mini-player,
+:root[data-glass="lite"] .aivy-dock .aivy-dock-search{ box-shadow: 0 4px 14px rgba(0,0,0,.28); }
+:root[data-glass="solid"] .lg-warp{ backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root[data-glass="solid"] .aivy-dock .aivy-tabbar,
+:root[data-glass="solid"] .aivy-dock .aivy-mini-player,
+:root[data-glass="solid"] .aivy-dock .aivy-dock-search{ box-shadow: 0 2px 8px rgba(0,0,0,.3); }
 
 /* ---------- Tab bar ---------- */
 .aivy-dock .aivy-tabbar{ display: flex; align-items: stretch; gap: 0; padding: 5px; }
