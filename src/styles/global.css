@@ -2665,3 +2665,138 @@ body.aivy-artist-immersive .aivy-player{
   .aivy-am-page .aivy-am-tile .tile-play,
   .aivy-am-page .aivy-am-latest .tile-play{ opacity: 1; transform: none; }
 }
+/* =====================================================================
+   LIQUID GLASS — Mini player + Tab bar (mobile)
+   Lapisan: blur+saturasi backdrop, tint tipis, highlight spekular di tepi,
+   kilau (sheen) diagonal, dan bayangan lembut. Tema terang ikut menyesuaikan.
+   ===================================================================== */
+:root{
+  --lg-tint: rgba(255,255,255,.10);
+  --lg-tint-strong: rgba(255,255,255,.16);
+  --lg-edge: rgba(255,255,255,.38);
+  --lg-edge-soft: rgba(255,255,255,.08);
+  --lg-shadow: 0 10px 30px rgba(0,0,0,.38), 0 2px 8px rgba(0,0,0,.22);
+  --lg-blur: 22px;
+  --lg-sat: 190%;
+  --lg-gap: 10px;
+}
+:root[data-theme="white"], :root[data-theme="latte"]{
+  --lg-tint: rgba(255,255,255,.42);
+  --lg-tint-strong: rgba(255,255,255,.62);
+  --lg-edge: rgba(255,255,255,.95);
+  --lg-edge-soft: rgba(0,0,0,.06);
+  --lg-shadow: 0 10px 30px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.08);
+}
+
+/* ---------- Tab bar: pil melayang ---------- */
+.aivy-tabbar{
+  left: 12px; right: 12px;
+  bottom: calc(var(--safe-b) + var(--lg-gap));
+  height: var(--tabbar-h);
+  padding: 5px; gap: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--lg-edge-soft);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.20) 0%, rgba(255,255,255,.04) 38%, rgba(255,255,255,0) 60%, rgba(255,255,255,.10) 100%),
+    var(--lg-tint);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.06);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.06);
+  box-shadow:
+    var(--lg-shadow),
+    inset 0 1px 0 var(--lg-edge),
+    inset 0 -1px 0 rgba(255,255,255,.10),
+    inset 1px 0 0 rgba(255,255,255,.14),
+    inset -1px 0 0 rgba(255,255,255,.14),
+    inset 0 0 18px rgba(255,255,255,.07);
+  transform: translateZ(0);
+  isolation: isolate;
+}
+.aivy-tab{
+  position: relative; z-index: 1;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--ink) 62%, transparent);
+  transition: color var(--dur-base) var(--ease), transform var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.aivy-tab svg{ transition: transform var(--dur-base) var(--ease); }
+.aivy-tab:active{ transform: scale(.94); }
+/* "lensa" kaca di belakang tab aktif */
+.aivy-tab::before{
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,.06) 55%, rgba(255,255,255,.14) 100%),
+    var(--lg-tint-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.55),
+    inset 0 -1px 0 rgba(255,255,255,.14),
+    0 4px 14px rgba(0,0,0,.20);
+  opacity: 0; transform: scale(.86);
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-slow) cubic-bezier(.34,1.56,.64,1);
+}
+.aivy-tab.active{ color: var(--accent-strong); }
+.aivy-tab.active::before{ opacity: 1; transform: scale(1); }
+.aivy-tab.active svg{ transform: translateY(-1px) scale(1.06); }
+:root[data-theme="white"] .aivy-tab.active,
+:root[data-theme="latte"] .aivy-tab.active{ color: #000; }
+
+/* ---------- Mini player: kartu kaca ---------- */
+.aivy-mini-player{
+  left: 12px; right: 12px;
+  bottom: calc(var(--tabbar-h) + var(--safe-b) + var(--lg-gap) * 2);
+  padding: 8px 10px 9px 8px;
+  border-radius: 24px;
+  border: 1px solid var(--lg-edge-soft);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.05) 40%, rgba(255,255,255,0) 62%, rgba(255,255,255,.10) 100%),
+    var(--lg-tint);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.06);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.06);
+  box-shadow:
+    var(--lg-shadow),
+    inset 0 1px 0 var(--lg-edge),
+    inset 0 -1px 0 rgba(255,255,255,.10),
+    inset 1px 0 0 rgba(255,255,255,.12),
+    inset -1px 0 0 rgba(255,255,255,.12),
+    inset 0 0 18px rgba(255,255,255,.06);
+  transform: translateZ(0);
+  isolation: isolate;
+  overflow: hidden;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.aivy-mini-player:active{ transform: scale(.985) translateZ(0); }
+/* kilau bergerak halus saat lagu diputar */
+.aivy-mini-player::before{
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.16) 48%, transparent 66%);
+  background-size: 220% 100%; background-position: 130% 0;
+}
+.aivy-mini-player.is-playing::before{ animation: aivy-lg-sheen 5.5s ease-in-out infinite; }
+@keyframes aivy-lg-sheen{ 0%,20%{ background-position: 130% 0; } 60%,100%{ background-position: -30% 0; } }
+.aivy-mini-cover{ border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.18); }
+.aivy-mini-cover.no-round{ border-radius: 6px; }
+.aivy-mini-player .meta .a{ color: color-mix(in srgb, var(--ink) 58%, transparent); }
+.aivy-mini-player .aivy-icon-btn{ border-radius: 50%; }
+.aivy-mini-player .aivy-icon-btn:active{ background: rgba(255,255,255,.18); }
+.aivy-mini-player .mini-progress{
+  left: 16px; right: 16px; bottom: 4px; height: 3px;
+  background: rgba(255,255,255,.18); border-radius: 3px;
+}
+.aivy-mini-player .mini-progress .fill{ background: var(--accent-strong); border-radius: 3px; box-shadow: 0 0 8px rgba(255,255,255,.55); }
+:root[data-theme="white"] .aivy-mini-player .mini-progress,
+:root[data-theme="latte"] .aivy-mini-player .mini-progress{ background: rgba(0,0,0,.12); }
+:root[data-theme="white"] .aivy-mini-player .mini-progress .fill,
+:root[data-theme="latte"] .aivy-mini-player .mini-progress .fill{ box-shadow: none; }
+
+/* Toast & FAB ikut naik karena tab bar sekarang melayang */
+.aivy-toast-host.is-mobile{ bottom: calc(var(--tabbar-h) + var(--player-h-mobile) + var(--safe-b) + var(--lg-gap) * 2 + 18px); }
+.is-mobile ~ .aivy-ai-fab, .aivy-shell.is-mobile .aivy-ai-fab,
+.is-mobile ~ .aivy-ai-fab-wrap, .aivy-shell.is-mobile .aivy-ai-fab-wrap{ bottom: calc(var(--tabbar-h) + var(--player-h-mobile) + var(--safe-b) + var(--lg-gap) * 2 + 16px); }
+.is-mobile ~ .aivy-ai-panel, .aivy-shell.is-mobile .aivy-ai-panel{ bottom: calc(var(--tabbar-h) + var(--player-h-mobile) + var(--safe-b) + var(--lg-gap) * 2 + 72px); }
+
+/* Tanpa dukungan backdrop-filter: pakai latar semi-solid */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  .aivy-tabbar, .aivy-mini-player{ background: color-mix(in srgb, var(--bg-elev-2) 92%, transparent); }
+}
+@media (prefers-reduced-motion: reduce){
+  .aivy-mini-player.is-playing::before{ animation: none; }
+}
