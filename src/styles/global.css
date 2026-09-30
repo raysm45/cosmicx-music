@@ -2774,6 +2774,8 @@ body.aivy-artist-immersive .aivy-player{
   mix-blend-mode: overlay;
   background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.32) 33%, rgba(255,255,255,.6) 66%, rgba(255,255,255,0) 100%);
 }
+/* Refraksi aktif: blur lebih tipis supaya bengkokan di tepi kelihatan (blur tebal menyamarkannya) */
+:root[data-glass="full"][data-glass-fx="1"]{ --lg-blur: 3px; }
 /* Browser non-Chromium (Safari/Firefox): kaca bening biasa tanpa refraksi */
 :root[data-glass-fx="0"]{ --lg-blur: 12px; }
 /* Liquid Glass nonaktif: blur biasa + rim polos */

@@ -15,9 +15,11 @@ export function supportsRefraction() {
 const mapCache = new Map();
 
 // R = pergeseran X, B = pergeseran Y (128 = netral). Di bezel, piksel mengambil warna dari
-// arah LUAR tepi (seperti scale negatif di library) -> tepi tampak "melengkung".
+// arah DALAM (menjauhi tepi) -> isi latar tertarik/menekuk di sekeliling tepi seperti lensa.
+// PENTING: jangan dibalik ke arah luar. Filter hanya punya isi di dalam kotak elemen, jadi
+// sampling dari luar = piksel transparan -> tepi "hilang" dan kaca tampak cuma blur/transparan.
 export function makeDisplacementMap(w, h, bezel) {
-  const key = `${w}x${h}x${bezel}`;
+  const key = `v2:${w}x${h}x${bezel}`;
   if (mapCache.has(key)) return mapCache.get(key);
   let url = "";
   try {
@@ -38,9 +40,9 @@ export function makeDisplacementMap(w, h, bezel) {
         let m = 0;
         if (d < bezel) m = Math.pow(1 - Math.max(d, 0) / bezel, 2.2);
         const k = (j * w + i) * 4;
-        img.data[k] = Math.round(127.5 + 127.5 * nx * m);
+        img.data[k] = Math.round(127.5 - 127.5 * nx * m);
         img.data[k + 1] = 128;
-        img.data[k + 2] = Math.round(127.5 + 127.5 * ny * m);
+        img.data[k + 2] = Math.round(127.5 - 127.5 * ny * m);
         img.data[k + 3] = 255;
       }
     }

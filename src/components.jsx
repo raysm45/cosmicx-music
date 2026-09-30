@@ -3105,7 +3105,7 @@ const LG_SURFACES = [
   [".aivy-mini-player", "lg-mini"],
   [".aivy-dock-search", "lg-search"],
 ];
-const LG_PX = 18;      // pergeseran maksimum di tepi (px)
+const LG_PX = 24;      // pergeseran maksimum di tepi (px)
 const LG_ABER = 0.08;  // kekuatan chromatic aberration
 
 const LiquidGlassDefs = React.memo(function LiquidGlassDefs() {
@@ -3191,7 +3191,7 @@ export function MobileDock({ onExpandPlayer }) {
       if (!el || !img) continue;
       const w = el.offsetWidth, h = el.offsetHeight;
       if (w < 8 || h < 8) continue;
-      const url = makeDisplacementMap(w, h, Math.min(22, Math.round(h * 0.4)));
+      const url = makeDisplacementMap(w, h, Math.min(26, Math.round(h * 0.45)));
       if (!url) continue;
       img.setAttribute("href", url);
       img.setAttribute("width", String(w));
