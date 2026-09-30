@@ -56,8 +56,11 @@ export function isLowEndDevice() {
   return lowEndCache;
 }
 
+import { supportsRefraction } from "./liquidGlass.js";
+
 // Tingkat efek kaca (liquid glass). Diterapkan sebagai <html data-glass="...">.
-//  full  : blur 14px + saturasi  -> device normal/kencang
+//  full  : refraksi liquid-glass (SVG displacement, Chromium) + blur tipis -> device normal/kencang
+//          (browser non-Chromium: kaca bening biasa, blur 12px)
 //  lite  : blur 8px, tanpa saturasi -> device lawas (RAM <= 4GB / core <= 4 / data saver)
 //  solid : tanpa backdrop-filter, latar semi-solid -> device sangat lemah (RAM <= 2GB)
 // Bisa dipaksa manual: setGlassTier("full" | "lite" | "solid" | "auto").
@@ -74,7 +77,9 @@ export function getGlassTier() {
 }
 export function applyGlassTier() {
   if (typeof document === "undefined") return;
-  document.documentElement.dataset.glass = getGlassTier();
+  const tier = getGlassTier();
+  document.documentElement.dataset.glass = tier;
+  document.documentElement.dataset.glassFx = tier === "full" && supportsRefraction() ? "1" : "0";
 }
 export function setGlassTier(tier) {
   try {
