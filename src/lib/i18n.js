@@ -284,6 +284,9 @@ const dict = {
     rowArtistsForYou: "Artist untuk kamu",
     rowExplore: "Jelajahi",
     exploreEnd: "Kamu udah sampai ujung jelajahan hari ini",
+    exploreTrending: "Lagi Ramai",
+    exploreFeaturedArtists: "Artist pilihan",
+    exploreDiscover: "Temukan lagu baru",
 
     searchPlaceholder: "Cari lagu atau artist, lalu tekan Enter",
     clear: "Bersihin",
@@ -717,6 +720,9 @@ const dict = {
     rowArtistsForYou: "Artists for you",
     rowExplore: "Explore",
     exploreEnd: "You've reached the end of today's exploring",
+    exploreTrending: "Trending now",
+    exploreFeaturedArtists: "Featured artists",
+    exploreDiscover: "Discover new music",
 
     searchPlaceholder: "Search for a song or artist, then press Enter",
     clear: "Clear",
