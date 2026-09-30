@@ -253,11 +253,15 @@ export function SearchPage() {
   const showBrowse = !query.trim() && !hasSearched;
   const allArtists = useMemo(() => {
     const out = [];
-    const seen = new Set();
+    const seenIds = new Set();
+    const seenNames = new Set();
     for (const a of [artistHit, ...artistHits].filter(Boolean)) {
-      const key = String(a.id || a.name || "").toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
+      const idKey = String(a.id || "").toLowerCase();
+      const nameKey = String(a.name || "").trim().toLowerCase();
+      if (!idKey && !nameKey) continue;
+      if ((idKey && seenIds.has(idKey)) || (nameKey && seenNames.has(nameKey))) continue;
+      if (idKey) seenIds.add(idKey);
+      if (nameKey) seenNames.add(nameKey);
       out.push(a);
     }
     return out;
@@ -394,26 +398,6 @@ export function SearchPage() {
             </section>
           )}
         </>
-      )}
-
-      {hasSearched && artistHit && (
-        <section className="aivy-section" style={{ marginTop: 4 }}>
-          <div className="aivy-section-head"><h2 className="aivy-section-title">{t("artistLabel")}</h2></div>
-          <div
-            className="aivy-row"
-            style={{ cursor: "pointer" }}
-            onClick={() => navigate("artist", { params: { id: artistHit.id } })}
-          >
-            <SmartCover
-              src={artistHit.image} seed={"artist" + artistHit.id + artistHit.name} size={48} radius={999}
-              style={{ width: 48, height: 48, borderRadius: "50%" }}
-            />
-            <div className="meta">
-              <span className="t">{artistHit.name}</span>
-              <span className="a">{t("artistLabel")}</span>
-            </div>
-          </div>
-        </section>
       )}
 
       {hasSearched && (
