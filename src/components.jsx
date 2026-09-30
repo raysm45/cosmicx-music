@@ -2052,7 +2052,6 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
           <button className="aivy-icon-btn sm" onClick={() => copy(r.value)} aria-label={t("copiedToClipboard")}><Copy size={15} /></button>
         </div>
       ))}
-      {!isPreviewClip && <div className="aivy-detailsheet-audio-ceiling">{t("detailAudioCeiling")}</div>}
     </div>
   );
 }

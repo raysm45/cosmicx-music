@@ -30,6 +30,37 @@ function useDiscoverRow(seed, limit = 12, type = null, enabled = true) {
   return items;
 }
 
+// Jumlah item rekomendasi album & artist di Home dibuat tetap (tidak naik-turun).
+const RECO_COUNT = 9;
+
+// Gabungkan daftar utama + cadangan, buang duplikat, potong tepat n item.
+function fillTo(primary, extra, n = RECO_COUNT) {
+  const seen = new Set();
+  const out = [];
+  for (const it of [...(primary || []), ...(extra || [])]) {
+    if (!it || seen.has(it.id)) continue;
+    seen.add(it.id);
+    out.push(it);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+// Ambil rekomendasi "for you" khusus satu tipe (album / artist) supaya jumlahnya pasti.
+function useForYouTyped(type, count, nonce) {
+  const { authUser } = useUI();
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    Api.forYou(`home-${type}-${nonce}`, 0, count, type)
+      .then((res) => { if (alive) setItems(res.items || []); })
+      .catch(() => { if (alive) setItems([]); });
+    return () => { alive = false; };
+  }, [authUser, type, count, nonce]);
+  return items;
+}
+
 function SkeletonCard() {
   return (
     <div className="aivy-card" style={{ pointerEvents: "none" }}>
@@ -141,20 +172,36 @@ export function HomePage() {
 
   const [trendingSeed, setTrendingSeed] = useState("trending-" + new Date().toDateString());
   const [albumSeed, setAlbumSeed] = useState("fresh-" + Math.floor(Date.now() / 3600000));
+  const [recoNonce, setRecoNonce] = useState(0);
+  const [albumNonce, setAlbumNonce] = useState(0);
   const trending = useDiscoverRow(trendingSeed, 12, "track");
   const fresh = useDiscoverRow(albumSeed, 12, "album");
   const moodCalm = useDiscoverRow("mood-santai", 12, "artist");
   const forYou = useForYouRow(24);
+  const forYouAlbumsRaw = useForYouTyped("album", RECO_COUNT, `${recoNonce}-${albumNonce}`);
+  const forYouArtistsRaw = useForYouTyped("artist", RECO_COUNT, recoNonce);
   const forYouTracks = useMemo(
     () => filterExplicit((forYou.items || []).filter((i) => i.type === "track"), settings).slice(0, 12),
     [forYou.items, settings]
   );
-  const forYouAlbums = useMemo(() => (forYou.items || []).filter((i) => i.type === "album").slice(0, 14), [forYou.items]);
-  const forYouArtists = useMemo(() => (forYou.items || []).filter((i) => i.type === "artist").slice(0, 14), [forYou.items]);
 
   const trendingTracks = useMemo(() => filterExplicit(trending || [], settings).slice(0, 12), [trending, settings]);
-  const freshAlbums = useMemo(() => (fresh || []).slice(0, 12), [fresh]);
-  const artists = useMemo(() => (moodCalm || []).slice(0, 12), [moodCalm]);
+
+  // Album & artist: selalu tepat RECO_COUNT (9). Kalau hasil personal kurang, ditambal dari discover.
+  const recoAlbums = useMemo(() => {
+    if (forYouAlbumsRaw === null) return null;
+    const own = fillTo(forYouAlbumsRaw, null);
+    if (own.length >= RECO_COUNT) return own;
+    if (fresh === null) return null;
+    return fillTo(own, fresh);
+  }, [forYouAlbumsRaw, fresh]);
+  const recoArtists = useMemo(() => {
+    if (forYouArtistsRaw === null) return null;
+    const own = fillTo(forYouArtistsRaw, null);
+    if (own.length >= RECO_COUNT) return own;
+    if (moodCalm === null) return null;
+    return fillTo(own, moodCalm);
+  }, [forYouArtistsRaw, moodCalm]);
 
   const bgCover = currentTrack?.cover || (!nothingPlayed && playedHistory[0]?.cover) || null;
 
@@ -199,9 +246,6 @@ export function HomePage() {
 
   const recoTracks = forYouTracks.length ? forYouTracks : trendingTracks;
   const recoLoading = forYou.items === null && trending === null;
-  const basedOnLabel = forYou.personalized && forYou.basedOn.length
-    ? `${t("basedOnListening")}: ${forYou.basedOn.slice(0, 3).join(", ")}`
-    : null;
 
   const startRadio = () => {
     if (!recoTracks.length) return;
@@ -235,14 +279,13 @@ export function HomePage() {
               </div>
               <button
                 className="aivy-icon-btn bare"
-                onClick={() => { forYou.refresh(); setTrendingSeed("trending-" + Date.now()); }}
+                onClick={() => { forYou.refresh(); setRecoNonce((n) => n + 1); setTrendingSeed("trending-" + Date.now()); }}
                 aria-label="Refresh"
                 title="Refresh"
               >
                 <RefreshCw size={15} />
               </button>
             </div>
-            {basedOnLabel && <div className="aivy-feed-basis" style={{ margin: "-4px 0 10px" }}>{basedOnLabel}</div>}
             <div className="aivy-songlist-grid">
               {recoLoading
                 ? <SkeletonSongGrid count={6} />
@@ -253,10 +296,11 @@ export function HomePage() {
 
         {settings.showRecommendedAlbums !== false && (
           <Row
+            scroll
             title={t("recoAlbums")}
-            items={forYouAlbums.length ? forYouAlbums : (fresh === null ? null : freshAlbums)}
+            items={recoAlbums}
             action={
-              <button className="aivy-icon-btn bare" onClick={() => setAlbumSeed("fresh-" + Date.now())} aria-label="Refresh" title="Refresh">
+              <button className="aivy-icon-btn bare" onClick={() => { setAlbumSeed("fresh-" + Date.now()); setAlbumNonce((n) => n + 1); }} aria-label="Refresh" title="Refresh">
                 <RefreshCw size={15} />
               </button>
             }
@@ -265,7 +309,7 @@ export function HomePage() {
         )}
 
         {settings.showRecommendedArtists !== false && (
-          <Row title={t("recoArtists")} items={forYouArtists.length ? forYouArtists : (moodCalm === null ? null : artists)} render={(a) => <CardArtist key={a.id} artist={a} />} />
+          <Row scroll title={t("recoArtists")} items={recoArtists} render={(a) => <CardArtist key={a.id} artist={a} />} />
         )}
 
         {settings.showJumpBackIn !== false && (playedHistory === null || playedHistory.length > 0) ? (
