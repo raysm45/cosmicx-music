@@ -19,7 +19,7 @@ import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, prefetchAnim
 import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
 import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
-import { makeDisplacementMap } from "./lib/liquidGlass.js";
+import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
 function usePanelResize({ width, setWidth, min, max, side }) {
   const draggingRef = useRef(false);
@@ -3175,8 +3175,10 @@ export function MobileDock({ onExpandPlayer }) {
   const hasTrack = !!currentTrack;
   const [collapsed, setDock] = useDockCollapse(name, hasTrack);
   const dockRef = useRef(null);
-  const refract = typeof document !== "undefined" && document.documentElement.dataset.glassFx === "1";
+  const refract = settings?.liquidGlass !== false && supportsRefraction();
   const [lgReady, setLgReady] = useState(false);
+  // Liquid Glass dimatikan -> reset; peta refraksi dibangun ulang saat dinyalakan lagi
+  useEffect(() => { if (!refract) setLgReady(false); }, [refract]);
 
   // Bangun peta refraksi sesuai ukuran elemen saat ini (hanya saat diam, bukan tiap frame)
   const regen = useCallback(() => {

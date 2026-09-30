@@ -58,33 +58,26 @@ export function isLowEndDevice() {
 
 import { supportsRefraction } from "./liquidGlass.js";
 
-// Tingkat efek kaca (liquid glass). Diterapkan sebagai <html data-glass="...">.
-//  full  : refraksi liquid-glass (SVG displacement, Chromium) + blur tipis -> device normal/kencang
-//          (browser non-Chromium: kaca bening biasa, blur 12px)
-//  lite  : blur 8px, tanpa saturasi -> device lawas (RAM <= 4GB / core <= 4 / data saver)
-//  solid : tanpa backdrop-filter, latar semi-solid -> device sangat lemah (RAM <= 2GB)
-// Bisa dipaksa manual: setGlassTier("full" | "lite" | "solid" | "auto").
-const GLASS_KEY = "aivy-glass";
-export function getGlassTier() {
+// Liquid glass (dock mobile) dikontrol lewat pengaturan "Liquid Glass" (settings.liquidGlass),
+// bukan lagi otomatis per-device. Diterapkan sebagai <html data-glass="...">.
+//  full : aktif    -> refraksi liquid-glass (SVG displacement, Chromium) + blur tipis
+//                     (browser non-Chromium: kaca bening biasa)
+//  blur : nonaktif -> blur biasa, tanpa refraksi
+const SETTINGS_CACHE_KEY = "aivy_settings_cache_v1"; // sama dengan context.jsx
+
+// Baca setting dari cache lokal sebelum React mount, supaya tidak ada kedip saat pertama load.
+export function readCachedLiquidGlass() {
   try {
-    const saved = localStorage.getItem(GLASS_KEY);
-    if (saved === "full" || saved === "lite" || saved === "solid") return saved;
+    const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
+    if (raw) return JSON.parse(raw)?.liquidGlass !== false;
   } catch {}
-  if (typeof navigator === "undefined") return "full";
-  const mem = navigator.deviceMemory;
-  if (mem && mem <= 2) return "solid";
-  return isLowEndDevice() ? "lite" : "full";
+  return true;
 }
-export function applyGlassTier() {
+
+export function applyLiquidGlass(enabled) {
   if (typeof document === "undefined") return;
-  const tier = getGlassTier();
-  document.documentElement.dataset.glass = tier;
-  document.documentElement.dataset.glassFx = tier === "full" && supportsRefraction() ? "1" : "0";
-}
-export function setGlassTier(tier) {
-  try {
-    if (tier === "auto") localStorage.removeItem(GLASS_KEY);
-    else localStorage.setItem(GLASS_KEY, tier);
-  } catch {}
-  applyGlassTier();
+  const on = enabled !== false;
+  const root = document.documentElement;
+  root.dataset.glass = on ? "full" : "blur";
+  root.dataset.glassFx = on && supportsRefraction() ? "1" : "0";
 }

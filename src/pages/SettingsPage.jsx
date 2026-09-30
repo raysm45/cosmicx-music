@@ -423,6 +423,18 @@ export function SettingsPage() {
         />
       </SettingSection>
 
+      <SettingSection title={tt("Efek Kaca", "Glass Effect")}>
+        <ToggleRow
+          label="Liquid Glass"
+          hint={tt(
+            "Aktif: dock bawah memakai kaca dengan efek refraksi (tepinya membelokkan latar). Nonaktif: blur biasa. Refraksi hanya tampil di Chrome/Edge/Android; browser lain tetap memakai kaca bening. Kalau terasa berat, matikan.",
+            "On: the bottom dock uses glass with a refraction effect (edges bend the background). Off: plain blur. Refraction only shows in Chrome/Edge/Android; other browsers use clear glass. Turn it off if it feels slow."
+          )}
+          checked={settings.liquidGlass !== false}
+          onChange={set("liquidGlass")}
+        />
+      </SettingSection>
+
       <SettingSection title={tt("Tampilan Pemutar", "Player Look")}>
         <ToggleRow label={tt("Seekbar waveform", "Waveform Seekbar")} hint={tt("Tampilkan bentuk gelombang di progress bar (pola bentuk-tetap per lagu, bukan hasil decode audio asli)", "Show a waveform shape on the progress bar (a per-track fixed pattern, not decoded from the actual audio)")} checked={!!settings.waveformSeekbar} onChange={set("waveformSeekbar")} />
         <ToggleRow label={tt("Background sampul album", "Album Cover Background")} hint={tt("Pakai sampul sebagai background blur di layar penuh", "Use the album cover as a blurred background on the fullscreen player")} checked={settings.coverBackground !== false} onChange={set("coverBackground")} />

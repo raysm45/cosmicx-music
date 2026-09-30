@@ -7,6 +7,7 @@ import { setPreferredAudioFormat, getPreferredAudioFormat } from "./lib/audioFor
 import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
 import { makeT } from "./lib/i18n.js";
 import { useDiscordActivity } from "./lib/discordActivity.js";
+import { applyLiquidGlass } from "./lib/perf.js";
 
 export const EQ_BANDS_HZ = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 export const EQ_PRESETS = {
@@ -120,6 +121,7 @@ const DEFAULT_SETTINGS = {
   artistBanners: true,
   reducedMotion: false,
   highContrast: false,
+  liquidGlass: true,
 
   waveformSeekbar: false,
   coverBackground: true,
@@ -250,6 +252,9 @@ export function UIProvider({ children }) {
   useEffect(() => {
     document.documentElement.dataset.contrast = settings.highContrast ? "high" : "normal";
   }, [settings.highContrast]);
+  useEffect(() => {
+    applyLiquidGlass(settings.liquidGlass);
+  }, [settings.liquidGlass]);
 
   // Dipakai lib/api.js pas bikin tiket stream (aac / opus / flac).
   useEffect(() => {

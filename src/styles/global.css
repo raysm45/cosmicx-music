@@ -2670,7 +2670,7 @@ body.aivy-artist-immersive .aivy-player{
    Kaca yang BENING: tint tipis (bukan putih susu), blur kecil, rim spekular
    tipis dari gradient-mask, tanpa glow/inset putih tebal.
    Animasi collapse: hanya transform + opacity (+ width di 2 elemen kecil ber-contain).
-   Tier performa lewat <html data-glass="full|lite|solid"> (lihat lib/perf.js).
+   Mode lewat <html data-glass="full|blur"> (setting "Liquid Glass", lihat lib/perf.js).
    ===================================================================== */
 :root{
   --dock-h: 58px;
@@ -2699,12 +2699,9 @@ body.aivy-artist-immersive .aivy-player{
   --lg-shadow: 0 8px 24px rgba(0,0,0,.14);
   --lg-top: inset 0 1px 0 rgba(255,255,255,.9);
 }
-/* Tier device lawas: blur kecil, tanpa saturate (satu pass filter lebih sedikit) */
-:root[data-glass="lite"]{ --lg-blur: 8px; --lg-tint: rgba(14,14,14,.40); --dock-dur: 340ms; }
-:root[data-glass="lite"][data-theme="white"], :root[data-glass="lite"][data-theme="latte"]{ --lg-tint: rgba(255,255,255,.55); }
-/* Tier sangat lemah: tanpa backdrop-filter */
-:root[data-glass="solid"]{ --lg-tint: rgba(20,20,20,.93); --dock-dur: 300ms; }
-:root[data-glass="solid"][data-theme="white"], :root[data-glass="solid"][data-theme="latte"]{ --lg-tint: rgba(250,250,250,.94); }
+/* Liquid Glass nonaktif: blur biasa (tanpa refraksi & tanpa saturate), tint sedikit lebih pekat agar teks tetap terbaca */
+:root[data-glass="blur"]{ --lg-blur: 12px; --lg-tint: rgba(14,14,14,.40); }
+:root[data-glass="blur"][data-theme="white"], :root[data-glass="blur"][data-theme="latte"]{ --lg-tint: rgba(255,255,255,.55); }
 
 /* ---------- Kerangka dock ---------- */
 .aivy-dock{
@@ -2777,17 +2774,14 @@ body.aivy-artist-immersive .aivy-player{
   mix-blend-mode: overlay;
   background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.32) 33%, rgba(255,255,255,.6) 66%, rgba(255,255,255,0) 100%);
 }
-/* Device lawas / non-Chromium: tanpa refraksi */
+/* Browser non-Chromium (Safari/Firefox): kaca bening biasa tanpa refraksi */
 :root[data-glass-fx="0"]{ --lg-blur: 12px; }
-:root[data-glass="lite"] .lg-warp{ backdrop-filter: blur(var(--lg-blur)); -webkit-backdrop-filter: blur(var(--lg-blur)); }
-:root[data-glass="lite"] .lg-rim, :root[data-glass="solid"] .lg-rim{ mix-blend-mode: normal; opacity: .32; }
-:root[data-glass="lite"] .aivy-dock .aivy-tabbar,
-:root[data-glass="lite"] .aivy-dock .aivy-mini-player,
-:root[data-glass="lite"] .aivy-dock .aivy-dock-search{ box-shadow: 0 4px 14px rgba(0,0,0,.28); }
-:root[data-glass="solid"] .lg-warp{ backdrop-filter: none; -webkit-backdrop-filter: none; }
-:root[data-glass="solid"] .aivy-dock .aivy-tabbar,
-:root[data-glass="solid"] .aivy-dock .aivy-mini-player,
-:root[data-glass="solid"] .aivy-dock .aivy-dock-search{ box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+/* Liquid Glass nonaktif: blur biasa + rim polos */
+:root[data-glass="blur"] .lg-warp{ backdrop-filter: blur(var(--lg-blur)); -webkit-backdrop-filter: blur(var(--lg-blur)); }
+:root[data-glass="blur"] .lg-rim{ mix-blend-mode: normal; opacity: .32; }
+:root[data-glass="blur"] .aivy-dock .aivy-tabbar,
+:root[data-glass="blur"] .aivy-dock .aivy-mini-player,
+:root[data-glass="blur"] .aivy-dock .aivy-dock-search{ box-shadow: 0 4px 14px rgba(0,0,0,.28); }
 
 /* ---------- Tab bar ---------- */
 .aivy-dock .aivy-tabbar{ display: flex; align-items: stretch; gap: 0; padding: 5px; }
@@ -2875,7 +2869,6 @@ body.aivy-artist-immersive .aivy-player{
 @keyframes aivy-ring-run{ to{ stroke-dashoffset: -1; } }
 :root[data-theme="white"] .aivy-mini-player .mini-ring .track,
 :root[data-theme="latte"] .aivy-mini-player .mini-ring .track{ stroke: rgba(0,0,0,.10); }
-:root[data-glass="solid"] .aivy-mini-player .mini-ring .run{ animation-duration: 2s; }
 
 /* Toast, FAB & panel AI ikut posisi dock (tinggi dock saat expanded) */
 :root{ --dock-total: calc(var(--dock-h) * 2 + var(--dock-gap) + var(--dock-bottom) + var(--safe-b)); }
