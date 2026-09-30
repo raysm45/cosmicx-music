@@ -19,6 +19,7 @@ import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, prefetchAnim
 import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
 import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
+import { makeDisplacementMap } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
 function usePanelResize({ width, setWidth, min, max, side }) {
   const draggingRef = useRef(false);
@@ -1054,6 +1055,7 @@ export function MiniPlayer({ onExpand }) {
       className={`aivy-mini-player ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleExpand} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
       onPointerDown={swipe.onPointerDown} onPointerMove={swipe.onPointerMove} onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
     >
+      <GlassLayers />
       <span className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
         <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={40} radius={settings.noRoundCover ? 0 : 6} />
       </span>
@@ -3086,6 +3088,49 @@ export function Sidebar() {
   );
 }
 
+// ---- Liquid glass (gaya rdev/liquid-glass-react) ----
+// Tiap permukaan kaca = warp (backdrop blur + refraksi) + 2 lapis rim spekular.
+function GlassLayers() {
+  return (
+    <>
+      <span className="lg-warp" aria-hidden="true" />
+      <span className="lg-rim lg-rim-screen" aria-hidden="true" />
+      <span className="lg-rim lg-rim-overlay" aria-hidden="true" />
+    </>
+  );
+}
+
+const LG_SURFACES = [
+  [".aivy-tabbar", "lg-tabs"],
+  [".aivy-mini-player", "lg-mini"],
+  [".aivy-dock-search", "lg-search"],
+];
+const LG_PX = 18;      // pergeseran maksimum di tepi (px)
+const LG_ABER = 0.08;  // kekuatan chromatic aberration
+
+const LiquidGlassDefs = React.memo(function LiquidGlassDefs() {
+  const S = LG_PX * 2;
+  return (
+    <svg width="0" height="0" style={{ position: "absolute", pointerEvents: "none" }} aria-hidden="true" focusable="false">
+      <defs>
+        {LG_SURFACES.map(([, id]) => (
+          <filter key={id} id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+            <feImage x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map" />
+            <feDisplacementMap in="SourceGraphic" in2="map" scale={S} xChannelSelector="R" yChannelSelector="B" result="dr" />
+            <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
+            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="dg" />
+            <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
+            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - 2 * LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="db" />
+            <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
+            <feBlend in="cg" in2="cb" mode="screen" result="gb" />
+            <feBlend in="cr" in2="gb" mode="screen" />
+          </filter>
+        ))}
+      </defs>
+    </svg>
+  );
+});
+
 // Dock collapse: scroll turun -> tab bar mengecil jadi lingkaran & mini player turun ke baris yang sama.
 // Tidak ada setState per frame: listener passive + rAF, state cuma berubah saat melewati ambang (histeresis).
 function useDockCollapse(routeName, enabled) {
@@ -3129,16 +3174,53 @@ export function MobileDock({ onExpandPlayer }) {
   const { currentTrack } = usePlayer();
   const hasTrack = !!currentTrack;
   const [collapsed, setDock] = useDockCollapse(name, hasTrack);
+  const dockRef = useRef(null);
+  const refract = typeof document !== "undefined" && document.documentElement.dataset.glassFx === "1";
+  const [lgReady, setLgReady] = useState(false);
 
-  // will-change hanya aktif selama animasi (hemat memori GPU di device lawas)
+  // Bangun peta refraksi sesuai ukuran elemen saat ini (hanya saat diam, bukan tiap frame)
+  const regen = useCallback(() => {
+    const dock = dockRef.current;
+    if (!dock || !refract) return;
+    let ok = false;
+    for (const [sel, id] of LG_SURFACES) {
+      const el = dock.querySelector(sel);
+      const img = dock.querySelector(`#${id} feImage`);
+      if (!el || !img) continue;
+      const w = el.offsetWidth, h = el.offsetHeight;
+      if (w < 8 || h < 8) continue;
+      const url = makeDisplacementMap(w, h, Math.min(22, Math.round(h * 0.4)));
+      if (!url) continue;
+      img.setAttribute("href", url);
+      img.setAttribute("width", String(w));
+      img.setAttribute("height", String(h));
+      ok = true;
+    }
+    if (ok) setLgReady(true);
+  }, [refract]);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(regen);
+    return () => cancelAnimationFrame(id);
+  }, [regen, hasTrack]);
+  useEffect(() => {
+    let tm;
+    const on = () => { clearTimeout(tm); tm = setTimeout(regen, 160); };
+    window.addEventListener("resize", on);
+    return () => { clearTimeout(tm); window.removeEventListener("resize", on); };
+  }, [regen]);
+
+  // Selama animasi collapse: refraksi dimatikan sementara (filter SVG paling mahal), will-change aktif.
+  // Setelah selesai: peta dibuat ulang untuk ukuran baru, refraksi menyala lagi.
   const [morphing, setMorphing] = useState(false);
   const firstRun = useRef(true);
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return undefined; }
     setMorphing(true);
-    const id = setTimeout(() => setMorphing(false), 520);
-    return () => clearTimeout(id);
-  }, [collapsed]);
+    let raf = 0;
+    const id = setTimeout(() => { regen(); raf = requestAnimationFrame(() => setMorphing(false)); }, 470);
+    return () => { clearTimeout(id); if (raf) cancelAnimationFrame(raf); };
+  }, [collapsed, regen]);
 
   const items = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
   const searchItem = items.find((i) => i.route === "search");
@@ -3156,14 +3238,17 @@ export function MobileDock({ onExpandPlayer }) {
 
   return (
     <div
-      className={`aivy-dock ${collapsed ? "is-collapsed" : ""} ${morphing ? "is-morphing" : ""}`}
+      ref={dockRef}
+      className={`aivy-dock ${collapsed ? "is-collapsed" : ""} ${morphing ? "is-morphing" : ""} ${refract && lgReady ? "lg-ready" : ""}`}
       style={{ "--dock-search": searchItem ? 1 : 0 }}
     >
+      {refract && <LiquidGlassDefs />}
       {hasTrack && (
         <div className="aivy-dock-slot slot-mini"><MiniPlayer onExpand={onExpandPlayer} /></div>
       )}
       <div className="aivy-dock-slot slot-tabs">
         <nav className="aivy-tabbar" onClickCapture={onNavClickCapture}>
+          <GlassLayers />
           {tabItems.map(({ route, labelKey, icon: Icon }) => (
             <Link
               key={route} to={route}
@@ -3177,6 +3262,7 @@ export function MobileDock({ onExpandPlayer }) {
       {searchItem && (
         <div className="aivy-dock-slot slot-search">
           <Link to="search" className={`aivy-dock-search ${name === "search" ? "active" : ""}`} aria-label={t(searchItem.labelKey)}>
+            <GlassLayers />
             <SearchIcon size={22} />
           </Link>
         </div>
