@@ -11,7 +11,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import {
-  usePlayer, useUI,
+  usePlayer, usePlayerTime, useUI,
   SIDEBAR_MIN_W, SIDEBAR_MAX_W, RIGHTPANEL_MIN_W, RIGHTPANEL_MAX_W,
 } from "./context.jsx";
 import { useRouter, Link } from "./router.jsx";
@@ -255,7 +255,8 @@ export function VolumeControl({ showEndIcon = false }) {
 }
 
 function useScrubberBinding() {
-  const { currentTime, duration, seekRatio, registerProgressEl } = usePlayer();
+  const { duration, seekRatio, registerProgressEl } = usePlayer();
+  const currentTime = usePlayerTime();
   const fillCleanupRef = useRef(null);
   const thumbCleanupRef = useRef(null);
   const registerFill = useCallback((el) => {
@@ -554,7 +555,7 @@ function EqBars({ playing }) {
   );
 }
 
-export function CardTrack({ track, list }) {
+function CardTrackBase({ track, list }) {
   const { currentTrack, isPlaying, togglePlay, playSingle, playList } = usePlayer();
   const { openContextMenu } = useUI();
   const isCurrent = currentTrack && currentTrack.id === track.id;
@@ -579,6 +580,8 @@ export function CardTrack({ track, list }) {
     </div>
   );
 }
+
+export const CardTrack = React.memo(CardTrackBase);
 
 export function shuffleArray(arr) {
   const out = [...arr];
@@ -710,7 +713,7 @@ export function MarqueeText({ text, className = "", as: Tag = "span", prefix = n
   );
 }
 
-export function CardAlbum({ album }) {
+function CardAlbumBase({ album }) {
   const { navigate } = useRouter();
   const { playList } = usePlayer();
   const { settings } = useUI();
@@ -733,7 +736,9 @@ export function CardAlbum({ album }) {
   );
 }
 
-export function CardArtist({ artist }) {
+export const CardAlbum = React.memo(CardAlbumBase);
+
+function CardArtistBase({ artist }) {
   const { navigate } = useRouter();
   const { t, settings } = useUI();
   const compact = !!settings.compactArtists;
@@ -761,6 +766,8 @@ export function CardArtist({ artist }) {
   );
 }
 
+export const CardArtist = React.memo(CardArtistBase);
+
 /**
  * Rail horizontal dengan tombol panah yang muncul saat kursor hover.
  * Menggantikan scroll geser manual: konten digeser per "halaman" penuh.
@@ -768,6 +775,9 @@ export function CardArtist({ artist }) {
 export function HoverRail({ children, className = "", step = 0.86 }) {
   const ref = useRef(null);
   const [edge, setEdge] = useState({ start: true, end: true });
+  // pakai jumlah child (bukan `children` — array baru tiap render) supaya listener/observer
+  // tidak dipasang ulang terus-menerus.
+  const childCount = React.Children.count(children);
 
   const measure = useCallback(() => {
     const el = ref.current;
@@ -784,7 +794,7 @@ export function HoverRail({ children, className = "", step = 0.86 }) {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => { el.removeEventListener("scroll", measure); ro.disconnect(); };
-  }, [measure, children]);
+  }, [measure, childCount]);
 
   const scrollBy = (dir) => {
     const el = ref.current;
@@ -1458,9 +1468,10 @@ const NPX_COVER_FILL_STYLE = { width: "100%", height: "100%" };
 
 export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const {
-    currentTrack, currentTime: playerTime, seekTo, isPreviewClip, audioFormat,
+    currentTrack, seekTo, isPreviewClip, audioFormat,
     liked, toggleLike, loadingAudio, currentTrackHasLyrics, isPlaying, togglePlay, next, prev,
   } = usePlayer();
+  const playerTime = usePlayerTime();
   const { navigate } = useRouter();
   const { t, settings, lyricsOpen, toggleLyrics, pushToast } = useUI();
   const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
@@ -3564,8 +3575,9 @@ function useIsMobile(breakpoint = 860) {
 export function LyricsOverlay() {
   const { lyricsOpen, closeLyrics, pushToast, t, openMobileQueue, openContextMenu, settings } = useUI();
   const {
-    currentTrack, currentTime, seekTo, isPreviewClip, liked, toggleLike, upNext, duration,
+    currentTrack, seekTo, isPreviewClip, liked, toggleLike, upNext, duration,
   } = usePlayer();
+  const currentTime = usePlayerTime();
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const [fontSize, setFontSize] = useState("md");
   const [shareOpen, setShareOpen] = useState(false);

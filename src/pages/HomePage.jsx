@@ -60,21 +60,26 @@ function SkeletonSongGrid({ count = 6 }) {
   return <>{Array.from({ length: count }).map((_, i) => <SkeletonSongRow key={i} />)}</>;
 }
 
-function Row({ title, items, render, scroll = false, action = null, skeleton = 8 }) {
-  const Wrap = ({ children }) => (scroll
+// PENTING: RowWrap harus didefinisikan di level modul (identitas komponen stabil).
+// Dulu `Wrap` dibuat di dalam Row, jadi tiap render React menganggapnya komponen baru
+// dan MEMBUANG + MEMASANG ULANG semua card di dalamnya (penyebab home ngadat).
+function RowWrap({ scroll, children }) {
+  return scroll
     ? <HoverRail>{children}</HoverRail>
-    : <div className="aivy-grid">{children}</div>);
+    : <div className="aivy-grid">{children}</div>;
+}
 
+function Row({ title, items, render, scroll = false, action = null, skeleton = 8 }) {
   if (items === null) return (
     <section className="aivy-section"><div className="aivy-section-head"><h2 className="aivy-section-title">{title}</h2>{action}</div>
-      <Wrap><SkeletonCardGrid count={scroll ? 6 : skeleton} /></Wrap>
+      <RowWrap scroll={scroll}><SkeletonCardGrid count={scroll ? 6 : skeleton} /></RowWrap>
     </section>
   );
   if (!items.length) return null;
   return (
     <section className="aivy-section">
       <div className="aivy-section-head"><h2 className="aivy-section-title">{title}</h2>{action}</div>
-      <Wrap>{items.map(render)}</Wrap>
+      <RowWrap scroll={scroll}>{items.map(render)}</RowWrap>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import React, {
+import React, { useSyncExternalStore,
   createContext, useContext, useState, useEffect, useRef, useMemo, useCallback,
 } from "react";
 import { io } from "socket.io-client";
@@ -41,6 +41,26 @@ const GOOGLE_FONT_QUERY = {
   montserrat: "Montserrat:wght@400;500;600;700",
   poppins: "Poppins:wght@400;500;600;700",
 };
+
+// ---- Waktu putar (currentTime) disimpan di store terpisah, BUKAN di state PlayerProvider. ----
+// Dulu setCurrentTime dipanggil tiap `timeupdate` (~4x/detik) sehingga PlayerProvider re-render
+// dan SEMUA konsumen usePlayer() (semua card di Home, dll) ikut re-render terus selama lagu main.
+// Sekarang hanya komponen yang memang butuh waktu (progress/lirik) yang subscribe lewat usePlayerTime().
+const playbackTimeStore = { value: 0, subs: new Set() };
+function setPlaybackTime(v) {
+  const next = typeof v === "number" && isFinite(v) ? v : 0;
+  if (playbackTimeStore.value === next) return;
+  playbackTimeStore.value = next;
+  playbackTimeStore.subs.forEach((fn) => fn());
+}
+function subscribePlaybackTime(fn) {
+  playbackTimeStore.subs.add(fn);
+  return () => playbackTimeStore.subs.delete(fn);
+}
+const getPlaybackTime = () => playbackTimeStore.value;
+export function usePlayerTime() {
+  return useSyncExternalStore(subscribePlaybackTime, getPlaybackTime, getPlaybackTime);
+}
 
 const UICtx = createContext(null);
 export function useUI() { return useContext(UICtx); }
@@ -485,7 +505,7 @@ export function PlayerProvider({ children }) {
   const [order, setOrder] = useState([]);
   const [posInOrder, setPosInOrder] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const setCurrentTime = setPlaybackTime; // lihat playbackTimeStore di atas
   const [clipDuration, setClipDuration] = useState(0);
   const [isPreviewClip, setIsPreviewClip] = useState(true);
   const [audioFormat, setAudioFormat] = useState(null);
@@ -1718,7 +1738,7 @@ export function PlayerProvider({ children }) {
   const value = {
     queueList, order, posInOrder, currentTrack, upNext, history,
     currentTrackHasLyrics, playSource,
-    isPlaying, currentTime, duration: clipDuration, isPreviewClip, audioFormat, loadingAudio,
+    isPlaying, duration: clipDuration, isPreviewClip, audioFormat, loadingAudio,
     volume, muted, shuffle, repeat, liked, playlists,
     playList, togglePlay, next, prev, seekRatio, seekTo, toggleShuffle, cycleRepeat,
     setShuffle,
