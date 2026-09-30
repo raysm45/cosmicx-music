@@ -31,10 +31,8 @@ function useDiscoverRow(seed, limit = 12, type = null, enabled = true) {
   return items;
 }
 
-// Jumlah item rekomendasi album & artist di Home dibuat tetap (tidak naik-turun).
 const RECO_COUNT = 9;
 
-// Gabungkan daftar utama + cadangan, buang duplikat, potong tepat n item.
 function fillTo(primary, extra, n = RECO_COUNT) {
   const seen = new Set();
   const out = [];
@@ -46,8 +44,6 @@ function fillTo(primary, extra, n = RECO_COUNT) {
   }
   return out;
 }
-
-// Ambil rekomendasi "for you" khusus satu tipe (album / artist) supaya jumlahnya pasti.
 function useForYouTyped(type, count, nonce) {
   const { authUser } = useUI();
   const [items, setItems] = useState(null);
@@ -91,10 +87,6 @@ function SkeletonSongRow() {
 function SkeletonSongGrid({ count = 6 }) {
   return <>{Array.from({ length: count }).map((_, i) => <SkeletonSongRow key={i} />)}</>;
 }
-
-// PENTING: RowWrap harus didefinisikan di level modul (identitas komponen stabil).
-// Dulu `Wrap` dibuat di dalam Row, jadi tiap render React menganggapnya komponen baru
-// dan MEMBUANG + MEMASANG ULANG semua card di dalamnya (penyebab home ngadat).
 function RowWrap({ scroll, children }) {
   return scroll
     ? <HoverRail>{children}</HoverRail>
@@ -187,8 +179,6 @@ export function HomePage() {
   );
 
   const trendingTracks = useMemo(() => filterExplicit(trending || [], settings).slice(0, 12), [trending, settings]);
-
-  // Album & artist: selalu tepat RECO_COUNT (9). Kalau hasil personal kurang, ditambal dari discover.
   const recoAlbums = useMemo(() => {
     if (forYouAlbumsRaw === null) return null;
     const own = fillTo(forYouAlbumsRaw, null);

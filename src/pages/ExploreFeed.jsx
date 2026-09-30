@@ -7,15 +7,6 @@ import { useTrackMenuItems, HoverRail } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
 import { uid, formatDuration } from "../lib/utils.js";
 
-/* ------------------------------------------------------------------ *
- *  Explore: urutan blok yang diulang terus (infinite loop)
- *    1. Trending now        (list lagu)
- *    2. Featured Artists    (carousel artist + tombol Follow)
- *    3. Kartu cover         (3 lagu, cover full-bleed)
- *    4. Discover new music  (list lagu)
- *  Habis blok 4 -> ambil data baru -> mulai lagi dari blok 1, dst.
- * ------------------------------------------------------------------ */
-
 const N_TRENDING = 5;
 const N_COVERS = 3;
 const N_DISCOVER = 6;
@@ -26,9 +17,6 @@ const PAGE = 24;
 function newSource() {
   return { seed: uid("explore"), cursor: 0, pool: [], seen: new Set() };
 }
-
-// Isi pool sampai minimal `need` item. Kalau backend habis / cuma ngasih duplikat,
-// seed diganti dan cursor di-reset -> feed tidak pernah berhenti (looping).
 async function fillPool(src, type, need, allowExplicit) {
   let dry = 0;
   while (src.pool.length < need && dry < 3) {
@@ -36,7 +24,7 @@ async function fillPool(src, type, need, allowExplicit) {
     try {
       res = await Api.discover(src.seed, src.cursor, PAGE, type);
     } catch {
-      return; // error jaringan: berhenti, jangan rotasi seed
+      return;
     }
     const raw = res?.items || [];
     src.cursor = res?.nextCursor ?? src.cursor + (raw.length || PAGE);
@@ -99,9 +87,6 @@ function useExploreFeed() {
 
   return { cycles, loading, stalled, loadCycle };
 }
-
-/* ------------------------------ komponen ------------------------------ */
-
 function artistNames(track) {
   const list = track.artists?.length ? track.artists : (track.artist ? [track.artist] : []);
   return list.map((a) => a?.name).filter(Boolean).join(", ");
@@ -275,9 +260,6 @@ export function ExploreFeed() {
   const { t } = useUI();
   const { cycles, loading, stalled, loadCycle } = useExploreFeed();
   const sentinelRef = useRef(null);
-
-  // Observer dibuat ulang tiap jumlah cycle berubah -> callback langsung jalan lagi
-  // kalau sentinel masih kelihatan (layar tinggi / konten pendek), jadi nggak macet.
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el || stalled) return undefined;
