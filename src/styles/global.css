@@ -273,6 +273,14 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-card:hover .aivy-card-play, .aivy-card:focus-within .aivy-card-play{ opacity: 1; transform: translateY(0); }
 .aivy-card-play:hover{ transform: scale(1.1) !important; }
 .aivy-card-play svg{ margin-left: 1px; }
+.has-blur{ position: relative; overflow: hidden; isolation: isolate; }
+.has-blur::before{ content: ""; position: absolute; inset: -24px; z-index: -2; background-image: var(--card-thumb); background-size: cover; background-position: center; filter: blur(26px) saturate(1.5); transform: scale(1.15); pointer-events: none; }
+.has-blur::after{ content: ""; position: absolute; inset: 0; z-index: -1; background: var(--card-veil); pointer-events: none; }
+.has-blur .title{ color: var(--ink); }
+.has-blur .sub, .has-blur .row-meta .sub{ color: var(--ink-dim); }
+:root{ --card-veil: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.66)); }
+:root[data-theme="white"], :root[data-theme="latte"]{ --card-veil: linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.72)); }
+@media (prefers-reduced-transparency: reduce){ .has-blur::before{ display: none; } }
 
 .aivy-row{ display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: var(--radius-sm); min-width: 0; transition: background var(--dur-fast) var(--ease); }
 .aivy-row:hover{ background: var(--bg-elev-2); }
@@ -2963,3 +2971,76 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 .aivy-mv-backdrop{ background: rgba(0,0,0,.78); }
 .aivy-am-about-backdrop{ background: rgba(0,0,0,.72); }
 .aivy-trackmenu-backdrop{ background: rgba(0,0,0,.66); }
+
+.aivy-lib-tabs{ display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 16px; scrollbar-width: none; }
+.aivy-lib-tabs::-webkit-scrollbar{ display: none; }
+.aivy-lib-tabs .aivy-chip{ padding: 8px 16px; font-size: 13px; cursor: pointer; background: transparent; font-family: inherit; }
+.aivy-lib-tabs .aivy-chip.active{ background: var(--accent); }
+
+.aivy-lib-section{ margin-bottom: 32px; min-width: 0; }
+.aivy-lib-section-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.aivy-lib-section-title{ font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
+.aivy-lib-section-link{ font-size: 12.5px; color: var(--ink-faint); font-weight: 600; background: none; border: none; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+.aivy-lib-section-link:hover{ color: var(--accent-strong); }
+
+.aivy-lib-hero{ display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; margin-bottom: 32px; }
+.aivy-lib-hero.is-solo{ grid-template-columns: minmax(0, 1fr); }
+.aivy-lib-feature{ position: relative; min-height: 232px; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(135deg, var(--berry), var(--bg-elev-3)); border: 1px solid var(--line); transition: transform var(--dur-base) var(--ease); }
+.aivy-lib-feature:hover{ transform: translateY(-4px); }
+.aivy-lib-feature-link{ position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.aivy-lib-feature-icon{ width: 52px; height: 52px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--accent) 18%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.aivy-lib-feature-meta .eyebrow{ margin-bottom: 6px; color: var(--ink-dim); }
+.aivy-lib-feature-meta h2{ font-family: var(--font-display); font-size: clamp(24px, 3.4vw, 34px); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin: 0; color: var(--ink); }
+.aivy-lib-feature-meta .sub{ margin-top: 6px; font-size: 13px; color: var(--ink-dim); }
+.aivy-lib-feature-play{ position: absolute; right: 18px; bottom: 18px; z-index: 2; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform var(--dur-fast) var(--ease); }
+.aivy-lib-feature-play:hover{ transform: scale(1.08); }
+.aivy-lib-feature-play svg{ margin-left: 2px; }
+
+.aivy-lib-minis{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 10px; }
+.aivy-lib-mini{ display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer; font-family: inherit; color: inherit; padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-elev); min-width: 0; transition: transform var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease); }
+.aivy-lib-mini:hover{ transform: translateY(-3px); border-color: var(--ink-faint); }
+.aivy-lib-mini .thumb{ width: 52px; height: 52px; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--bg-elev-2); display: flex; align-items: center; justify-content: center; }
+.aivy-lib-mini .thumb img, .aivy-lib-mini .thumb svg{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.aivy-lib-mini .meta{ min-width: 0; }
+.aivy-lib-mini .name{ font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.aivy-lib-mini .count{ font-size: 11.5px; color: var(--ink-dim); margin-top: 2px; }
+
+.aivy-lib-rail{ display: flex; gap: 14px; overflow-x: auto; padding: 2px 2px 10px; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.aivy-lib-rail > *{ scroll-snap-align: start; flex-shrink: 0; }
+.aivy-lib-rail > .aivy-card{ width: 150px; }
+.aivy-lib-rail.is-artists > .aivy-card{ width: 140px; }
+
+.aivy-lib-bento{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; grid-auto-flow: dense; }
+.aivy-lib-bento > .is-big{ grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; }
+.aivy-lib-bento > .is-big .art-wrap{ flex: 1 1 auto; aspect-ratio: auto; min-height: 180px; }
+.aivy-lib-bento > .is-big .art-wrap > img,
+.aivy-lib-bento > .is-big .art-wrap > svg,
+.aivy-lib-bento > .is-big .art-wrap > .aivy-lib-ph{ position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.aivy-lib-bento > .is-big .title{ font-size: 16px; }
+.aivy-lib-bento > .is-big .sub{ font-size: 12.5px; }
+
+.aivy-lib-ph{ width: 100%; height: 100%; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; background: var(--bg-elev-2); border-radius: inherit; }
+
+.aivy-lib-songs{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; }
+.aivy-lib-songs > *{ min-width: 0; }
+.aivy-lib-more{ display: flex; justify-content: center; padding: 14px 0 4px; }
+
+@media (max-width: 1080px){
+  .aivy-lib-bento{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px){
+  .aivy-lib-hero{ grid-template-columns: minmax(0, 1fr); }
+  .aivy-lib-songs{ grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px){
+  .aivy-lib-bento{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .aivy-lib-feature{ min-height: 190px; padding: 18px; }
+  .aivy-lib-minis{ gap: 8px; }
+  .aivy-lib-mini .thumb{ width: 44px; height: 44px; }
+  .aivy-lib-rail > .aivy-card{ width: 138px; }
+  .aivy-lib-rail.is-artists > .aivy-card{ width: 128px; }
+}
+@media (prefers-reduced-motion: reduce){
+  .aivy-lib-feature, .aivy-lib-mini{ transition: none; }
+  .aivy-lib-feature:hover, .aivy-lib-mini:hover{ transform: none; }
+}

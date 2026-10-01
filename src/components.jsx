@@ -657,11 +657,17 @@ function EqBars({ playing }) {
   );
 }
 
+export function thumbBlur(src) {
+  if (!src || typeof src !== "string") return { className: "", style: undefined };
+  return { className: "has-blur", style: { "--card-thumb": `url(${JSON.stringify(src)})` } };
+}
+
 function CardTrackBase({ track, list }) {
   const { currentTrack, isPlaying, togglePlay, playSingle, playList } = usePlayer();
   const { openContextMenu } = useUI();
   const isCurrent = currentTrack && currentTrack.id === track.id;
   const items = useTrackMenuItems(track);
+  const blur = thumbBlur(track.cover);
   const handlePlay = () => {
     if (isCurrent) { togglePlay(); return; }
     if (list && list.length) {
@@ -672,7 +678,7 @@ function CardTrackBase({ track, list }) {
     }
   };
   return (
-    <div className="aivy-card" onContextMenu={(e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); }}>
+    <div className={`aivy-card ${blur.className}`} style={blur.style} onContextMenu={(e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); }}>
       <div className="art-wrap">
         <SmartCover src={track.cover} seed={track.id + track.title} size={140} radius={8} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
         <button className="aivy-card-play" onClick={handlePlay} aria-label="Putar">{isCurrent && isPlaying ? <Pause size={16} /> : <Play size={16} />}</button>
@@ -820,6 +826,7 @@ function CardAlbumBase({ album }) {
   const { playList } = usePlayer();
   const { settings } = useUI();
   const compact = !!settings.compactAlbums;
+  const blur = thumbBlur(album.cover);
   const handlePlay = async (e) => {
     e.stopPropagation();
     const { Api } = await import("./lib/api.js");
@@ -827,7 +834,7 @@ function CardAlbumBase({ album }) {
     if (full?.tracks?.length) playList(full.tracks, 0);
   };
   return (
-    <div className={`aivy-card ${compact ? "is-compact" : ""}`} onClick={() => navigate("album", { params: { id: album.id } })} style={{ cursor: "pointer" }}>
+    <div className={`aivy-card ${compact ? "is-compact" : ""} ${blur.className}`} onClick={() => navigate("album", { params: { id: album.id } })} style={{ cursor: "pointer", ...blur.style }}>
       <div className="art-wrap">
         <SmartCover src={album.cover} seed={"album" + album.id + album.title} size={compact ? 72 : 140} radius={compact ? 6 : 8} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
         <button className="aivy-card-play" onClick={handlePlay} aria-label="Putar album"><Play size={compact ? 13 : 16} /></button>
@@ -844,9 +851,10 @@ function CardArtistBase({ artist }) {
   const { navigate } = useRouter();
   const { t, settings } = useUI();
   const compact = !!settings.compactArtists;
+  const blur = thumbBlur(artist.image);
   if (compact) {
     return (
-      <div className="aivy-card aivy-card-artist is-compact is-row" onClick={() => navigate("artist", { params: { id: artist.id } })} style={{ cursor: "pointer" }}>
+      <div className={`aivy-card aivy-card-artist is-compact is-row ${blur.className}`} onClick={() => navigate("artist", { params: { id: artist.id } })} style={{ cursor: "pointer", ...blur.style }}>
         <div className="art-wrap round">
           <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={44} radius={999} style={{ width: 44, height: 44, borderRadius: "50%" }} />
         </div>
@@ -858,7 +866,7 @@ function CardArtistBase({ artist }) {
     );
   }
   return (
-    <div className="aivy-card" onClick={() => navigate("artist", { params: { id: artist.id } })} style={{ cursor: "pointer" }}>
+    <div className={`aivy-card ${blur.className}`} onClick={() => navigate("artist", { params: { id: artist.id } })} style={{ cursor: "pointer", ...blur.style }}>
       <div className="art-wrap round">
         <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={128} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
       </div>
