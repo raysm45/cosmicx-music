@@ -271,14 +271,87 @@ function useScrubberBinding() {
   return { registerFill, registerThumb, getRatio, onSeekRatio: seekRatio, currentTime, duration };
 }
 
+function TrackMenuSheet({ menu, onClose }) {
+  const { liked, toggleLike, addToQueueEnd, playNextInQueue, playSingle } = usePlayer();
+  const { openAddToPlaylist, pushToast, t } = useUI();
+  const { navigate } = useRouter();
+  const track = menu.track;
+  const isLiked = liked.has(String(track.videoId || track.id));
+  const artists = track.artists?.length ? track.artists : (track.artist ? [track.artist] : []);
+  const mainArtist = artists[0] || null;
+  const artistName = artists.map((a) => a.name).filter(Boolean).join(", ");
+  const albumTitle = track.album?.title || track.albumTitle || "";
+  const removeItem = menu.items?.removeItem || null;
+  const run = (fn) => () => { onClose(); fn && fn(); };
+
+  return createPortal(
+    <div className="aivy-trackmenu-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }} onContextMenu={(e) => { e.preventDefault(); if (e.target === e.currentTarget) onClose(); }}>
+      <div className="aivy-trackmenu" role="dialog" aria-label={track.title}>
+        <div className="aivy-trackmenu-head">
+          <span className="cover"><SmartCover src={track.cover} seed={track.id + track.title} size={96} radius={6} style={{ width: "100%", height: "100%" }} /></span>
+          <div className="txt">
+            <div className="t">{track.title}</div>
+            <div className="a">{artistName || "\u2014"}</div>
+          </div>
+          <button className={`like ${isLiked ? "on" : ""}`} onClick={() => toggleLike(track)} aria-label={t("like")}>
+            <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
+          </button>
+        </div>
+
+        <div className="aivy-trackmenu-list">
+          <button className="aivy-trackmenu-item" onClick={run(() => playSingle(track))}>
+            <Play size={20} fill="currentColor" /><span>{t("menuPlayNow")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => playNextInQueue(track))}>
+            <ListMusic size={20} /><span>{t("menuPlayNext")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => addToQueueEnd(track))}>
+            <ListPlus size={20} /><span>{t("menuAddQueue")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => openAddToPlaylist(track))}>
+            <ListPlus size={20} /><span>{t("menuAddPlaylist")}</span><ChevronRight size={18} className="chev" />
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); })}>
+            <Copy size={20} /><span>{t("menuCopyLink")}</span>
+          </button>
+          {removeItem && (
+            <button className="aivy-trackmenu-item danger" onClick={run(removeItem.onSelect)}>
+              <X size={20} /><span>{removeItem.label}</span>
+            </button>
+          )}
+        </div>
+
+        {(albumTitle || mainArtist) && (
+          <div className="aivy-trackmenu-foot">
+            {albumTitle && (
+              <button className="aivy-trackmenu-link" disabled={!track.album?.id} onClick={run(() => navigate("album", { params: { id: track.album.id } }))}>
+                <span className="thumb"><SmartCover src={track.cover} seed={track.id + track.title} size={64} radius={4} style={{ width: "100%", height: "100%" }} /></span>
+                <span className="txt"><small>{t("albumLabel")}</small><b>{albumTitle}</b></span>
+              </button>
+            )}
+            {mainArtist && (
+              <button className="aivy-trackmenu-link" disabled={!mainArtist.id} onClick={run(() => navigate("artist", { params: { id: mainArtist.id } }))}>
+                <span className="thumb round"><SmartCover src={mainArtist.image || mainArtist.avatar || mainArtist.thumbnail || null} seed={String(mainArtist.id || mainArtist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} /></span>
+                <span className="txt"><small>{t("artistLabel")}</small><b>{mainArtist.name}</b></span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function GlobalContextMenu() {
   const { contextMenu, closeContextMenu } = useUI();
   const menuRef = useRef(null);
   useEffect(() => {
     if (!contextMenu) return;
-    function onDown(e) { if (menuRef.current && !menuRef.current.contains(e.target)) closeContextMenu(); }
+    const isSheet = !!contextMenu.track;
+    function onDown(e) { if (!isSheet && menuRef.current && !menuRef.current.contains(e.target)) closeContextMenu(); }
     function onKey(e) { if (e.key === "Escape") closeContextMenu(); }
-    function onScroll() { closeContextMenu(); }
+    function onScroll() { if (!isSheet) closeContextMenu(); }
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, true);
@@ -286,6 +359,8 @@ export function GlobalContextMenu() {
   }, [contextMenu, closeContextMenu]);
 
   if (!contextMenu) return null;
+  if (contextMenu.track) return <TrackMenuSheet menu={contextMenu} onClose={closeContextMenu} />;
+
   const menuW = 240;
   const left = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
   const top = Math.min(contextMenu.y, window.innerHeight - contextMenu.items.length * 38 - 16);
@@ -470,6 +545,8 @@ export function useTrackMenuItems(track, opts = {}) {
   if (track.artist?.id) items.push({ label: t("menuGoArtist"), icon: <Music2 size={15} />, onSelect: () => navigate("artist", { params: { id: track.artist.id } }) });
   if (track.album?.id) items.push({ label: t("menuGoAlbum"), icon: <Music2 size={15} />, onSelect: () => navigate("album", { params: { id: track.album.id } }) });
   if (opts.onRemove) { items.push({ divider: true }); items.push({ label: opts.removeLabel || t("menuRemovePlaylist"), icon: <X size={15} />, onSelect: opts.onRemove }); }
+  items.track = track;
+  items.removeItem = opts.onRemove ? { label: opts.removeLabel || t("menuRemovePlaylist"), onSelect: opts.onRemove } : null;
   return items;
 }
 

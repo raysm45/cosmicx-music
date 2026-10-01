@@ -21,6 +21,9 @@ export function formatDuration(sec) {
   if (!isFinite(sec) || sec <= 0) return "\u2013";
   return formatTime(sec);
 }
+
+// Ambil daftar kolaborator lengkap dari sebuah track untuk dikirim ke backend
+// (history/like/playlist), supaya lagu collab tidak kehilangan nama artist lain.
 export function trackArtists(track) {
   if (track?.artists?.length) return track.artists;
   if (track?.artist) return [track.artist];

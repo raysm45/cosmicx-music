@@ -85,6 +85,10 @@ export function clearAudioFormatCache(url) {
 export function getPreferredAudioQuality() {
   return "high";
 }
+
+// Codec/container yang diminta ke backend: 'aac' | 'opus' | 'flac'.
+// Di-set dari SettingsPage lewat context.jsx, biar lib ini tetap bebas
+// dependensi ke React context.
 let preferredFormat = "opus";
 const VALID_FORMATS = ["aac", "opus", "flac"];
 

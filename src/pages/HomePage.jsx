@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo } from "react";
-import { Play, RefreshCw } from "lucide-react";
+import { Play, RefreshCw, Heart, MoreHorizontal } from "lucide-react";
 import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
@@ -31,8 +31,10 @@ function useDiscoverRow(seed, limit = 12, type = null, enabled = true) {
   return items;
 }
 
+// Jumlah item rekomendasi album & artist di Home dibuat tetap (tidak naik-turun).
 const RECO_COUNT = 9;
 
+// Gabungkan daftar utama + cadangan, buang duplikat, potong tepat n item.
 function fillTo(primary, extra, n = RECO_COUNT) {
   const seen = new Set();
   const out = [];
@@ -44,6 +46,8 @@ function fillTo(primary, extra, n = RECO_COUNT) {
   }
   return out;
 }
+
+// Ambil rekomendasi "for you" khusus satu tipe (album / artist) supaya jumlahnya pasti.
 function useForYouTyped(type, count, nonce) {
   const { authUser } = useUI();
   const [items, setItems] = useState(null);
@@ -87,6 +91,10 @@ function SkeletonSongRow() {
 function SkeletonSongGrid({ count = 6 }) {
   return <>{Array.from({ length: count }).map((_, i) => <SkeletonSongRow key={i} />)}</>;
 }
+
+// PENTING: RowWrap harus didefinisikan di level modul (identitas komponen stabil).
+// Dulu `Wrap` dibuat di dalam Row, jadi tiap render React menganggapnya komponen baru
+// dan MEMBUANG + MEMASANG ULANG semua card di dalamnya (penyebab home ngadat).
 function RowWrap({ scroll, children }) {
   return scroll
     ? <HoverRail>{children}</HoverRail>
@@ -119,9 +127,10 @@ function mapHistoryRow(row) {
 }
 
 function SongListRow({ track, list }) {
-  const { currentTrack, isPlaying, togglePlay, playList } = usePlayer();
-  const { openContextMenu } = useUI();
+  const { currentTrack, isPlaying, togglePlay, playList, liked, toggleLike } = usePlayer();
+  const { openContextMenu, t } = useUI();
   const isCurrent = currentTrack && currentTrack.id === track.id;
+  const isLiked = liked.has(String(track.videoId || track.id));
   const items = useTrackMenuItems(track);
   const handlePlay = () => {
     if (isCurrent) { togglePlay(); return; }
@@ -140,6 +149,10 @@ function SongListRow({ track, list }) {
       <span className="meta">
         <MarqueeText as="span" className="t" text={track.title} />
         <span className="a">{track.artist?.name || "\u2014"}</span>
+      </span>
+      <span className="acts">
+        <button className="aivy-icon-btn sm" onClick={(e) => { e.stopPropagation(); openContextMenu(e.clientX, e.clientY, items); }} aria-label={t("menuMore")}><MoreHorizontal size={16} /></button>
+        <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); toggleLike(track); }} aria-label={t("like")}><Heart size={16} fill={isLiked ? "currentColor" : "none"} /></button>
       </span>
       <span className="dur font-mono">{formatDuration(track.duration)}</span>
     </div>
@@ -179,6 +192,8 @@ export function HomePage() {
   );
 
   const trendingTracks = useMemo(() => filterExplicit(trending || [], settings).slice(0, 12), [trending, settings]);
+
+  // Album & artist: selalu tepat RECO_COUNT (9). Kalau hasil personal kurang, ditambal dari discover.
   const recoAlbums = useMemo(() => {
     if (forYouAlbumsRaw === null) return null;
     const own = fillTo(forYouAlbumsRaw, null);

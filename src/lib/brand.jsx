@@ -211,6 +211,10 @@ const supportsNativeHls = () => {
   try {
     const v = document.createElement("video");
     if (!v.canPlayType) return false;
+    // Some Android browsers/WebViews return "maybe" for this MIME type without
+    // actually being able to play HLS, which used to make us skip hls.js and
+    // hand them a raw .m3u8 URL (fails with MEDIA_ERR_SRC_NOT_SUPPORTED).
+    // Only trust "probably" (what Safari/iOS reports) as real native support.
     return v.canPlayType("application/vnd.apple.mpegurl") === "probably";
   } catch { return false; }
 };
@@ -265,7 +269,7 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
 
 function useAnimatedArtwork(song, artist, enabled, reloadToken = 0, onReloadResult) {
   const [artwork, setArtwork] = useState(null);
-  const [status, setStatus] = useState("idle");
+  const [status, setStatus] = useState("idle"); // idle | loading | found | notfound | error
   const lastAppliedReload = useRef(reloadToken);
   const onReloadResultRef = useRef(onReloadResult);
   onReloadResultRef.current = onReloadResult;
@@ -317,6 +321,11 @@ function useAnimatedArtwork(song, artist, enabled, reloadToken = 0, onReloadResu
 export function AnimatedCover({
   src, seed, size = 160, radius = 14, style = {}, alt = "",
   song, artist, animated = false, reduceMotion = false, onColor, reloadToken = 0, onReloadResult,
+  // Saat `active` false, video di-pause dan tidak di-decode (kontennya tetap
+  // ter-fetch/ter-buffer di background biar instan pas active jadi true
+  // lagi). Dipakai supaya cover video di sheet yang sedang tertutup/off-screen
+  // tidak terus-terusan decode dan berebut GPU/CPU dengan animasi buka-tutup.
+  // Default true supaya semua pemanggilan lama tidak berubah perilakunya.
   active = true,
 }) {
   const [videoReady, setVideoReady] = useState(false);
@@ -387,6 +396,10 @@ export function AnimatedCover({
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [videoEl, videoSrc, isM3u8, song, artist, src]);
+
+  // Pause/resume berdasarkan `active`, terlepas dari efek setup di atas
+  // (yang sengaja tidak dependen ke `active` supaya listener tidak
+  // dipasang-lepas ulang tiap kali sheet dibuka/ditutup).
   useEffect(() => {
     const v = videoEl;
     if (!v) return;

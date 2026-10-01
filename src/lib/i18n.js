@@ -113,6 +113,7 @@ const dict = {
 
     menuRemoveLiked: "Hapus dari Disukai",
     menuSaveLiked: "Simpan ke Disukai",
+    menuPlayNow: "Putar sekarang",
     menuPlayNext: "Putar setelah ini",
     menuAddQueue: "Tambah ke antrean",
     menuAddPlaylist: "Tambah ke playlist",
@@ -549,10 +550,11 @@ const dict = {
 
     menuRemoveLiked: "Remove from Liked",
     menuSaveLiked: "Save to Liked",
-    menuPlayNext: "Play next",
-    menuAddQueue: "Add to queue",
-    menuAddPlaylist: "Add to playlist",
-    menuCopyLink: "Copy song link",
+    menuPlayNow: "Play Now",
+    menuPlayNext: "Play Next",
+    menuAddQueue: "Add to Queue",
+    menuAddPlaylist: "Add to Playlist",
+    menuCopyLink: "Copy Track Link",
     linkCopied: "Link copied",
     menuGoArtist: "Go to artist page",
     menuGoAlbum: "Go to album page",

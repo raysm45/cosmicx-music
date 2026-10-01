@@ -27,6 +27,9 @@ function DiscordGlyph({ size = 18 }) {
     </svg>
   );
 }
+
+// Animated bars <-> sparkle logo mark, with a letter-by-letter wordmark reveal,
+// driven by a single shared "blend" clock (ported from the cosmicx design).
 function CosmicMark() {
   const barsRef = useRef(null);
   const starGroupRef = useRef(null);
@@ -59,6 +62,9 @@ function CosmicMark() {
       return d + "Z";
     }
     starPath.setAttribute("d", sparkleD(50, 50, 37, 5, 240));
+
+    // Guard against React StrictMode's dev-only double-invoke of effects: clear any
+    // bars appended by a previous run before creating a fresh set.
     while (barsGroup.firstChild) barsGroup.removeChild(barsGroup.firstChild);
 
     const barDefs = [

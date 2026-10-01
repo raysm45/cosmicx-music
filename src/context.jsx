@@ -382,7 +382,7 @@ export function UIProvider({ children }) {
     updateSettings({ theme: theme === "black" ? "white" : "black" });
   }, [theme, updateSettings]);
 
-  const openContextMenu = useCallback((x, y, items) => setContextMenu({ x, y, items }), []);
+  const openContextMenu = useCallback((x, y, items) => setContextMenu({ x, y, items, track: (items && items.track) || null }), []);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   const openAddToPlaylist = useCallback((track) => setAddToPlaylistTarget(track), []);
