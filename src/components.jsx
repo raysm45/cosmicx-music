@@ -282,6 +282,9 @@ function TrackMenuSheet({ menu, onClose }) {
   const artistName = artists.map((a) => a.name).filter(Boolean).join(", ");
   const albumTitle = track.album?.title || track.albumTitle || "";
   const removeItem = menu.items?.removeItem || null;
+  const artistInfo = useArtistAbout(track);
+  const artistImage = mainArtist ? (mainArtist.image || mainArtist.avatar || mainArtist.thumbnail || artistInfo?.image || null) : null;
+  const artistTarget = mainArtist ? (mainArtist.id || artistInfo?.id || (artistInfo ? mainArtist.name : null)) : null;
   const run = (fn) => () => { onClose(); fn && fn(); };
 
   return createPortal(
@@ -330,8 +333,8 @@ function TrackMenuSheet({ menu, onClose }) {
               </button>
             )}
             {mainArtist && (
-              <button className="aivy-trackmenu-link" disabled={!mainArtist.id} onClick={run(() => navigate("artist", { params: { id: mainArtist.id } }))}>
-                <span className="thumb round"><SmartCover src={mainArtist.image || mainArtist.avatar || mainArtist.thumbnail || null} seed={String(mainArtist.id || mainArtist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} /></span>
+              <button className="aivy-trackmenu-link" disabled={!artistTarget} onClick={run(() => navigate("artist", { params: { id: artistTarget } }))}>
+                <span className="thumb round"><SmartCover src={artistImage} seed={String(mainArtist.id || mainArtist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} /></span>
                 <span className="txt"><small>{t("artistLabel")}</small><b>{mainArtist.name}</b></span>
               </button>
             )}
