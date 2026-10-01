@@ -1,62 +1,13 @@
 import React, { useMemo, useRef } from "react";
-import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen } from "lucide-react";
+import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
-import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, shuffleArray } from "../components.jsx";
+import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
 import { Api } from "../lib/api.js";
 
-export function LibraryPage() {
-  const { playlists, liked } = usePlayer();
-  const { t } = useUI();
-  return (
-    <div className="aivy-view-enter">
-      <div className="aivy-greet" style={{ paddingBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h1 className="font-display" style={{ fontSize: "clamp(22px,3vw,28px)" }}>{t("yourLibrary")}</h1>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link to="libraryLocal" className="aivy-btn-ghost"><FolderSearch size={15} /> Lokal</Link>
-          <Link to="libraryImport" className="aivy-btn-ghost"><Youtube size={15} /> Import dari YouTube</Link>
-        </div>
-      </div>
-      <div className="aivy-grid">
-        <Link to="liked" className="aivy-card" style={{ textAlign: "left" }}>
-          <div className="art-wrap">
-            <div style={{ width: "100%", aspectRatio: "1", borderRadius: "var(--radius-md)", background: "linear-gradient(135deg, var(--berry), var(--bg-elev-3))", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Heart size={30} color="var(--accent-ink)" fill="var(--accent-ink)" />
-            </div>
-          </div>
-          <div className="title">{t("navLikedSongs")}</div><div className="sub">{liked.size} {t("songsCount")}</div>
-        </Link>
-        {playlists.map((pl) => {
-          const cover = pl.cover_thumbnail ?? pl.songs?.[0]?.cover ?? null;
-          const count = pl.songs ? pl.songs.length : (pl.song_count ?? 0);
-          return (
-            <Link key={pl.id} to="playlist" params={{ id: pl.id }} className="aivy-card" style={{ textAlign: "left" }}>
-              <div className="art-wrap">
-                {cover ? (
-                  <SmartCover src={cover} seed={"pl" + pl.id} size={160} radius={10} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
-                ) : (
-                  <div style={{ width: "100%", aspectRatio: "1", borderRadius: "var(--radius-md)", background: "var(--bg-elev-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <LibraryIcon size={26} color="var(--ink-faint)" />
-                  </div>
-                )}
-              </div>
-              <div className="title">{pl.name}</div><div className="sub">{count} {t("songsCount")}</div>
-            </Link>
-          );
-        })}
-      </div>
-      {playlists.length === 0 && <p className="eyebrow" style={{ padding: "8px 2px" }}>{t("noPlaylistsYetLong")}</p>}
-    </div>
-  );
-}
-
-export function LikedPage() {
-  const { liked, toggleLike, playList } = usePlayer();
-  const { t } = useUI();
-  const [likedTracks, setLikedTracks] = React.useState(null);
-
-  const normalizeLiked = (rows) => rows.map((r) => ({
+function normalizeLikedRows(rows) {
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
     id: r.video_id,
     videoId: r.video_id,
     title: r.title,
@@ -66,11 +17,364 @@ export function LikedPage() {
     cover: r.thumbnail,
     duration: r.duration,
   }));
+}
+
+function mergeTracks(...lists) {
+  const seen = new Set();
+  const out = [];
+  for (const list of lists) {
+    for (const tr of list || []) {
+      if (!tr || seen.has(tr.id)) continue;
+      seen.add(tr.id);
+      out.push(tr);
+    }
+  }
+  return out;
+}
+
+function artistRef(a) {
+  if (!a) return null;
+  if (typeof a === "string") return a.trim() ? { id: null, name: a.trim() } : null;
+  const name = String(a.name || "").trim();
+  if (!name) return null;
+  return { id: a.id || null, name };
+}
+
+function trackArtistRefs(tr) {
+  const raw = Array.isArray(tr.artists) && tr.artists.length ? tr.artists : [tr.artist];
+  return raw.map(artistRef).filter(Boolean);
+}
+
+function collectArtists(tracks) {
+  const map = new Map();
+  for (const tr of tracks) {
+    if (tr.source === "local") continue;
+    for (const ref of trackArtistRefs(tr)) {
+      const key = ref.name.toLowerCase();
+      const hit = map.get(key);
+      if (hit) {
+        hit.count += 1;
+        if (!hit.cover && tr.cover) hit.cover = tr.cover;
+        if (!hit.id && ref.id) hit.id = ref.id;
+      } else {
+        map.set(key, { key, id: ref.id, name: ref.name, cover: tr.cover || null, count: 1 });
+      }
+    }
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count);
+}
+
+function collectAlbums(tracks) {
+  const map = new Map();
+  for (const tr of tracks) {
+    if (tr.source === "local") continue;
+    const al = tr.album;
+    if (!al || typeof al !== "object" || !al.id) continue;
+    const key = String(al.id);
+    const hit = map.get(key);
+    if (hit) { hit.count += 1; continue; }
+    const artist = trackArtistRefs(tr)[0] || null;
+    map.set(key, {
+      id: al.id,
+      title: al.title || al.name || "Album",
+      cover: al.cover || tr.cover || null,
+      artist: artist ? { name: artist.name } : null,
+      releaseDate: al.releaseDate || null,
+      count: 1,
+    });
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count);
+}
+
+function LibSection({ title, onMore, moreLabel = "Lihat semua", children }) {
+  return (
+    <section className="aivy-lib-section">
+      <div className="aivy-lib-section-head">
+        <h2 className="aivy-lib-section-title">{title}</h2>
+        {onMore && <button className="aivy-lib-section-link" onClick={onMore}>{moreLabel}</button>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function LibPlaylistCard({ pl, big = false }) {
+  const { t } = useUI();
+  const cover = pl.cover_thumbnail ?? pl.songs?.[0]?.cover ?? null;
+  const count = pl.songs ? pl.songs.length : (pl.song_count ?? 0);
+  const blur = thumbBlur(cover);
+  return (
+    <Link to="playlist" params={{ id: pl.id }} className={`aivy-card ${big ? "is-big" : ""} ${blur.className}`} style={{ textAlign: "left", ...blur.style }}>
+      <div className="art-wrap">
+        {cover ? (
+          <SmartCover src={cover} seed={"pl" + pl.id} size={big ? 320 : 160} radius={10} style={{ width: "100%", height: "100%" }} />
+        ) : (
+          <div className="aivy-lib-ph"><LibraryIcon size={26} color="var(--ink-faint)" /></div>
+        )}
+      </div>
+      <div className="title">{pl.name}</div>
+      <div className="sub">{count} {t("songsCount")}</div>
+    </Link>
+  );
+}
+
+function LibLikedCard({ count, cover }) {
+  const { t } = useUI();
+  const blur = thumbBlur(cover);
+  return (
+    <Link to="liked" className={`aivy-card ${blur.className}`} style={{ textAlign: "left", ...blur.style }}>
+      <div className="art-wrap">
+        <div className="aivy-lib-ph" style={{ background: "linear-gradient(135deg, var(--berry), var(--bg-elev-3))" }}>
+          <Heart size={30} color="var(--accent-ink)" fill="var(--accent-ink)" />
+        </div>
+      </div>
+      <div className="title">{t("navLikedSongs")}</div>
+      <div className="sub">{count} {t("songsCount")}</div>
+    </Link>
+  );
+}
+
+function LibArtistCard({ artist }) {
+  const { t } = useUI();
+  const blur = thumbBlur(artist.cover);
+  return (
+    <Link to="artist" params={{ id: artist.id || artist.name }} className={`aivy-card ${blur.className}`} style={{ textAlign: "center", ...blur.style }}>
+      <div className="art-wrap round">
+        <SmartCover src={artist.cover} seed={"artist" + artist.name} size={128} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
+      </div>
+      <div className="title" style={{ textAlign: "center" }}>{artist.name}</div>
+      <div className="sub" style={{ textAlign: "center" }}>{artist.count} {t("songsCount")}</div>
+    </Link>
+  );
+}
+
+export function LibraryPage() {
+  const { playlists, liked, localTracks, playList, setPlaylistDetail } = usePlayer();
+  const { t, authUser } = useUI();
+  const [tab, setTab] = React.useState("all");
+  const [likedTracks, setLikedTracks] = React.useState([]);
+  const [songLimit, setSongLimit] = React.useState(60);
+  const requestedRef = useRef(new Set());
+  const aliveRef = useRef(true);
+
+  React.useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
+
+  React.useEffect(() => {
+    if (!authUser) { setLikedTracks([]); return undefined; }
+    let alive = true;
+    Api.likes()
+      .then((rows) => { if (alive) setLikedTracks(normalizeLikedRows(rows)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [authUser, liked.size]);
+
+  React.useEffect(() => {
+    const pending = playlists.filter((pl) => !Array.isArray(pl.songs) && !requestedRef.current.has(String(pl.id)));
+    if (!pending.length) return;
+    pending.forEach((pl) => requestedRef.current.add(String(pl.id)));
+    (async () => {
+      for (let i = 0; i < pending.length; i += 4) {
+        const chunk = pending.slice(i, i + 4);
+        await Promise.all(chunk.map((pl) =>
+          Api.playlist(pl.id)
+            .then((detail) => { if (aliveRef.current) setPlaylistDetail(detail); })
+            .catch(() => {})
+        ));
+        if (!aliveRef.current) return;
+      }
+    })();
+  }, [playlists, setPlaylistDetail]);
+
+  const allSongs = useMemo(
+    () => mergeTracks(likedTracks, localTracks, ...playlists.map((pl) => pl.songs)),
+    [likedTracks, localTracks, playlists]
+  );
+  const artists = useMemo(() => collectArtists(allSongs), [allSongs]);
+  const albums = useMemo(() => collectAlbums(allSongs), [allSongs]);
+
+  const likedCover = likedTracks.find((tr) => tr.cover)?.cover || null;
+  const libSource = { type: "library", label: t("yourLibrary") };
+  const hasAnything = allSongs.length > 0 || playlists.length > 0;
+
+  const tabs = [
+    { id: "all", label: "Semua" },
+    { id: "songs", label: "Lagu" },
+    { id: "artists", label: t("artistLabel") },
+    { id: "albums", label: t("albumLabel") },
+    { id: "playlists", label: t("playlistLabel") },
+  ];
+
+  const jumpTiles = [
+    { id: "songs", label: "Lagu", count: allSongs.length, unit: t("songsCount"), cover: allSongs.find((tr) => tr.cover)?.cover, Icon: Music2 },
+    { id: "artists", label: t("artistLabel"), count: artists.length, unit: "", cover: artists.find((a) => a.cover)?.cover, Icon: Mic2 },
+    { id: "albums", label: t("albumLabel"), count: albums.length, unit: "", cover: albums.find((a) => a.cover)?.cover, Icon: Disc },
+    { id: "playlists", label: t("playlistLabel"), count: playlists.length, unit: "", cover: playlists.map((pl) => pl.cover_thumbnail ?? pl.songs?.[0]?.cover).find(Boolean), Icon: ListMusic },
+  ];
+
+  const likedBlur = thumbBlur(likedCover);
+
+  const renderAll = () => (
+    <>
+      <div className="aivy-lib-hero">
+        <div className={`aivy-lib-feature ${likedBlur.className}`} style={likedBlur.style}>
+          <Link to="liked" className="aivy-lib-feature-link" aria-label={t("navLikedSongs")} />
+          <div className="aivy-lib-feature-icon"><Heart size={24} color="var(--ink)" fill="var(--ink)" /></div>
+          <div className="aivy-lib-feature-meta">
+            <div className="eyebrow">{t("playlistLabel")}</div>
+            <h2>{t("navLikedSongs")}</h2>
+            <div className="sub">{liked.size} {t("songsCount")}</div>
+          </div>
+          {likedTracks.length > 0 && (
+            <button className="aivy-lib-feature-play" onClick={() => playList(likedTracks, 0, { type: "library", label: t("navLikedSongs") })} aria-label={t("playAll")}>
+              <Play size={22} fill="currentColor" />
+            </button>
+          )}
+        </div>
+        <div className="aivy-lib-minis">
+          {jumpTiles.map(({ id, label, count, unit, cover, Icon }) => {
+            const blur = thumbBlur(cover);
+            return (
+              <button key={id} className={`aivy-lib-mini ${blur.className}`} style={blur.style} onClick={() => setTab(id)}>
+                <span className="thumb">
+                  {cover ? <SmartCover src={cover} seed={"jump" + id} size={52} radius={8} style={{ width: "100%", height: "100%" }} /> : <Icon size={20} color="var(--ink-faint)" />}
+                </span>
+                <span className="meta">
+                  <div className="name">{label}</div>
+                  <div className="count">{count}{unit ? ` ${unit}` : ""}</div>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {artists.length > 0 && (
+        <LibSection title={t("artistLabel")} onMore={() => setTab("artists")}>
+          <div className="aivy-lib-rail is-artists">
+            {artists.slice(0, 14).map((a) => <LibArtistCard key={a.key} artist={a} />)}
+          </div>
+        </LibSection>
+      )}
+
+      {playlists.length > 0 && (
+        <LibSection title={t("playlistLabel")} onMore={() => setTab("playlists")}>
+          {playlists.length >= 5 ? (
+            <div className="aivy-lib-bento">
+              {playlists.slice(0, 5).map((pl, i) => <LibPlaylistCard key={pl.id} pl={pl} big={i === 0} />)}
+            </div>
+          ) : (
+            <div className="aivy-lib-rail">
+              {playlists.map((pl) => <LibPlaylistCard key={pl.id} pl={pl} />)}
+            </div>
+          )}
+        </LibSection>
+      )}
+
+      {albums.length > 0 && (
+        <LibSection title={t("albumLabel")} onMore={() => setTab("albums")}>
+          <div className="aivy-lib-rail">
+            {albums.slice(0, 14).map((al) => <CardAlbum key={al.id} album={al} />)}
+          </div>
+        </LibSection>
+      )}
+
+      {allSongs.length > 0 && (
+        <LibSection title="Lagu" onMore={() => setTab("songs")}>
+          <div className="aivy-lib-songs">
+            {allSongs.slice(0, 10).map((tr, i) => (
+              <TrackRow key={tr.id} track={tr} index={i} list={allSongs} showIndex={false} queueMode="context" source={libSource} />
+            ))}
+          </div>
+        </LibSection>
+      )}
+
+      {!hasAnything && <p className="eyebrow" style={{ padding: "8px 2px" }}>{t("noPlaylistsYetLong")}</p>}
+    </>
+  );
+
+  const renderSongs = () => (
+    allSongs.length > 0 ? (
+      <>
+        <div className="aivy-import-actions" style={{ marginBottom: 8 }}>
+          <button className="aivy-btn-ghost" onClick={() => playList(allSongs, 0, libSource)}><Play size={15} /> {t("playAll")}</button>
+        </div>
+        <div>
+          {allSongs.slice(0, songLimit).map((tr, i) => (
+            <TrackRow key={tr.id} track={tr} index={i} list={allSongs} showAlbum queueMode="context" source={libSource} />
+          ))}
+        </div>
+        {allSongs.length > songLimit && (
+          <div className="aivy-lib-more">
+            <button className="aivy-btn-ghost" onClick={() => setSongLimit((n) => n + 60)}>Tampilkan lebih banyak</button>
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="aivy-empty"><Music2 size={34} color="var(--ink-faint)" /><div className="title">Belum ada lagu</div><div className="sub">Suka lagu atau tambahkan ke playlist, nanti muncul di sini.</div></div>
+    )
+  );
+
+  const renderArtists = () => (
+    artists.length > 0 ? (
+      <div className="aivy-grid">{artists.map((a) => <LibArtistCard key={a.key} artist={a} />)}</div>
+    ) : (
+      <div className="aivy-empty"><Mic2 size={34} color="var(--ink-faint)" /><div className="title">Belum ada artist</div><div className="sub">Artist dari lagu yang kamu simpan akan muncul di sini.</div></div>
+    )
+  );
+
+  const renderAlbums = () => (
+    albums.length > 0 ? (
+      <div className="aivy-grid">{albums.map((al) => <CardAlbum key={al.id} album={al} />)}</div>
+    ) : (
+      <div className="aivy-empty"><Disc size={34} color="var(--ink-faint)" /><div className="title">Belum ada album</div><div className="sub">Album dari lagu yang kamu simpan akan muncul di sini.</div></div>
+    )
+  );
+
+  const renderPlaylists = () => (
+    <>
+      <div className="aivy-grid">
+        <LibLikedCard count={liked.size} cover={likedCover} />
+        {playlists.map((pl) => <LibPlaylistCard key={pl.id} pl={pl} />)}
+      </div>
+      {playlists.length === 0 && <p className="eyebrow" style={{ padding: "8px 2px" }}>{t("noPlaylistsYetLong")}</p>}
+    </>
+  );
+
+  return (
+    <div className="aivy-view-enter">
+      <div className="aivy-greet" style={{ paddingBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h1 className="font-display" style={{ fontSize: "clamp(22px,3vw,28px)" }}>{t("yourLibrary")}</h1>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link to="libraryLocal" className="aivy-btn-ghost"><FolderSearch size={15} /> Lokal</Link>
+          <Link to="libraryImport" className="aivy-btn-ghost"><Youtube size={15} /> Import dari YouTube</Link>
+        </div>
+      </div>
+      <div className="aivy-lib-tabs" role="tablist">
+        {tabs.map((tb) => (
+          <button key={tb.id} role="tab" aria-selected={tab === tb.id} className={`aivy-chip ${tab === tb.id ? "active" : ""}`} onClick={() => setTab(tb.id)}>{tb.label}</button>
+        ))}
+      </div>
+      {tab === "all" && renderAll()}
+      {tab === "songs" && renderSongs()}
+      {tab === "artists" && renderArtists()}
+      {tab === "albums" && renderAlbums()}
+      {tab === "playlists" && renderPlaylists()}
+    </div>
+  );
+}
+
+export function LikedPage() {
+  const { liked, toggleLike, playList } = usePlayer();
+  const { t } = useUI();
+  const [likedTracks, setLikedTracks] = React.useState(null);
 
   const fetchLiked = () => {
     import("../lib/api.js").then(({ Api }) =>
       Api.likes()
-        .then((rows) => setLikedTracks(normalizeLiked(rows)))
+        .then((rows) => setLikedTracks(normalizeLikedRows(rows)))
         .catch(() => setLikedTracks([]))
     );
   };
