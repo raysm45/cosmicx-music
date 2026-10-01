@@ -280,7 +280,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .has-blur .sub, .has-blur .row-meta .sub{ color: var(--ink-dim); }
 :root{ --card-veil: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.66)); }
 :root[data-theme="white"], :root[data-theme="latte"]{ --card-veil: linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.72)); }
-@media (prefers-reduced-transparency: reduce){ .has-blur::before{ display: none; } }
 
 .aivy-row{ display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: var(--radius-sm); min-width: 0; transition: background var(--dur-fast) var(--ease); }
 .aivy-row:hover{ background: var(--bg-elev-2); }
