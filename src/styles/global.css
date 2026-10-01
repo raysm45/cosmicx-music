@@ -2977,10 +2977,22 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 .aivy-am-about-backdrop{ background: rgba(0,0,0,.72); }
 .aivy-trackmenu-backdrop{ background: rgba(0,0,0,.66); }
 
-.aivy-lib-tabs{ display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 16px; scrollbar-width: none; }
+/* Tab Library: dock kaca dengan indikator aksen yang meluncur antar tab, ikon, dan badge jumlah. */
+.aivy-lib-tabs-wrap{ max-width: 100%; margin: 0 0 18px; }
+.aivy-lib-tabs{ position: relative; display: inline-flex; gap: 2px; max-width: 100%; padding: 5px; border-radius: 999px; background: color-mix(in srgb, var(--bg-elev) 82%, transparent); border: 1px solid var(--line); box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent); overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .aivy-lib-tabs::-webkit-scrollbar{ display: none; }
-.aivy-lib-tabs .aivy-chip{ padding: 8px 16px; font-size: 13px; cursor: pointer; background: transparent; font-family: inherit; }
-.aivy-lib-tabs .aivy-chip.active{ background: var(--accent); }
+.aivy-lib-tabs-ind{ position: absolute; top: 5px; bottom: 5px; left: 0; z-index: 0; width: var(--ind-w, 0px); transform: translateX(var(--ind-x, 0px)); border-radius: 999px; background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 60%), var(--accent); box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.35); opacity: 0; pointer-events: none; }
+.aivy-lib-tabs[data-ready="1"] .aivy-lib-tabs-ind{ opacity: 1; transition: transform .45s cubic-bezier(.34, 1.32, .64, 1), width .45s cubic-bezier(.34, 1.32, .64, 1); }
+.aivy-lib-tab{ position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-dim); font-family: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; flex-shrink: 0; cursor: pointer; transition: color .25s var(--ease); }
+.aivy-lib-tab:hover{ color: var(--ink); }
+.aivy-lib-tab.active{ color: var(--accent-ink); }
+.aivy-lib-tab:focus-visible{ outline: 2px solid var(--accent-strong, var(--accent)); outline-offset: 1px; }
+.aivy-lib-tab .ic{ display: inline-flex; transition: transform .45s cubic-bezier(.34, 1.56, .64, 1); }
+.aivy-lib-tab.active .ic{ transform: rotate(-12deg) scale(1.12); }
+.aivy-lib-tab .ct{ padding: 2px 6px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink-faint); font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; line-height: 1.3; transition: background .25s var(--ease), color .25s var(--ease); }
+.aivy-lib-tab.active .ct{ background: color-mix(in srgb, var(--accent-ink) 18%, transparent); color: var(--accent-ink); }
+@media (max-width: 520px){ .aivy-lib-tab{ padding: 8px 13px; font-size: 12.5px; } }
+@media (prefers-reduced-motion: reduce){ .aivy-lib-tabs-ind, .aivy-lib-tab .ic{ transition: none !important; } }
 
 .aivy-lib-section{ margin-bottom: 32px; min-width: 0; }
 .aivy-lib-section-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }

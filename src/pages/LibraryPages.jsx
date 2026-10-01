@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from "react";
-import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc } from "lucide-react";
+import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
 import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur } from "../components.jsx";
@@ -94,6 +94,76 @@ function LibArtistCard({ artist }) {
   );
 }
 
+function LibTabs({ tabs, value, onChange }) {
+  const trackRef = useRef(null);
+  const btnRefs = useRef({});
+  const [pos, setPos] = React.useState({ x: 0, w: 0 });
+  const [ready, setReady] = React.useState(false);
+  const sig = tabs.map((tb) => `${tb.id}:${tb.label}:${tb.count ?? ""}`).join("|");
+
+  const measure = React.useCallback(() => {
+    const el = btnRefs.current[value];
+    if (!el) return;
+    setPos((p) => (p.x === el.offsetLeft && p.w === el.offsetWidth ? p : { x: el.offsetLeft, w: el.offsetWidth }));
+  }, [value]);
+
+  React.useLayoutEffect(() => {
+    measure();
+    const track = trackRef.current;
+    if (!track || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    Object.values(btnRefs.current).forEach((b) => b && ro.observe(b));
+    return () => ro.disconnect();
+  }, [measure, sig]);
+
+  // Aktifkan transisi setelah posisi awal terpasang, supaya indikator tidak "terbang" dari kiri saat pertama muncul.
+  React.useEffect(() => {
+    const id = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Di layar sempit, geser dock supaya tab aktif ada di tengah (tanpa menggeser halaman secara vertikal).
+  React.useEffect(() => {
+    const track = trackRef.current;
+    const el = btnRefs.current[value];
+    if (!track || !el || track.scrollWidth <= track.clientWidth) return;
+    track.scrollTo({ left: el.offsetLeft - (track.clientWidth - el.offsetWidth) / 2, behavior: "smooth" });
+  }, [value]);
+
+  return (
+    <div className="aivy-lib-tabs-wrap">
+      <div
+        ref={trackRef}
+        className="aivy-lib-tabs"
+        role="tablist"
+        data-ready={ready ? "1" : "0"}
+        style={{ "--ind-x": `${pos.x}px`, "--ind-w": `${pos.w}px` }}
+      >
+        <span className="aivy-lib-tabs-ind" aria-hidden="true" />
+        {tabs.map((tb) => {
+          const Icon = tb.Icon;
+          const active = value === tb.id;
+          return (
+            <button
+              key={tb.id}
+              ref={(node) => { btnRefs.current[tb.id] = node; }}
+              role="tab"
+              aria-selected={active}
+              className={`aivy-lib-tab ${active ? "active" : ""}`}
+              onClick={() => onChange(tb.id)}
+            >
+              {Icon && <span className="ic"><Icon size={15} /></span>}
+              <span className="lb">{tb.label}</span>
+              {tb.count != null && <span className="ct">{tb.count}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function LibraryPage() {
   const { playlists, liked, localTracks, playList, setPlaylistDetail, followedArtists, savedAlbums } = usePlayer();
   const { t, authUser } = useUI();
@@ -146,11 +216,11 @@ export function LibraryPage() {
   const hasAnything = allSongs.length > 0 || playlists.length > 0;
 
   const tabs = [
-    { id: "all", label: "Semua" },
-    { id: "songs", label: "Lagu" },
-    { id: "artists", label: t("artistLabel") },
-    { id: "albums", label: t("albumLabel") },
-    { id: "playlists", label: t("playlistLabel") },
+    { id: "all", label: "Semua", Icon: LayoutGrid },
+    { id: "songs", label: "Lagu", Icon: Music2, count: allSongs.length },
+    { id: "artists", label: t("artistLabel"), Icon: Mic2, count: artists.length },
+    { id: "albums", label: t("albumLabel"), Icon: Disc, count: albums.length },
+    { id: "playlists", label: t("playlistLabel"), Icon: ListMusic, count: playlists.length },
   ];
 
   const jumpTiles = [
@@ -298,11 +368,7 @@ export function LibraryPage() {
           <Link to="libraryImport" className="aivy-btn-ghost"><Youtube size={15} /> Import dari YouTube</Link>
         </div>
       </div>
-      <div className="aivy-lib-tabs" role="tablist">
-        {tabs.map((tb) => (
-          <button key={tb.id} role="tab" aria-selected={tab === tb.id} className={`aivy-chip ${tab === tb.id ? "active" : ""}`} onClick={() => setTab(tb.id)}>{tb.label}</button>
-        ))}
-      </div>
+      <LibTabs tabs={tabs} value={tab} onChange={setTab} />
       {tab === "all" && renderAll()}
       {tab === "songs" && renderSongs()}
       {tab === "artists" && renderArtists()}
