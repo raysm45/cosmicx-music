@@ -3,6 +3,7 @@ import { MaintenancePage } from "./pages/MaintenancePage.jsx";
 import { ServerDownPage } from "./pages/ServerDownPage.jsx";
 import { useBackendHealth } from "./lib/health.js";
 import { RouterProvider, useRouter } from "./router.jsx";
+import { useRouteSeo } from "./lib/seo.js";
 import {
   UIProvider, PlayerProvider, useUI, usePlayer,
   SIDEBAR_COLLAPSED_W, RIGHTPANEL_COLLAPSED_W, RIGHTPANEL_PEEK_W,
@@ -56,6 +57,7 @@ const PAGE_BY_ROUTE = {
 
 function AppInner() {
   const { name, params } = useRouter();
+  useRouteSeo(name, params.id);
   const {
     authChecked, authUser, sidebarWidth, sidebarCollapsed, rightPanelWidth, rightPanelCollapsed, rightPanelPeek,
     mobileQueueOpen, openMobileQueue, closeMobileQueue, lyricsOpen, closeLyrics, sidebarQueueOpen, closeSidebarQueue, settings,

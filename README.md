@@ -163,3 +163,11 @@ This project is currently unlicensed / proprietary. Contact the maintainer for u
 <div align="center">
 Made by the Aivy team
 </div>
+
+
+## SEO (music.cosmicx.fun)
+
+- `index.html`: judul, meta, Open Graph, JSON-LD `WebSite` + konten dasar di dalam `#root` (antara `<!--ssr-->` dan `<!--/ssr-->`).
+- `src/lib/seo.js`: judul/meta per halaman di sisi klien.
+- `api/meta.js` + `vercel.json`: Edge Function yang mengisi `<head>` dan konten dasar untuk `/artist/:id` dan `/album/:id` sebelum HTML dikirim.
+- `public/og-image.png` (1200x630), `public/robots.txt`, `public/sitemap.xml`.

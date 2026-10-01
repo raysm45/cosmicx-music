@@ -5,6 +5,7 @@ import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { TrackRow, ViewNotFound, SkeletonHeroPage, filterExplicit, FlipList, shuffleArray, useTrackMenuItems, HoverRail, MusicVideoView, MarqueeText } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
+import { setSeo, SITE_URL } from "../lib/seo.js";
 
 const TOP_SONGS_PREVIEW = 15;
 
@@ -274,6 +275,17 @@ export function ArtistPage() {
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [params.id]);
+
+  useEffect(() => {
+    if (!artist?.name) return;
+    const path = `/artist/${encodeURIComponent(params.id)}`;
+    setSeo({
+      title: `${artist.name} | cosmicx Music`,
+      description: `${artist.name} di cosmicx Music. Dengarkan lagu terpopuler, album, dan single dari ${artist.name}.`,
+      path, image: artist.image || artist.banner || null, type: "profile",
+      jsonLd: { "@context": "https://schema.org", "@type": "MusicGroup", name: artist.name, url: SITE_URL + path, ...(artist.image ? { image: artist.image } : {}) },
+    });
+  }, [artist, params.id]);
 
   const posterImg = heroArtwork || artist?.banner || artist?.image || null;
   const tintSource = artist?.image || artist?.banner || artist?.albums?.[0]?.cover || null;
@@ -634,6 +646,18 @@ export function AlbumPage() {
     Api.album(params.id).then((res) => { if (alive) { setAlbum(res); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [params.id]);
+
+  useEffect(() => {
+    if (!album?.title) return;
+    const path = `/album/${encodeURIComponent(params.id)}`;
+    const by = album.artist?.name || "";
+    setSeo({
+      title: by ? `${album.title} - Album oleh ${by} | cosmicx Music` : `${album.title} | cosmicx Music`,
+      description: `Dengarkan ${album.title}${by ? ` oleh ${by}` : ""} di cosmicx Music${album.tracks?.length ? `. ${album.tracks.length} lagu.` : "."}`,
+      path, image: album.cover || null, type: "music.album",
+      jsonLd: { "@context": "https://schema.org", "@type": "MusicAlbum", name: album.title, url: SITE_URL + path, ...(by ? { byArtist: { "@type": "MusicGroup", name: by } } : {}), ...(album.cover ? { image: album.cover } : {}), ...(album.tracks?.length ? { numTracks: album.tracks.length } : {}) },
+    });
+  }, [album, params.id]);
 
   const albumTracks = useMemo(() => filterExplicit(album?.tracks, settings) || [], [album, settings]);
   const totalMin = Math.round(albumTracks.reduce((s, tr) => s + (tr.duration || 0), 0) / 60);

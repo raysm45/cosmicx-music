@@ -4,7 +4,38 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>cosmicx Music</title>
+    <title>cosmicx Music - Web Player: Musik untuk semua orang</title>
+    <meta name="description" content="cosmicx Music adalah layanan musik digital yang memberi kamu akses ke lagu, album, dan playlist dari artis di seluruh dunia." />
+    <meta name="application-name" content="cosmicx Music" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://music.cosmicx.fun/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="cosmicx Music" />
+    <meta property="og:locale" content="id_ID" />
+    <meta property="og:title" content="cosmicx Music - Web Player: Musik untuk semua orang" />
+    <meta property="og:description" content="cosmicx Music adalah layanan musik digital yang memberi kamu akses ke lagu, album, dan playlist dari artis di seluruh dunia." />
+    <meta property="og:url" content="https://music.cosmicx.fun/" />
+    <meta property="og:image" content="https://music.cosmicx.fun/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="cosmicx Music - Web Player: Musik untuk semua orang" />
+    <meta name="twitter:description" content="cosmicx Music adalah layanan musik digital yang memberi kamu akses ke lagu, album, dan playlist dari artis di seluruh dunia." />
+    <meta name="twitter:image" content="https://music.cosmicx.fun/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "cosmicx Music",
+        "alternateName": ["cosmicx", "CosmicX Music", "cosmicx music"],
+        "url": "https://music.cosmicx.fun/",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://music.cosmicx.fun/cari?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -17,7 +48,11 @@
     <meta name="apple-mobile-web-app-title" content="COSMICX" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><!--ssr--><main style="font-family:system-ui,sans-serif;color:#e8e4d8;padding:24px;max-width:720px;margin:0 auto"><h1>cosmicx Music</h1><p>cosmicx Music adalah layanan musik digital yang memberi kamu akses ke lagu, album, dan playlist dari artis di seluruh dunia.</p><ul><li><a href="/beranda" style="color:inherit">Beranda</a></li><li><a href="/beranda/terbaru" style="color:inherit">Lagu Terbaru &amp; Trending</a></li><li><a href="/beranda/kurasi" style="color:inherit">Pilihan Editor</a></li><li><a href="/beranda/album-terbaik" style="color:inherit">Album Terbaik</a></li></ul></main><!--/ssr--></div>
+    <noscript>
+      <h1>cosmicx Music</h1>
+      <p>cosmicx Music adalah platform streaming musik online. Aktifkan JavaScript untuk mendengarkan lagu, album, dan playlist favoritmu.</p>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

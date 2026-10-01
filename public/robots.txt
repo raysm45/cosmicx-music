@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /setting
+Disallow: /koleksi
+Disallow: /liked
+Disallow: /ruang
+Disallow: /shorts
+
+Sitemap: https://music.cosmicx.fun/sitemap.xml

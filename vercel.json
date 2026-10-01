@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/artist/:id", "destination": "/api/meta?type=artist&id=:id" },
+    { "source": "/album/:id", "destination": "/api/meta?type=album&id=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

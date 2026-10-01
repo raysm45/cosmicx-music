@@ -6,6 +6,7 @@ import { Api, API_BASE } from "./lib/api.js";
 import { setPreferredAudioFormat, getPreferredAudioFormat } from "./lib/audioFormat.js";
 import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
 import { makeT } from "./lib/i18n.js";
+import { seoState } from "./lib/seo.js";
 import { trackArtistsReady, loadTrackArtists } from "./lib/artistProfile.js";
 import { useDiscordActivity } from "./lib/discordActivity.js";
 import { applyLiquidGlass } from "./lib/perf.js";
@@ -717,8 +718,9 @@ export function PlayerProvider({ children }) {
   const defaultDocTitleRef = useRef(typeof document !== "undefined" ? document.title : "");
   useEffect(() => {
     if (typeof document === "undefined") return;
+    seoState.playing = !!currentTrack;
     if (!currentTrack) {
-      document.title = defaultDocTitleRef.current;
+      document.title = seoState.title || defaultDocTitleRef.current;
       return;
     }
     const artistName = currentTrack.artist?.name;
