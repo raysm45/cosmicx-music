@@ -18,6 +18,7 @@ const THEME_SWATCHES = {
   macchiato: ["#24273a", "#cad3f5", "#cad3f5"],
   frappe: ["#303446", "#c6d0f5", "#c6d0f5"],
   latte: ["#eff1f5", "#4c4f69", "#4c4f69"],
+  salmon: ["#fdebe7", "#e8736a", "#4a2b2b"],
 };
 
 const FONT_OPTIONS = [
@@ -347,6 +348,7 @@ export function SettingsPage() {
             ["macchiato", "Macchiato"],
             ["frappe", "Frappé"],
             ["latte", "Latte"],
+            ["salmon", "Salmon"],
             ["custom", tt("Kustom", "Custom")],
           ].map(([value, label]) => (
             <button key={value} className={`aivy-theme-card ${settings.theme === value ? "active" : ""}`} onClick={() => set("theme")(value)}>
