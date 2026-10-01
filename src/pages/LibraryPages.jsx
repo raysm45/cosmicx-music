@@ -99,7 +99,7 @@ function LibTabs({ tabs, value, onChange }) {
   const btnRefs = useRef({});
   const [pos, setPos] = React.useState({ x: 0, w: 0 });
   const [ready, setReady] = React.useState(false);
-  const sig = tabs.map((tb) => `${tb.id}:${tb.label}:${tb.count ?? ""}`).join("|");
+  const sig = tabs.map((tb) => `${tb.id}:${tb.label}`).join("|");
 
   const measure = React.useCallback(() => {
     const el = btnRefs.current[value];
@@ -122,14 +122,6 @@ function LibTabs({ tabs, value, onChange }) {
     const id = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(id);
   }, []);
-
-  // Di layar sempit, geser dock supaya tab aktif ada di tengah (tanpa menggeser halaman secara vertikal).
-  React.useEffect(() => {
-    const track = trackRef.current;
-    const el = btnRefs.current[value];
-    if (!track || !el || track.scrollWidth <= track.clientWidth) return;
-    track.scrollTo({ left: el.offsetLeft - (track.clientWidth - el.offsetWidth) / 2, behavior: "smooth" });
-  }, [value]);
 
   return (
     <div className="aivy-lib-tabs-wrap">
@@ -155,7 +147,6 @@ function LibTabs({ tabs, value, onChange }) {
             >
               {Icon && <span className="ic"><Icon size={15} /></span>}
               <span className="lb">{tb.label}</span>
-              {tb.count != null && <span className="ct">{tb.count}</span>}
             </button>
           );
         })}
@@ -217,10 +208,10 @@ export function LibraryPage() {
 
   const tabs = [
     { id: "all", label: "Semua", Icon: LayoutGrid },
-    { id: "songs", label: "Lagu", Icon: Music2, count: allSongs.length },
-    { id: "artists", label: t("artistLabel"), Icon: Mic2, count: artists.length },
-    { id: "albums", label: t("albumLabel"), Icon: Disc, count: albums.length },
-    { id: "playlists", label: t("playlistLabel"), Icon: ListMusic, count: playlists.length },
+    { id: "songs", label: "Lagu", Icon: Music2 },
+    { id: "artists", label: t("artistLabel"), Icon: Mic2 },
+    { id: "albums", label: t("albumLabel"), Icon: Disc },
+    { id: "playlists", label: t("playlistLabel"), Icon: ListMusic },
   ];
 
   const jumpTiles = [
