@@ -5,6 +5,7 @@ import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { useTrackMenuItems, HoverRail } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
+import { loadArtistProfile } from "../lib/artistProfile.js";
 import { uid, formatDuration } from "../lib/utils.js";
 
 /* ------------------------------------------------------------------ *
@@ -130,7 +131,7 @@ function ExploreTrackRow({ track, list }) {
   const isLiked = liked.has(String(track.videoId || track.id));
   const openMenu = (e) => { e.preventDefault(); e.stopPropagation(); openContextMenu(e.clientX, e.clientY, items); };
   return (
-    <div className={`aivy-xrow ${isCurrent ? "current" : ""}`} onClick={play} onContextMenu={openMenu}>
+    <div className={`aivy-xrow ${isCurrent ? "current" : ""}`} onClick={play} onContextMenu={openMenu} onPointerEnter={() => { loadArtistProfile(track); }}>
       <span className="cover">
         <SmartCover src={track.cover} seed={track.id + track.title} size={96} radius={6} style={{ width: "100%", height: "100%" }} />
       </span>

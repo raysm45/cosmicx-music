@@ -16,6 +16,7 @@ import {
 } from "./context.jsx";
 import { useRouter, Link } from "./router.jsx";
 import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, prefetchAnimatedArtwork } from "./lib/brand.jsx";
+import { peekArtistProfile, loadArtistProfile } from "./lib/artistProfile.js";
 import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
 import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
@@ -271,6 +272,18 @@ function useScrubberBinding() {
   return { registerFill, registerThumb, getRatio, onSeekRatio: seekRatio, currentTime, duration };
 }
 
+function useArtistProfile(track) {
+  const [data, setData] = useState(() => { const c = peekArtistProfile(track); return c === undefined ? null : c; });
+  useEffect(() => {
+    const c = peekArtistProfile(track);
+    if (c !== undefined) { setData(c); return; }
+    let alive = true;
+    loadArtistProfile(track).then((d) => { if (alive) setData(d); });
+    return () => { alive = false; };
+  }, [track]);
+  return data;
+}
+
 function TrackMenuSheet({ menu, onClose }) {
   const { liked, toggleLike, addToQueueEnd, playNextInQueue, playSingle } = usePlayer();
   const { openAddToPlaylist, pushToast, t } = useUI();
@@ -282,7 +295,7 @@ function TrackMenuSheet({ menu, onClose }) {
   const artistName = artists.map((a) => a.name).filter(Boolean).join(", ");
   const albumTitle = track.album?.title || track.albumTitle || "";
   const removeItem = menu.items?.removeItem || null;
-  const artistInfo = useArtistAbout(track);
+  const artistInfo = useArtistProfile(track);
   const artistImage = mainArtist ? (mainArtist.image || mainArtist.avatar || mainArtist.thumbnail || artistInfo?.image || null) : null;
   const artistTarget = mainArtist ? (mainArtist.id || artistInfo?.id || (artistInfo ? mainArtist.name : null)) : null;
   const run = (fn) => () => { onClose(); fn && fn(); };
@@ -334,7 +347,7 @@ function TrackMenuSheet({ menu, onClose }) {
             )}
             {mainArtist && (
               <button className="aivy-trackmenu-link" disabled={!artistTarget} onClick={run(() => navigate("artist", { params: { id: artistTarget } }))}>
-                <span className="thumb round"><SmartCover src={artistImage} seed={String(mainArtist.id || mainArtist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} /></span>
+                <span className="thumb round">{artistImage && <SmartCover src={artistImage} seed={String(mainArtist.id || mainArtist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} />}</span>
                 <span className="txt"><small>{t("artistLabel")}</small><b>{mainArtist.name}</b></span>
               </button>
             )}
@@ -577,7 +590,7 @@ export function TrackRow({ track, index, list, showIndex = true, showAlbum = fal
   const handleContext = (e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); };
 
   return (
-    <div className={`aivy-row ${isCurrent ? "is-current" : ""}`} onContextMenu={handleContext}>
+    <div className={`aivy-row ${isCurrent ? "is-current" : ""}`} onContextMenu={handleContext} onPointerEnter={() => { loadArtistProfile(track); }}>
       {showIndex && (
         <div className="idx">
           <span className="num">{index + 1}</span>
