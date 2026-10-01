@@ -6,7 +6,7 @@ import { Api, API_BASE } from "./lib/api.js";
 import { setPreferredAudioFormat, getPreferredAudioFormat } from "./lib/audioFormat.js";
 import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
 import { makeT } from "./lib/i18n.js";
-import { peekArtistProfile, loadArtistProfile } from "./lib/artistProfile.js";
+import { trackArtistsReady, loadTrackArtists } from "./lib/artistProfile.js";
 import { useDiscordActivity } from "./lib/discordActivity.js";
 import { applyLiquidGlass } from "./lib/perf.js";
 
@@ -389,8 +389,8 @@ export function UIProvider({ children }) {
     const seq = ++ctxOpenSeq.current;
     const show = () => { if (seq === ctxOpenSeq.current) setContextMenu({ x, y, items, track }); };
     // Menu lagu: siapkan foto artis dulu (maks 900ms) supaya langsung tampil di klik pertama.
-    if (!track || peekArtistProfile(track) !== undefined) { show(); return; }
-    Promise.race([loadArtistProfile(track), new Promise((r) => setTimeout(r, 900))]).then(show);
+    if (!track || trackArtistsReady(track)) { show(); return; }
+    Promise.race([loadTrackArtists(track), new Promise((r) => setTimeout(r, 900))]).then(show);
   }, []);
   const closeContextMenu = useCallback(() => { ctxOpenSeq.current++; setContextMenu(null); }, []);
 

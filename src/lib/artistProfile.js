@@ -1,16 +1,32 @@
 // Cache profil artis (foto dll) supaya menu lagu bisa langsung menampilkan
-// foto artis di klik pertama, tanpa menunggu fetch setelah menu terbuka.
+// foto SEMUA artis (termasuk lagu kolaborasi) di klik pertama.
 import { Api } from "./api.js";
 import { isRelevantArtistMatch } from "./utils.js";
 
 const cache = new Map();     // key -> data | null
 const inflight = new Map();  // key -> Promise
+const MAX_ARTISTS = 8;
 
-function keyOf(track) {
-  const a = track && track.artist;
-  if (!a) return null;
-  const k = String(a.id || a.name || "").trim().toLowerCase();
+function keyOf(artist) {
+  if (!artist) return null;
+  const k = String(artist.id || artist.name || "").trim().toLowerCase();
   return k || null;
+}
+
+/** Semua artis sebuah lagu (kolaborasi = track.artists), tanpa duplikat. */
+export function menuArtists(track) {
+  const raw = track?.artists?.length ? track.artists : (track?.artist ? [track.artist] : []);
+  const seen = new Set();
+  const out = [];
+  for (const a of raw) {
+    if (!a || !a.name) continue;
+    const k = keyOf(a);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(a);
+    if (out.length >= MAX_ARTISTS) break;
+  }
+  return out;
 }
 
 function preloadImage(url) {
@@ -23,22 +39,21 @@ function preloadImage(url) {
 }
 
 /** undefined = belum dimuat, null = tidak ada / tidak relevan, object = profil artis */
-export function peekArtistProfile(track) {
-  const k = keyOf(track);
+export function peekArtistProfile(artist) {
+  const k = keyOf(artist);
   if (!k) return null;
   return cache.has(k) ? cache.get(k) : undefined;
 }
 
-export function loadArtistProfile(track) {
-  const k = keyOf(track);
+export function loadArtistProfile(artist) {
+  const k = keyOf(artist);
   if (!k) return Promise.resolve(null);
   if (cache.has(k)) return Promise.resolve(cache.get(k));
   if (inflight.has(k)) return inflight.get(k);
-  const a = track.artist;
-  const hasId = !!a.id;
-  const p = Api.artist(a.id || a.name)
+  const hasId = !!artist.id;
+  const p = Api.artist(artist.id || artist.name)
     .then(async (res) => {
-      const ok = res && !(!hasId && res.name && !isRelevantArtistMatch(res.name, a.name));
+      const ok = res && !(!hasId && res.name && !isRelevantArtistMatch(res.name, artist.name));
       const data = ok ? res : null;
       if (data && data.image) await preloadImage(data.image);
       cache.set(k, data);
@@ -48,4 +63,13 @@ export function loadArtistProfile(track) {
     .finally(() => { inflight.delete(k); });
   inflight.set(k, p);
   return p;
+}
+
+/** Muat profil semua artis dari sebuah lagu. */
+export function loadTrackArtists(track) {
+  return Promise.all(menuArtists(track).map(loadArtistProfile));
+}
+/** True kalau semua artis lagu sudah ada di cache. */
+export function trackArtistsReady(track) {
+  return menuArtists(track).every((a) => peekArtistProfile(a) !== undefined);
 }

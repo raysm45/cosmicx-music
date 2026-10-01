@@ -16,7 +16,7 @@ import {
 } from "./context.jsx";
 import { useRouter, Link } from "./router.jsx";
 import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, prefetchAnimatedArtwork } from "./lib/brand.jsx";
-import { peekArtistProfile, loadArtistProfile } from "./lib/artistProfile.js";
+import { peekArtistProfile, loadArtistProfile, loadTrackArtists, menuArtists } from "./lib/artistProfile.js";
 import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
 import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
@@ -272,16 +272,31 @@ function useScrubberBinding() {
   return { registerFill, registerThumb, getRatio, onSeekRatio: seekRatio, currentTime, duration };
 }
 
-function useArtistProfile(track) {
-  const [data, setData] = useState(() => { const c = peekArtistProfile(track); return c === undefined ? null : c; });
+function useArtistProfile(artist) {
+  const [data, setData] = useState(() => { const c = peekArtistProfile(artist); return c === undefined ? null : c; });
   useEffect(() => {
-    const c = peekArtistProfile(track);
+    const c = peekArtistProfile(artist);
     if (c !== undefined) { setData(c); return; }
     let alive = true;
-    loadArtistProfile(track).then((d) => { if (alive) setData(d); });
+    loadArtistProfile(artist).then((d) => { if (alive) setData(d); });
     return () => { alive = false; };
-  }, [track]);
+  }, [artist]);
   return data;
+}
+
+function TrackMenuArtistRow({ artist, onGo }) {
+  const { t } = useUI();
+  const info = useArtistProfile(artist);
+  const image = artist.image || artist.avatar || artist.thumbnail || info?.image || null;
+  const target = artist.id || info?.id || (info ? artist.name : null);
+  return (
+    <button className="aivy-trackmenu-link" disabled={!target} onClick={() => onGo(target)}>
+      <span className="thumb round">
+        {image && <SmartCover src={image} seed={String(artist.id || artist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} />}
+      </span>
+      <span className="txt"><small>{t("artistLabel")}</small><b>{artist.name}</b></span>
+    </button>
+  );
 }
 
 function TrackMenuSheet({ menu, onClose }) {
@@ -291,13 +306,10 @@ function TrackMenuSheet({ menu, onClose }) {
   const track = menu.track;
   const isLiked = liked.has(String(track.videoId || track.id));
   const artists = track.artists?.length ? track.artists : (track.artist ? [track.artist] : []);
-  const mainArtist = artists[0] || null;
+  const allArtists = menuArtists(track);
   const artistName = artists.map((a) => a.name).filter(Boolean).join(", ");
   const albumTitle = track.album?.title || track.albumTitle || "";
   const removeItem = menu.items?.removeItem || null;
-  const artistInfo = useArtistProfile(track);
-  const artistImage = mainArtist ? (mainArtist.image || mainArtist.avatar || mainArtist.thumbnail || artistInfo?.image || null) : null;
-  const artistTarget = mainArtist ? (mainArtist.id || artistInfo?.id || (artistInfo ? mainArtist.name : null)) : null;
   const run = (fn) => () => { onClose(); fn && fn(); };
 
   return createPortal(
@@ -337,7 +349,7 @@ function TrackMenuSheet({ menu, onClose }) {
           )}
         </div>
 
-        {(albumTitle || mainArtist) && (
+        {(albumTitle || allArtists.length > 0) && (
           <div className="aivy-trackmenu-foot">
             {albumTitle && (
               <button className="aivy-trackmenu-link" disabled={!track.album?.id} onClick={run(() => navigate("album", { params: { id: track.album.id } }))}>
@@ -345,12 +357,9 @@ function TrackMenuSheet({ menu, onClose }) {
                 <span className="txt"><small>{t("albumLabel")}</small><b>{albumTitle}</b></span>
               </button>
             )}
-            {mainArtist && (
-              <button className="aivy-trackmenu-link" disabled={!artistTarget} onClick={run(() => navigate("artist", { params: { id: artistTarget } }))}>
-                <span className="thumb round">{artistImage && <SmartCover src={artistImage} seed={String(mainArtist.id || mainArtist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} />}</span>
-                <span className="txt"><small>{t("artistLabel")}</small><b>{mainArtist.name}</b></span>
-              </button>
-            )}
+            {allArtists.map((a) => (
+              <TrackMenuArtistRow key={a.id || a.name} artist={a} onGo={(target) => { onClose(); navigate("artist", { params: { id: target } }); }} />
+            ))}
           </div>
         )}
       </div>
@@ -590,7 +599,7 @@ export function TrackRow({ track, index, list, showIndex = true, showAlbum = fal
   const handleContext = (e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); };
 
   return (
-    <div className={`aivy-row ${isCurrent ? "is-current" : ""}`} onContextMenu={handleContext} onPointerEnter={() => { loadArtistProfile(track); }}>
+    <div className={`aivy-row ${isCurrent ? "is-current" : ""}`} onContextMenu={handleContext} onPointerEnter={() => { loadTrackArtists(track); }}>
       {showIndex && (
         <div className="idx">
           <span className="num">{index + 1}</span>
