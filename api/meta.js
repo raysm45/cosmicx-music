@@ -1,7 +1,3 @@
-// Vercel Edge Function: mengisi <head> dan konten dasar index.html di server
-// untuk /artist/:id dan /album/:id, supaya Google, WhatsApp, Discord, dll.
-// langsung melihat judul, deskripsi, gambar, JSON-LD, dan daftar isi halaman.
-// Aplikasi React tetap berjalan normal setelah JavaScript dimuat.
 export const config = { runtime: "edge" };
 
 const SITE = "https://music.cosmicx.fun";
@@ -23,8 +19,6 @@ async function load(type, id) {
   if (!res.ok) return null;
   return res.json();
 }
-
-// Judul, deskripsi, dan JSON-LD sama persis dengan setSeo() di CatalogPages.jsx
 function build(type, id, d) {
   const path = `/${type}/${encodeURIComponent(id)}`;
 
@@ -88,7 +82,6 @@ function inject(html, m) {
     `<meta name="twitter:title" content="${esc(m.title)}" />`,
     `<meta name="twitter:description" content="${esc(m.desc)}" />`,
     `<meta name="twitter:image" content="${esc(img)}" />`,
-    // id sama dengan setJsonLd() di seo.js: klien menimpa, bukan menduplikasi
     `<script type="application/ld+json" id="seo-page-jsonld">${ld}</script>`,
   ].join("\n    ");
 
@@ -98,7 +91,6 @@ function inject(html, m) {
     .replace(/<link rel="canonical"[^>]*>\s*/, "")
     .replace(/<meta (?:property|name)="(?:og:type|og:title|og:description|og:url|og:image|og:image:width|og:image:height|twitter:card|twitter:title|twitter:description|twitter:image)"[^>]*>\s*/g, "")
     .replace("</head>", `    ${block}\n  </head>`)
-    // ganti konten bawaan di antara penanda; React menimpanya saat mount
     .replace(/<!--ssr-->[\s\S]*?<!--\/ssr-->/, `<!--ssr-->${m.body}<!--/ssr-->`);
 }
 
@@ -106,15 +98,13 @@ export default async function handler(req) {
   const u = new URL(req.url);
   const type = u.searchParams.get("type");
   const id = u.searchParams.get("id");
-
-  // /index.html adalah file statis, tidak kena rewrite, jadi tidak looping
   let html = await (await fetch(new URL("/index.html", u.origin))).text();
 
   if ((type === "artist" || type === "album") && id) {
     try {
       const meta = build(type, id, await load(type, id));
       if (meta) html = inject(html, meta);
-    } catch { /* gagal ambil data: kirim index.html apa adanya */ }
+    } catch {}
   }
 
   return new Response(html, {

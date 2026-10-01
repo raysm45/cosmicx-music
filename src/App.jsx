@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
-import { MaintenancePage } from "./pages/MaintenancePage.jsx";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ServerDownPage } from "./pages/ServerDownPage.jsx";
 import { useBackendHealth } from "./lib/health.js";
 import { RouterProvider, useRouter } from "./router.jsx";
 import { useRouteSeo } from "./lib/seo.js";
+import { isLowEndDevice } from "./lib/perf.js";
 import {
   UIProvider, PlayerProvider, useUI, usePlayer,
   SIDEBAR_COLLAPSED_W, RIGHTPANEL_COLLAPSED_W, RIGHTPANEL_PEEK_W,
@@ -16,12 +16,31 @@ import {
 import { LandingPage, LoginPage } from "./pages/AuthPages.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { NewTrendingPage, BestAlbumsPage, EditorsPicksPage } from "./pages/FeedPages.jsx";
-import { SearchPage } from "./pages/SearchPage.jsx";
-import { ArtistPage, AlbumPage } from "./pages/CatalogPages.jsx";
-import { LibraryPage, LikedPage, PlaylistPage, ImportPage, LibraryLocalPage } from "./pages/LibraryPages.jsx";
-import { RoomLobbyPage, RoomPage } from "./pages/RoomPages.jsx";
-import { SettingsPage } from "./pages/SettingsPage.jsx";
-import { ShortsPage } from "./pages/ShortsPage.jsx";
+const pageLoaders = {
+  search: () => import("./pages/SearchPage.jsx"),
+  catalog: () => import("./pages/CatalogPages.jsx"),
+  library: () => import("./pages/LibraryPages.jsx"),
+  rooms: () => import("./pages/RoomPages.jsx"),
+  settings: () => import("./pages/SettingsPage.jsx"),
+  shorts: () => import("./pages/ShortsPage.jsx"),
+  maintenance: () => import("./pages/MaintenancePage.jsx"),
+};
+const lazyPage = (key, exportName) =>
+  lazy(() => pageLoaders[key]().then((m) => ({ default: m[exportName] })));
+
+const SearchPage = lazyPage("search", "SearchPage");
+const ArtistPage = lazyPage("catalog", "ArtistPage");
+const AlbumPage = lazyPage("catalog", "AlbumPage");
+const LibraryPage = lazyPage("library", "LibraryPage");
+const LikedPage = lazyPage("library", "LikedPage");
+const PlaylistPage = lazyPage("library", "PlaylistPage");
+const ImportPage = lazyPage("library", "ImportPage");
+const LibraryLocalPage = lazyPage("library", "LibraryLocalPage");
+const RoomLobbyPage = lazyPage("rooms", "RoomLobbyPage");
+const RoomPage = lazyPage("rooms", "RoomPage");
+const SettingsPage = lazyPage("settings", "SettingsPage");
+const ShortsPage = lazyPage("shorts", "ShortsPage");
+const MaintenancePage = lazyPage("maintenance", "MaintenancePage");
 
 function useIsMobile(breakpoint = 860) {
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.matchMedia(`(max-width:${breakpoint}px)`).matches);
@@ -65,6 +84,16 @@ function AppInner() {
   const { currentTrack } = usePlayer();
   const isMobile = useIsMobile(860);
   const isPanelCompact = useIsMobile(1240);
+  useEffect(() => {
+    if (isLowEndDevice()) return undefined;
+    const run = () => ["search", "library", "catalog"].forEach((k) => pageLoaders[k]().catch(() => {}));
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(run, { timeout: 8000 });
+      return () => window.cancelIdleCallback && window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(run, 4000);
+    return () => clearTimeout(id);
+  }, []);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
 
   const anyModalOpen = nowPlayingOpen || mobileQueueOpen || lyricsOpen || !!sidebarQueueOpen;
@@ -118,7 +147,9 @@ function AppInner() {
         {!isImmersiveShorts && <TopBar isMobile={isMobile} />}
         <div id="aivy-content-scroll" className={`aivy-content aivy-scroll ${isMobile ? "is-mobile" : ""} ${name === "shorts" ? "no-pad" : ""} ${FULL_BLEED_ROUTES.has(name) ? "home-full" : ""}`}
           style={{ paddingBottom: name === "shorts" ? 0 : (isMobile ? (currentTrack ? 150 : 84) : (currentTrack ? 118 : 24)) }}>
-          <ErrorBoundary key={name + JSON.stringify(params)}><Page /></ErrorBoundary>
+          <ErrorBoundary key={name + JSON.stringify(params)}>
+            <Suspense fallback={<ViewLoading />}><Page /></Suspense>
+          </ErrorBoundary>
         </div>
       </main>
       {!isMobile && <PlayerBar onOpenNowPlaying={() => setNowPlayingOpen(true)} />}
@@ -146,7 +177,7 @@ export default function App() {
   const { down: backendDown, retryInSeconds, retryNow } = useBackendHealth();
 
   if (MANUAL_MAINTENANCE_MODE) {
-    return <MaintenancePage />;
+    return <Suspense fallback={null}><MaintenancePage /></Suspense>;
   }
 
   return (

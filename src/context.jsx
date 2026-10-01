@@ -9,7 +9,7 @@ import { makeT } from "./lib/i18n.js";
 import { seoState } from "./lib/seo.js";
 import { trackArtistsReady, loadTrackArtists } from "./lib/artistProfile.js";
 import { useDiscordActivity } from "./lib/discordActivity.js";
-import { applyLiquidGlass } from "./lib/perf.js";
+import { applyLiquidGlass, isLowEndDevice } from "./lib/perf.js";
 
 export const EQ_BANDS_HZ = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 export const EQ_PRESETS = {
@@ -143,7 +143,7 @@ const DEFAULT_SETTINGS = {
   artistBanners: true,
   reducedMotion: false,
   highContrast: false,
-  liquidGlass: true,
+  liquidGlass: !isLowEndDevice(), // device lemah: default blur biasa (tanpa refraksi SVG); tetap bisa dinyalakan di Pengaturan
 
   waveformSeekbar: false,
   coverBackground: true,
