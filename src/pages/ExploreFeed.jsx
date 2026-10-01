@@ -8,15 +8,6 @@ import { SmartCover } from "../lib/brand.jsx";
 import { loadTrackArtists } from "../lib/artistProfile.js";
 import { uid, formatDuration } from "../lib/utils.js";
 
-/* ------------------------------------------------------------------ *
- *  Explore: urutan blok yang diulang terus (infinite loop)
- *    1. Trending now        (list lagu)
- *    2. Featured Artists    (carousel artist + tombol Follow)
- *    3. Kartu cover         (3 lagu, cover full-bleed)
- *    4. Discover new music  (list lagu)
- *  Habis blok 4 -> ambil data baru -> mulai lagi dari blok 1, dst.
- * ------------------------------------------------------------------ */
-
 const N_TRENDING = 5;
 const N_COVERS = 3;
 const N_DISCOVER = 6;
@@ -27,9 +18,6 @@ const PAGE = 24;
 function newSource() {
   return { seed: uid("explore"), cursor: 0, pool: [], seen: new Set() };
 }
-
-// Isi pool sampai minimal `need` item. Kalau backend habis / cuma ngasih duplikat,
-// seed diganti dan cursor di-reset -> feed tidak pernah berhenti (looping).
 async function fillPool(src, type, need, allowExplicit) {
   let dry = 0;
   while (src.pool.length < need && dry < 3) {
@@ -37,7 +25,7 @@ async function fillPool(src, type, need, allowExplicit) {
     try {
       res = await Api.discover(src.seed, src.cursor, PAGE, type);
     } catch {
-      return; // error jaringan: berhenti, jangan rotasi seed
+      return;
     }
     const raw = res?.items || [];
     src.cursor = res?.nextCursor ?? src.cursor + (raw.length || PAGE);
@@ -100,8 +88,6 @@ function useExploreFeed() {
 
   return { cycles, loading, stalled, loadCycle };
 }
-
-/* ------------------------------ komponen ------------------------------ */
 
 function artistNames(track) {
   const list = track.artists?.length ? track.artists : (track.artist ? [track.artist] : []);
@@ -188,12 +174,12 @@ function ExploreCoverCard({ track, list }) {
 
 function FeaturedArtistCard({ artist }) {
   const { navigate } = useRouter();
-  const { t, pushToast } = useUI();
-  const [following, setFollowing] = useState(false);
+  const { t } = useUI();
+  const { followedArtistIds, toggleFollowArtist } = usePlayer();
+  const following = !!artist.id && followedArtistIds.has(String(artist.id));
   const toggle = (e) => {
     e.stopPropagation();
-    setFollowing((f) => !f);
-    pushToast(following ? `${t("unfollowedToast")} ${artist.name}` : `${t("followedToast")} ${artist.name}`);
+    toggleFollowArtist(artist);
   };
   return (
     <div className="aivy-xartist" onClick={() => navigate("artist", { params: { id: artist.id } })}>
@@ -278,9 +264,6 @@ export function ExploreFeed() {
   const { t } = useUI();
   const { cycles, loading, stalled, loadCycle } = useExploreFeed();
   const sentinelRef = useRef(null);
-
-  // Observer dibuat ulang tiap jumlah cycle berubah -> callback langsung jalan lagi
-  // kalau sentinel masih kelihatan (layar tinggi / konten pendek), jadi nggak macet.
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el || stalled) return undefined;

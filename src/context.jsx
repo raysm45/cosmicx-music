@@ -525,6 +525,8 @@ export function PlayerProvider({ children }) {
   const [repeat, setRepeat] = useState("off");
   const [liked, setLiked] = useState(() => new Set());
   const [playlists, setPlaylists] = useState([]);
+  const [followedArtists, setFollowedArtists] = useState([]);
+  const [savedAlbums, setSavedAlbums] = useState([]);
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [playSource, setPlaySource] = useState(null);
 
@@ -757,9 +759,11 @@ export function PlayerProvider({ children }) {
   const currentTrackHasLyrics = true;
 
   useEffect(() => {
-    if (!authUser) { setLiked(new Set()); setPlaylists([]); return; }
+    if (!authUser) { setLiked(new Set()); setPlaylists([]); setFollowedArtists([]); setSavedAlbums([]); return; }
     Api.likes().then((rows) => setLiked(new Set(rows.map((r) => String(r.video_id ?? r.videoId ?? r.id))))).catch(() => {});
     Api.playlists().then(setPlaylists).catch(() => {});
+    Api.followedArtists().then((rows) => setFollowedArtists(Array.isArray(rows) ? rows : [])).catch(() => {});
+    Api.savedAlbums().then((rows) => setSavedAlbums(Array.isArray(rows) ? rows : [])).catch(() => {});
   }, [authUser]);
 
   const refreshPlaylists = useCallback(async () => {
@@ -1446,6 +1450,57 @@ export function PlayerProvider({ children }) {
     } catch { pushToast(t("toastLikeFailed")); }
   }, [authUser, liked, pushToast, t]);
 
+  const followedArtistIds = useMemo(() => new Set(followedArtists.map((a) => String(a.id))), [followedArtists]);
+  const savedAlbumIds = useMemo(() => new Set(savedAlbums.map((a) => String(a.id))), [savedAlbums]);
+
+  const toggleFollowArtist = useCallback(async (artist) => {
+    if (!authUser) { pushToast(t("toastLoginToFollow")); return; }
+    const id = artist?.id ? String(artist.id) : null;
+    if (!id || !artist?.name) return;
+    const willFollow = !followedArtists.some((a) => String(a.id) === id);
+    const image = artist.image || artist.banner || null;
+    setFollowedArtists((prev) => willFollow
+      ? [{ id, name: artist.name, image }, ...prev.filter((a) => String(a.id) !== id)]
+      : prev.filter((a) => String(a.id) !== id));
+    pushToast(`${willFollow ? t("followedToast") : t("unfollowedToast")} ${artist.name}`);
+    try {
+      if (willFollow) await Api.followArtist(id, { name: artist.name, image });
+      else await Api.unfollowArtist(id);
+    } catch {
+      setFollowedArtists((prev) => willFollow
+        ? prev.filter((a) => String(a.id) !== id)
+        : [{ id, name: artist.name, image }, ...prev.filter((a) => String(a.id) !== id)]);
+      pushToast(t("toastFollowFailed"));
+    }
+  }, [authUser, followedArtists, pushToast, t]);
+
+  const toggleSaveAlbum = useCallback(async (album) => {
+    if (!authUser) { pushToast(t("toastLoginToSave")); return; }
+    const id = album?.id ? String(album.id) : null;
+    if (!id || !album?.title) return;
+    const willSave = !savedAlbums.some((a) => String(a.id) === id);
+    const entry = {
+      id,
+      title: album.title,
+      cover: album.cover || null,
+      artist: album.artist?.name ? { id: album.artist.id || null, name: album.artist.name } : null,
+      releaseDate: album.releaseDate || null,
+    };
+    setSavedAlbums((prev) => willSave
+      ? [entry, ...prev.filter((a) => String(a.id) !== id)]
+      : prev.filter((a) => String(a.id) !== id));
+    pushToast(`${willSave ? t("toastAlbumSaved") : t("toastAlbumRemoved")} — ${album.title}`);
+    try {
+      if (willSave) await Api.saveAlbum(id, { title: entry.title, cover: entry.cover, artistId: entry.artist?.id || null, artistName: entry.artist?.name || null, releaseDate: entry.releaseDate });
+      else await Api.unsaveAlbum(id);
+    } catch {
+      setSavedAlbums((prev) => willSave
+        ? prev.filter((a) => String(a.id) !== id)
+        : [entry, ...prev.filter((a) => String(a.id) !== id)]);
+      pushToast(t("toastAlbumFailed"));
+    }
+  }, [authUser, savedAlbums, pushToast, t]);
+
   const addToQueueEnd = useCallback((rawTrack) => {
     const track = normalizeTrack(rawTrack);
     if (!track) return;
@@ -1751,6 +1806,7 @@ export function PlayerProvider({ children }) {
     currentTrackHasLyrics, playSource,
     isPlaying, duration: clipDuration, isPreviewClip, audioFormat, loadingAudio,
     volume, muted, shuffle, repeat, liked, playlists,
+    followedArtists, followedArtistIds, toggleFollowArtist, savedAlbums, savedAlbumIds, toggleSaveAlbum,
     playList, togglePlay, next, prev, seekRatio, seekTo, toggleShuffle, cycleRepeat,
     setShuffle,
     setVolume, toggleMute, toggleLike, addToQueueEnd, playNextInQueue, addAllToQueueEnd, playAllNext,

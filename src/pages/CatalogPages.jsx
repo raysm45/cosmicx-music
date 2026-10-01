@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Play, Pause, Shuffle, Info, Star, MoreHorizontal, ChevronRight, X } from "lucide-react";
+import { Play, Pause, Shuffle, Info, Star, MoreHorizontal, ChevronRight, X, Heart } from "lucide-react";
 import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
@@ -200,7 +200,8 @@ export function ArtistPage() {
   const { params, navigate } = useRouter();
   const [artist, setArtist] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [favorite, setFavorite] = useState(false);
+  const { followedArtistIds, toggleFollowArtist } = usePlayer();
+  const favorite = !!artist?.id && followedArtistIds.has(String(artist.id));
   const [showAllSongs, setShowAllSongs] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [videoModal, setVideoModal] = useState(null);
@@ -232,7 +233,7 @@ export function ArtistPage() {
     return () => io.disconnect();
   }, [heroVideoUrl]);
   const { playList, playSingle } = usePlayer();
-  const { pushToast, t, settings } = useUI();
+  const { t, settings } = useUI();
 
   useEffect(() => {
     document.body.classList.add("aivy-artist-immersive");
@@ -465,10 +466,7 @@ export function ArtistPage() {
             </button>
             <button
               className={`aivy-am-ghost ${favorite ? "active" : ""}`}
-              onClick={() => {
-                setFavorite((f) => !f);
-                pushToast(favorite ? `${t("unfollowedToast")} ${artist.name}` : `${t("followedToast")} ${artist.name}`);
-              }}
+              onClick={() => toggleFollowArtist(artist)}
               aria-pressed={favorite}
               aria-label={t("favorite")}
               title={t("favorite")}
@@ -635,7 +633,7 @@ export function AlbumPage() {
   const { params } = useRouter();
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { playList } = usePlayer();
+  const { playList, savedAlbumIds, toggleSaveAlbum } = usePlayer();
   const { navigate } = useRouter();
   const { t, settings } = useUI();
   const [localShuffle, setLocalShuffle] = useState(false);
@@ -669,6 +667,7 @@ export function AlbumPage() {
 
   if (loading) return <SkeletonHeroPage rows={7} />;
   if (!album) return <ViewNotFound label={t("albumLabel")} />;
+  const albumSaved = savedAlbumIds.has(String(album.id));
 
   return (
     <div className="aivy-view-enter">
@@ -687,6 +686,7 @@ export function AlbumPage() {
       <div className="aivy-hero-actions">
         <button className="aivy-play-btn is-hero" style={{ width: 52, height: 52 }} onClick={() => playList(albumTracks, 0, null, localShuffle)} aria-label={t("playAlbum")}><Play size={22} fill="currentColor" /></button>
         <button className={`aivy-icon-btn-solid ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((s) => !s)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}><Shuffle size={18} /></button>
+        <button className={`aivy-icon-btn-solid ${albumSaved ? "active" : ""}`} onClick={() => toggleSaveAlbum(album)} aria-label={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")} aria-pressed={albumSaved} title={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")}><Heart size={18} fill={albumSaved ? "currentColor" : "none"} /></button>
       </div>
       <FlipList
         items={displayTracks}

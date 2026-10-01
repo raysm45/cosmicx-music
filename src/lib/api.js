@@ -148,6 +148,12 @@ export const Api = {
   likes: () => apiGet("/api/me/likes"),
   like: (videoId, meta) => apiSend(`/api/me/likes/${encodeURIComponent(videoId)}`, "POST", meta),
   unlike: (videoId) => apiSend(`/api/me/likes/${encodeURIComponent(videoId)}`, "DELETE"),
+  followedArtists: () => apiGet("/api/me/artists"),
+  followArtist: (artistId, meta) => apiSend(`/api/me/artists/${encodeURIComponent(artistId)}`, "POST", meta),
+  unfollowArtist: (artistId) => apiSend(`/api/me/artists/${encodeURIComponent(artistId)}`, "DELETE"),
+  savedAlbums: () => apiGet("/api/me/albums"),
+  saveAlbum: (albumId, meta) => apiSend(`/api/me/albums/${encodeURIComponent(albumId)}`, "POST", meta),
+  unsaveAlbum: (albumId) => apiSend(`/api/me/albums/${encodeURIComponent(albumId)}`, "DELETE"),
   history: (limit) => apiGet(`/api/me/history?limit=${limit || 50}`),
   addHistory: (videoId, meta) => apiSend("/api/me/history", "POST", { videoId, ...meta }),
 

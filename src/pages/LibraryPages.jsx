@@ -32,60 +32,6 @@ function mergeTracks(...lists) {
   return out;
 }
 
-function artistRef(a) {
-  if (!a) return null;
-  if (typeof a === "string") return a.trim() ? { id: null, name: a.trim() } : null;
-  const name = String(a.name || "").trim();
-  if (!name) return null;
-  return { id: a.id || null, name };
-}
-
-function trackArtistRefs(tr) {
-  const raw = Array.isArray(tr.artists) && tr.artists.length ? tr.artists : [tr.artist];
-  return raw.map(artistRef).filter(Boolean);
-}
-
-function collectArtists(tracks) {
-  const map = new Map();
-  for (const tr of tracks) {
-    if (tr.source === "local") continue;
-    for (const ref of trackArtistRefs(tr)) {
-      const key = ref.name.toLowerCase();
-      const hit = map.get(key);
-      if (hit) {
-        hit.count += 1;
-        if (!hit.cover && tr.cover) hit.cover = tr.cover;
-        if (!hit.id && ref.id) hit.id = ref.id;
-      } else {
-        map.set(key, { key, id: ref.id, name: ref.name, cover: tr.cover || null, count: 1 });
-      }
-    }
-  }
-  return [...map.values()].sort((a, b) => b.count - a.count);
-}
-
-function collectAlbums(tracks) {
-  const map = new Map();
-  for (const tr of tracks) {
-    if (tr.source === "local") continue;
-    const al = tr.album;
-    if (!al || typeof al !== "object" || !al.id) continue;
-    const key = String(al.id);
-    const hit = map.get(key);
-    if (hit) { hit.count += 1; continue; }
-    const artist = trackArtistRefs(tr)[0] || null;
-    map.set(key, {
-      id: al.id,
-      title: al.title || al.name || "Album",
-      cover: al.cover || tr.cover || null,
-      artist: artist ? { name: artist.name } : null,
-      releaseDate: al.releaseDate || null,
-      count: 1,
-    });
-  }
-  return [...map.values()].sort((a, b) => b.count - a.count);
-}
-
 function LibSection({ title, onMore, moreLabel = "Lihat semua", children }) {
   return (
     <section className="aivy-lib-section">
@@ -136,20 +82,20 @@ function LibLikedCard({ count, cover }) {
 
 function LibArtistCard({ artist }) {
   const { t } = useUI();
-  const blur = thumbBlur(artist.cover);
+  const blur = thumbBlur(artist.image);
   return (
-    <Link to="artist" params={{ id: artist.id || artist.name }} className={`aivy-card ${blur.className}`} style={{ textAlign: "center", ...blur.style }}>
+    <Link to="artist" params={{ id: artist.id }} className={`aivy-card ${blur.className}`} style={{ textAlign: "center", ...blur.style }}>
       <div className="art-wrap round">
-        <SmartCover src={artist.cover} seed={"artist" + artist.name} size={128} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
+        <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={128} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
       </div>
       <div className="title" style={{ textAlign: "center" }}>{artist.name}</div>
-      <div className="sub" style={{ textAlign: "center" }}>{artist.count} {t("songsCount")}</div>
+      <div className="sub" style={{ textAlign: "center" }}>{t("artistLabel")}</div>
     </Link>
   );
 }
 
 export function LibraryPage() {
-  const { playlists, liked, localTracks, playList, setPlaylistDetail } = usePlayer();
+  const { playlists, liked, localTracks, playList, setPlaylistDetail, followedArtists, savedAlbums } = usePlayer();
   const { t, authUser } = useUI();
   const [tab, setTab] = React.useState("all");
   const [likedTracks, setLikedTracks] = React.useState([]);
@@ -192,8 +138,8 @@ export function LibraryPage() {
     () => mergeTracks(likedTracks, localTracks, ...playlists.map((pl) => pl.songs)),
     [likedTracks, localTracks, playlists]
   );
-  const artists = useMemo(() => collectArtists(allSongs), [allSongs]);
-  const albums = useMemo(() => collectAlbums(allSongs), [allSongs]);
+  const artists = followedArtists;
+  const albums = savedAlbums;
 
   const likedCover = likedTracks.find((tr) => tr.cover)?.cover || null;
   const libSource = { type: "library", label: t("yourLibrary") };
@@ -209,7 +155,7 @@ export function LibraryPage() {
 
   const jumpTiles = [
     { id: "songs", label: "Lagu", count: allSongs.length, unit: t("songsCount"), cover: allSongs.find((tr) => tr.cover)?.cover, Icon: Music2 },
-    { id: "artists", label: t("artistLabel"), count: artists.length, unit: "", cover: artists.find((a) => a.cover)?.cover, Icon: Mic2 },
+    { id: "artists", label: t("artistLabel"), count: artists.length, unit: "", cover: artists.find((a) => a.image)?.image, Icon: Mic2 },
     { id: "albums", label: t("albumLabel"), count: albums.length, unit: "", cover: albums.find((a) => a.cover)?.cover, Icon: Disc },
     { id: "playlists", label: t("playlistLabel"), count: playlists.length, unit: "", cover: playlists.map((pl) => pl.cover_thumbnail ?? pl.songs?.[0]?.cover).find(Boolean), Icon: ListMusic },
   ];
@@ -254,7 +200,7 @@ export function LibraryPage() {
       {artists.length > 0 && (
         <LibSection title={t("artistLabel")} onMore={() => setTab("artists")}>
           <div className="aivy-lib-rail is-artists">
-            {artists.slice(0, 14).map((a) => <LibArtistCard key={a.key} artist={a} />)}
+            {artists.slice(0, 14).map((a) => <LibArtistCard key={a.id} artist={a} />)}
           </div>
         </LibSection>
       )}
@@ -319,9 +265,9 @@ export function LibraryPage() {
 
   const renderArtists = () => (
     artists.length > 0 ? (
-      <div className="aivy-grid">{artists.map((a) => <LibArtistCard key={a.key} artist={a} />)}</div>
+      <div className="aivy-grid">{artists.map((a) => <LibArtistCard key={a.id} artist={a} />)}</div>
     ) : (
-      <div className="aivy-empty"><Mic2 size={34} color="var(--ink-faint)" /><div className="title">Belum ada artist</div><div className="sub">Artist dari lagu yang kamu simpan akan muncul di sini.</div></div>
+      <div className="aivy-empty"><Mic2 size={34} color="var(--ink-faint)" /><div className="title">Belum ada artist yang diikuti</div><div className="sub">Ikuti artist dari halaman artist, nanti muncul di sini.</div></div>
     )
   );
 
@@ -329,7 +275,7 @@ export function LibraryPage() {
     albums.length > 0 ? (
       <div className="aivy-grid">{albums.map((al) => <CardAlbum key={al.id} album={al} />)}</div>
     ) : (
-      <div className="aivy-empty"><Disc size={34} color="var(--ink-faint)" /><div className="title">Belum ada album</div><div className="sub">Album dari lagu yang kamu simpan akan muncul di sini.</div></div>
+      <div className="aivy-empty"><Disc size={34} color="var(--ink-faint)" /><div className="title">Belum ada album yang disimpan</div><div className="sub">Tekan ikon hati di halaman album untuk menyimpannya ke sini.</div></div>
     )
   );
 

@@ -2429,10 +2429,9 @@ function useArtistAbout(track) {
 function AboutArtistSection({ track, onNavigate, glass = false }) {
   const artist = useArtistAbout(track);
   const { navigate } = useRouter();
-  const { pushToast, t, settings } = useUI();
-  const [following, setFollowing] = useState(false);
-
-  useEffect(() => { setFollowing(false); }, [artist?.id]);
+  const { t, settings } = useUI();
+  const { followedArtistIds, toggleFollowArtist } = usePlayer();
+  const following = !!artist?.id && followedArtistIds.has(String(artist.id));
 
   if (!track?.artist || !artist) return null;
 
@@ -2443,8 +2442,7 @@ function AboutArtistSection({ track, onNavigate, glass = false }) {
 
   const handleFollow = (e) => {
     e.stopPropagation();
-    setFollowing((f) => !f);
-    pushToast(following ? `${t("unfollowedToast")} ${artist.name}` : `${t("followedToast")} ${artist.name}`);
+    toggleFollowArtist(artist);
   };
 
   const artBg = artist.banner || artist.image;
