@@ -563,6 +563,7 @@ export function SettingsPage() {
 
       <SettingSection title="Discord" desc={tt("Tampilkan lagu yang kamu dengar di profil Discord (seperti Spotify). Butuh presence bridge yang berjalan di PC dan Discord desktop yang terbuka.", "Show what you're listening to on your Discord profile (like Spotify). Requires the presence bridge running on your PC and the Discord desktop app open.")}>
         <ToggleRow label={tt("Status \"Listening to\" di profil", "\"Listening to\" status on profile")} hint={tt("Judul, artis, cover, dan progress lagu", "Song title, artist, cover, and progress")} checked={!!settings.discordPresence} onChange={set("discordPresence")} />
+        <ToggleRow label={tt("Tampilkan lirik di status", "Show lyrics in status")} hint={tt("Baris lirik yang sedang dinyanyikan, berganti sinkron dengan halaman lirik", "The line being sung, changing in sync with the lyrics view")} checked={settings.discordPresenceLyrics !== false} onChange={set("discordPresenceLyrics")} />
       </SettingSection>
 
       <SettingSection title={tt("Cache & Data", "Cache & Data")}>

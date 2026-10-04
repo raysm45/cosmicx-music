@@ -188,6 +188,7 @@ const DEFAULT_SETTINGS = {
   historyEnabled: true,
   searchHistoryEnabled: true,
   discordPresence: false,
+  discordPresenceLyrics: true,
 };
 
 function loadCachedSettings() {
@@ -703,7 +704,7 @@ export function PlayerProvider({ children }) {
   const currentKey = currentTrack ? currentTrack.id : null;
   const inRoom = !!room;
 
-  useDiscordPresence({ enabled: !!settings.discordPresence, track: currentTrack, isPlaying, audioRef });
+  useDiscordPresence({ enabled: !!settings.discordPresence, track: currentTrack, isPlaying, audioRef, lyrics: settings.discordPresenceLyrics !== false });
 
   const defaultDocTitleRef = useRef(typeof document !== "undefined" ? document.title : "");
   useEffect(() => {
