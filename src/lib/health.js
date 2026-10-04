@@ -16,7 +16,7 @@ function pingBackendAlive() {
     .finally(() => clearTimeout(timeout));
 }
 
-export function useBackendHealth() {
+export function useBackendHealth({ enabled = true } = {}) {
   const [down, setDown] = useState(false);
   const [retryInSeconds, setRetryInSeconds] = useState(null);
   const failuresRef = useRef(0);
@@ -25,6 +25,7 @@ export function useBackendHealth() {
   const checkRef = useRef(() => {});
 
   useEffect(() => {
+    if (!enabled) { setDown(false); setRetryInSeconds(null); return undefined; }
     let alive = true;
 
     const startCountdown = (seconds) => {
@@ -76,7 +77,7 @@ export function useBackendHealth() {
       clearInterval(countdownRef.current);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, []);
+  }, [enabled]);
 
   const retryNow = () => checkRef.current();
 

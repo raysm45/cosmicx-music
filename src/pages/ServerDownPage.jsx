@@ -7,7 +7,7 @@ function seededRandom(seed) {
   };
 }
 
-export function ServerDownPage() {
+export function ServerDownPage({ eta = "± 5 jam", updatedAt = "13:30:00 WIB" } = {}) {
   const totalDots = 200;
   const errorCount = 5;
 
@@ -65,8 +65,6 @@ export function ServerDownPage() {
       color: var(--text-primary);
       font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
       display: flex;
-      align-items: center;
-      justify-content: center;
       overflow-y: auto;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
@@ -86,6 +84,7 @@ export function ServerDownPage() {
     }
 
     .container {
+      margin: auto;
       text-align: center;
       padding: 48px 32px;
       max-width: 680px;
@@ -448,11 +447,11 @@ export function ServerDownPage() {
           </div>
           <div className="info-item">
             <div className="label">Estimasi Pemulihan</div>
-            <div className="value">± 5 jam</div>
+            <div className="value">{eta}</div>
           </div>
           <div className="info-item">
             <div className="label">Terakhir Update</div>
-            <div className="value">13:30:00 WIB</div>
+            <div className="value">{updatedAt}</div>
           </div>
         </div>
 

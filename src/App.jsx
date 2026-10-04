@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { ServerDownPage } from "./pages/ServerDownPage.jsx";
 import { useBackendHealth } from "./lib/health.js";
+import { SERVER_DOWN_MODE, SERVER_DOWN_INFO } from "./lib/siteMode.js";
 import { RouterProvider, useRouter } from "./router.jsx";
 import { useRouteSeo } from "./lib/seo.js";
 import { isLowEndDevice } from "./lib/perf.js";
@@ -174,11 +175,17 @@ function AppInner() {
 const MANUAL_MAINTENANCE_MODE = false;
 
 export default function App() {
-  const { down: backendDown, retryInSeconds, retryNow } = useBackendHealth();
+  const { down: backendDown, retryInSeconds, retryNow } = useBackendHealth({ enabled: SERVER_DOWN_MODE === "auto" });
 
   if (MANUAL_MAINTENANCE_MODE) {
     return <Suspense fallback={null}><MaintenancePage /></Suspense>;
   }
+
+  if (SERVER_DOWN_MODE === "manual") {
+    return <ServerDownPage {...SERVER_DOWN_INFO} />;
+  }
+
+  const showServerDown = SERVER_DOWN_MODE === "auto" && backendDown;
 
   return (
     <ErrorBoundary>
@@ -186,8 +193,8 @@ export default function App() {
         <UIProvider>
           <PlayerProvider>
             <AppInner />
-            {backendDown && (
-              <ServerDownPage retryInSeconds={retryInSeconds} onRetryNow={retryNow} />
+            {showServerDown && (
+              <ServerDownPage retryInSeconds={retryInSeconds} onRetryNow={retryNow} {...SERVER_DOWN_INFO} />
             )}
           </PlayerProvider>
         </UIProvider>
