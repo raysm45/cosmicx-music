@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Cookie, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useUI } from "./context.jsx";
 import {
   useCookieConsent, saveConsent, acceptAll, rejectAll, COOKIE_OPEN_EVENT,
@@ -34,8 +34,6 @@ function CookiePrefsModal({ tt, initial, onClose }) {
     preferences: initial?.preferences ?? false,
     analytics: initial?.analytics ?? false,
   });
-
-  // Fokus masuk ke dialog, Esc menutup, Tab terkunci di dalam dialog.
   useEffect(() => {
     const previous = document.activeElement;
     dialogRef.current?.focus();
@@ -58,7 +56,7 @@ function CookiePrefsModal({ tt, initial, onClose }) {
       key: "necessary", locked: true,
       title: tt("Esensial", "Essential"),
       desc: tt(
-        "Dibutuhkan supaya login, keamanan, dan penyimpanan pengaturan dasar berjalan. Selalu aktif.",
+        "Diperlukan agar situs tetap berjalan, menjaga keamanan akun, dan menyimpan pengaturan dasar. Selalu aktif.",
         "Required for login, security, and saving basic settings. Always on."
       ),
     },
@@ -66,8 +64,8 @@ function CookiePrefsModal({ tt, initial, onClose }) {
       key: "preferences",
       title: tt("Preferensi", "Preferences"),
       desc: tt(
-        "Mengingat pilihanmu seperti lagu terakhir diputar, riwayat pencarian, dan tampilan supaya tidak mulai dari nol.",
-        "Remembers your choices like the last played track, recent searches, and appearance so you don't start over."
+        "Mengingat pilihan Anda seperti lagu terakhir diputar, riwayat pencarian, dan tampilan.",
+        "Remembers your choices like the last played track, recent searches, and appearance."
       ),
     },
     {
@@ -87,8 +85,8 @@ function CookiePrefsModal({ tt, initial, onClose }) {
       <div className="aivy-ck-modal" role="dialog" aria-modal="true" aria-labelledby="aivy-ck-title" tabIndex={-1} ref={dialogRef}>
         <div className="aivy-ck-head">
           <div>
-            <h2 id="aivy-ck-title">{tt("Pilih cookie", "Choose cookies")}</h2>
-            <p>{tt("Atur cookie mana yang boleh kami pakai. Kamu bisa mengubahnya kapan saja di Setting.", "Choose which cookies we may use. You can change this anytime in Settings.")}</p>
+            <h2 id="aivy-ck-title">{tt("Kelola pengaturan cookie", "Manage cookie settings")}</h2>
+            <p>{tt("Pilih cookie yang boleh kami gunakan. Anda dapat mengubahnya kapan saja di Setting.", "Choose which cookies we may use. You can change this anytime in Settings.")}</p>
           </div>
           <button type="button" className="aivy-ck-close" onClick={onClose} aria-label={tt("Tutup", "Close")}><X size={18} /></button>
         </div>
@@ -114,33 +112,23 @@ function CookiePrefsModal({ tt, initial, onClose }) {
         </div>
 
         <div className="aivy-ck-foot">
-          <button type="button" className="aivy-btn-ghost" onClick={() => finish(rejectAll)}>{tt("Tolak semua", "Reject all")}</button>
-          <button type="button" className="aivy-btn-ghost" onClick={() => finish(() => saveConsent(prefs))}>{tt("Simpan pilihan", "Save choices")}</button>
-          <button type="button" className="aivy-btn-primary" onClick={() => finish(acceptAll)}>{tt("Terima semua", "Accept all")}</button>
+          <button type="button" className="aivy-ck-btn" onClick={() => finish(rejectAll)}>{tt("Hanya yang diperlukan", "Necessary only")}</button>
+          <button type="button" className="aivy-ck-btn" onClick={() => finish(() => saveConsent(prefs))}>{tt("Simpan pilihan", "Save choices")}</button>
+          <button type="button" className="aivy-ck-btn" onClick={() => finish(acceptAll)}>{tt("Terima semuanya", "Accept all")}</button>
         </div>
       </div>
     </div>
   );
 }
-
-/**
- * Banner cookie di bawah halaman + modal "Pilih cookie".
- * Pasang sekali di dalam <UIProvider>. `policyHref` opsional: kalau diisi,
- * muncul link "Kebijakan Privasi" di banner.
- */
 export function CookieConsent({ policyHref = null }) {
   const tt = useTT();
   const consent = useCookieConsent();
   const [ready, setReady] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
-
-  // Beri jeda singkat supaya banner tidak rebutan dengan loading awal.
   useEffect(() => {
     const id = setTimeout(() => setReady(true), 500);
     return () => clearTimeout(id);
   }, []);
-
-  // Panel bisa dibuka dari luar (tombol di Setting) lewat openCookieSettings().
   useEffect(() => {
     const open = () => setPrefsOpen(true);
     window.addEventListener(COOKIE_OPEN_EVENT, open);
@@ -153,21 +141,20 @@ export function CookieConsent({ policyHref = null }) {
     <>
       {showBanner && (
         <div className="aivy-ck-banner" role="region" aria-label={tt("Persetujuan cookie", "Cookie consent")}>
-          <div className="aivy-ck-icon" aria-hidden="true"><Cookie size={22} /></div>
           <div className="aivy-ck-text">
-            <div className="aivy-ck-title">{tt("Kami pakai cookie", "We use cookies")}</div>
+            <div className="aivy-ck-title">{tt("Kami menggunakan cookie", "We use cookies")}</div>
             <p>
               {tt(
-                "Cookie esensial bikin aplikasi berjalan. Dengan persetujuanmu, kami juga pakai cookie preferensi dan analitik untuk pengalaman yang lebih baik.",
-                "Essential cookies keep the app running. With your consent, we also use preference and analytics cookies for a better experience."
+                "Kami menggunakan cookie agar situs tetap berjalan, mengingat pilihan Anda, dan menjaga keamanan akun. Anda dapat mengubah pilihan kapan saja di pengaturan cookie.",
+                "We use cookies to keep the site running, remember your choices, and keep your account secure. You can change your choices anytime in cookie settings."
               )}
               {policyHref && (<> <a href={policyHref}>{tt("Kebijakan Privasi", "Privacy Policy")}</a></>)}
             </p>
           </div>
           <div className="aivy-ck-actions">
-            <button type="button" className="aivy-btn-ghost aivy-ck-btn aivy-ck-pick" onClick={() => setPrefsOpen(true)}>{tt("Pilih cookie", "Choose cookies")}</button>
-            <button type="button" className="aivy-btn-ghost aivy-ck-btn" onClick={rejectAll}>{tt("Tolak", "Reject")}</button>
-            <button type="button" className="aivy-btn-primary aivy-ck-btn" onClick={acceptAll}>{tt("Terima semua", "Accept all")}</button>
+            <button type="button" className="aivy-ck-btn" onClick={() => setPrefsOpen(true)}>{tt("Kelola pengaturan", "Manage settings")}</button>
+            <button type="button" className="aivy-ck-btn" onClick={rejectAll}>{tt("Hanya yang diperlukan", "Necessary only")}</button>
+            <button type="button" className="aivy-ck-btn" onClick={acceptAll}>{tt("Terima semuanya", "Accept all")}</button>
           </div>
         </div>
       )}
