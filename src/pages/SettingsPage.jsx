@@ -1,11 +1,12 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   Palette, LayoutPanelLeft, Speaker, Cog,
-  LogOut, RotateCcw, SlidersHorizontal, Check, FileUp, FileDown,
+  LogOut, RotateCcw, SlidersHorizontal, Check, FileUp, FileDown, Cookie,
 } from "lucide-react";
 import { useUI, usePlayer, EQ_BANDS_HZ, EQ_PRESETS } from "../context.jsx";
 import { Api } from "../lib/api.js";
 import { CustomSelect } from "../components.jsx";
+import { useCookieConsent, openCookieSettings } from "../lib/cookieConsent.js";
 
 const THEME_SWATCHES = {
   system: ["#000000", "#ffffff", "#f2f2f0"],
@@ -197,6 +198,7 @@ function EqualizerPanel({ eq, onChange, tt }) {
 export function SettingsPage() {
   const { settings, updateSettings, resetSettings, authUser, logout, loggingOut, pushToast, t } = useUI();
   const player = usePlayer();
+  const cookieConsent = useCookieConsent();
   const [tab, setTab] = useState("appearance");
   const fileInputRef = useRef(null);
   const importModeRef = useRef("backup");
@@ -561,6 +563,16 @@ export function SettingsPage() {
       <SettingSection title="Discord" desc={tt("Tampilkan lagu yang kamu dengar di profil Discord (seperti Spotify). Butuh presence bridge yang berjalan di PC dan Discord desktop yang terbuka.", "Show what you're listening to on your Discord profile (like Spotify). Requires the presence bridge running on your PC and the Discord desktop app open.")}>
         <ToggleRow label={tt("Status \"Listening to\" di profil", "\"Listening to\" status on profile")} hint={tt("Judul, artis, cover, dan progress lagu", "Song title, artist, cover, and progress")} checked={!!settings.discordPresence} onChange={set("discordPresence")} />
         <ToggleRow label={tt("Tampilkan lirik di status", "Show lyrics in status")} hint={tt("Baris lirik yang sedang dinyanyikan, berganti sinkron dengan halaman lirik", "The line being sung, changing in sync with the lyrics view")} checked={settings.discordPresenceLyrics !== false} onChange={set("discordPresenceLyrics")} />
+      </SettingSection>
+
+      <SettingSection title={tt("Cookie", "Cookies")}>
+        <ActionRow
+          label={tt("Preferensi cookie", "Cookie preferences")}
+          hint={!cookieConsent ? tt("Belum dipilih", "Not chosen yet")
+            : cookieConsent.preferences && cookieConsent.analytics ? tt("Semua cookie diterima", "All cookies accepted")
+            : !cookieConsent.preferences && !cookieConsent.analytics ? tt("Hanya cookie esensial", "Essential cookies only")
+            : tt("Pilihan kustom", "Custom selection")}
+          buttonText={tt("Atur", "Manage")} icon={Cookie} onAction={openCookieSettings} />
       </SettingSection>
 
       <SettingSection title={tt("Cache & Data", "Cache & Data")}>

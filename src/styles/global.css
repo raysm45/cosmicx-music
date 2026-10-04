@@ -3205,3 +3205,53 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   .aivy-live-title-row.is-leaving{ animation: none; opacity: 0; }
   .aivy-live-progress::after, .aivy-searching-dots i, .aivy-searching-text, .aivy-search-box-v2.is-loading > svg:first-child{ animation: none; }
 }
+/* ── Cookie consent ─────────────────────────────────────────── */
+.aivy-ck-banner{
+  position: fixed; z-index: 75;
+  left: 50%; bottom: calc(var(--safe-b) + 16px);
+  width: min(960px, calc(100% - 24px));
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--bg-elev) 94%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: 0 10px 40px rgba(0,0,0,.35);
+  color: var(--ink);
+  transform: translateX(-50%);
+  animation: aivy-ck-up var(--dur-slow) var(--ease) both;
+}
+@keyframes aivy-ck-up{ from{ opacity: 0; transform: translate(-50%, 18px); } to{ opacity: 1; transform: translate(-50%, 0); } }
+.aivy-ck-icon{ flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-strong); }
+.aivy-ck-text{ flex: 1; min-width: 0; }
+.aivy-ck-title{ font-family: var(--font-display); font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.aivy-ck-text p{ margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-dim); }
+.aivy-ck-text a{ color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.aivy-ck-actions{ display: flex; gap: 8px; flex-shrink: 0; }
+.aivy-ck-btn{ white-space: nowrap; min-height: 40px; }
+
+.aivy-ck-backdrop{ position: fixed; inset: 0; z-index: 85; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.52); animation: aivy-fade-in var(--dur-base) var(--ease) both; }
+.aivy-ck-modal{ width: min(520px, 100%); max-height: min(86vh, 680px); display: flex; flex-direction: column; background: var(--bg-elev); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: 0 20px 60px rgba(0,0,0,.45); outline: none; animation: aivy-pop-in var(--dur-base) var(--ease) both; }
+.aivy-ck-head{ display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 22px 8px; }
+.aivy-ck-head h2{ margin: 0; font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+.aivy-ck-head p{ margin: 4px 0 0; font-size: 13px; line-height: 1.5; color: var(--ink-dim); }
+.aivy-ck-close{ width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; color: var(--ink-dim); }
+.aivy-ck-close:hover{ background: var(--bg-elev-2); color: var(--ink); }
+.aivy-ck-body{ padding: 8px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.aivy-ck-row{ display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px; border: 1px solid var(--line-soft); border-radius: var(--radius-md); background: var(--bg-elev-2); }
+.aivy-ck-row .label{ display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; font-size: 14px; }
+.aivy-ck-row .hint{ margin-top: 4px; font-size: 12.5px; line-height: 1.5; color: var(--ink-dim); }
+.aivy-ck-row .aivy-switch{ margin-top: 2px; }
+.aivy-ck-row .aivy-switch.is-locked{ opacity: .5; cursor: not-allowed; }
+.aivy-ck-badge{ font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--ink-dim); }
+.aivy-ck-foot{ display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 14px 22px 20px; }
+
+@media (max-width: 760px){
+  .aivy-ck-banner{ flex-wrap: wrap; align-items: flex-start; gap: 12px; padding: 14px; bottom: calc(var(--safe-b) + 10px); }
+  .aivy-ck-icon{ display: none; }
+  .aivy-ck-text{ flex: 1 1 100%; }
+  .aivy-ck-actions{ width: 100%; flex-wrap: wrap; }
+  .aivy-ck-actions .aivy-ck-btn{ flex: 1 1 0; padding-inline: 12px; }
+  .aivy-ck-actions .aivy-ck-pick{ flex-basis: 100%; order: 3; }
+  .aivy-ck-backdrop{ align-items: flex-end; padding: 12px; padding-bottom: calc(12px + var(--safe-b)); }
+  .aivy-ck-foot > button{ flex: 1 1 auto; }
+}

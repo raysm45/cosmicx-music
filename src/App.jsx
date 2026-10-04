@@ -14,6 +14,7 @@ import {
   RightPanel, GlobalContextMenu, AddToPlaylistModal, CreditsModal, ToastHost, ViewLoading, LyricsOverlay,
   LyricsPrefetch, AiAssistantWidget,
 } from "./components.jsx";
+import { CookieConsent } from "./CookieConsent.jsx";
 import { LandingPage, LoginPage } from "./pages/AuthPages.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { NewTrendingPage, BestAlbumsPage, EditorsPicksPage } from "./pages/FeedPages.jsx";
@@ -197,6 +198,7 @@ export default function App() {
               <ServerDownPage retryInSeconds={retryInSeconds} onRetryNow={retryNow} {...SERVER_DOWN_INFO} />
             )}
           </PlayerProvider>
+          <CookieConsent />
         </UIProvider>
       </RouterProvider>
     </ErrorBoundary>
