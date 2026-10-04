@@ -684,21 +684,6 @@ export function PlaylistPage() {
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => { setConfirmDelete(false); deletePlaylist(pl.id); navigate("library"); }}
       />
-      {pl.songs?.length > 0 ? (
-        visibleSongs.length > 0 ? (
-          <FlipList
-            items={visibleSongs}
-            getKey={(tr) => tr.id}
-            renderItem={(tr) => (
-              <TrackRow track={tr} index={pl.songs.indexOf(tr)} list={pl.songs} showAlbum onRemove={isOwner ? () => removeFromPlaylist(pl.id, tr.id) : undefined} removeLabel={t("removeFromThisPlaylist")} queueMode="context" source={{ type: "library", label: pl.name }} shuffleOverride={localShuffle} />
-            )}
-          />
-        ) : (
-          <div className="aivy-empty"><div className="title">{t("findInPlaylistNoResults")}</div></div>
-        )
-      ) : (
-        <div className="aivy-empty"><div className="title">{t("playlistEmpty")}</div><div className="sub">{t("playlistEmptySub")}</div></div>
-      )}
     </div>
   );
 }
