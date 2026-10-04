@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Search, Mic, Users, ListMusic } from "lucide-react";
 import { StarLoader } from "../lib/brand.jsx";
 import { useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
@@ -11,6 +11,18 @@ const LOGIN_ERRORS = {
   user_not_found: "Akun kamu tidak ditemukan setelah proses masuk. Coba ulangi beberapa saat lagi.",
   login_failed: "Terjadi gangguan saat menghubungkan akunmu. Silakan coba lagi sebentar lagi.",
 };
+
+const SHOWCASE = [
+  { icon: Search, title: "Cari cepat", desc: "Temukan lagu, artis, dan album dalam hitungan detik." },
+  { icon: Mic, title: "Lirik sinkron", desc: "Lirik jalan baris demi baris, ikut lagu yang diputar." },
+  { icon: Users, title: "Dengerin bareng", desc: "Buat ruang, ajak teman, dan putar lagu yang sama secara real-time." },
+  { icon: ListMusic, title: "Koleksi pribadi", desc: "Simpan playlist dan lagu favorit, atau impor dari YouTube." },
+];
+
+const EQ_BARS = Array.from({ length: 72 }, (_, i) => ({
+  i,
+  h: +(0.22 + 0.78 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.55))).toFixed(2),
+}));
 
 function GoogleGlyph({ size = 18 }) {
   return (
@@ -62,9 +74,6 @@ function CosmicMark() {
       return d + "Z";
     }
     starPath.setAttribute("d", sparkleD(50, 50, 37, 5, 240));
-
-    // Guard against React StrictMode's dev-only double-invoke of effects: clear any
-    // bars appended by a previous run before creating a fresh set.
     while (barsGroup.firstChild) barsGroup.removeChild(barsGroup.firstChild);
 
     const barDefs = [
@@ -198,10 +207,36 @@ export function LoginPage() {
 
   return (
     <div className="cx-stage">
+      <div className="cx-backdrop" aria-hidden="true">
+        <div className="cx-eq">
+          {EQ_BARS.map((b) => <i key={b.i} style={{ "--i": b.i, "--h": b.h }} />)}
+        </div>
+      </div>
+
       <div className="cx-frame">
-        <CosmicMark />
+        <div className="cx-hero">
+          <CosmicMark />
+
+          <div className="cx-pitch">
+            <h1 className="cx-headline">Semua musikmu, satu tempat.</h1>
+            <p className="cx-sub">Cari, putar, dan dengarkan bareng teman, lengkap dengan lirik yang jalan sendiri.</p>
+            <ul className="cx-features">
+              {SHOWCASE.map(({ icon: Icon, title, desc }) => (
+                <li key={title}>
+                  <span className="cx-feat-ic"><Icon size={18} strokeWidth={1.75} /></span>
+                  <span className="cx-feat-txt"><b>{title}</b><span>{desc}</span></span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
 
         <div className="cx-bottom-group">
+          <div className="cx-card-head">
+            <h2>Selamat datang</h2>
+            <p>Masuk untuk lanjut mendengarkan.</p>
+          </div>
+
           {errorCode && (
             <div className="cx-error" role="alert">
               <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
