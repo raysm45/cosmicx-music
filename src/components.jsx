@@ -37,12 +37,17 @@ export function resolveAvatarUrl(user) {
   }
   return null;
 }
+export function resolveDisplayName(user) {
+  if (!user) return "";
+  return user.displayName || user.display_name || user.global_name || user.globalName
+    || user.name || user.username || "";
+}
 
 export function Avatar({ user, className = "", title }) {
   const url = resolveAvatarUrl(user);
   const [failed, setFailed] = useState(false);
   useEffect(() => { setFailed(false); }, [url]);
-  const name = user?.username || user?.name || "";
+  const name = resolveDisplayName(user);
   const showImg = url && !failed;
   return (
     <span className={`aivy-avatar ${showImg ? "has-img" : ""} ${className}`.trim()} title={title}>
@@ -370,6 +375,9 @@ function TrackMenuSheet({ menu, onClose }) {
           <button className="aivy-trackmenu-item" onClick={run(() => openAddToPlaylist(track))}>
             <ListPlus size={20} /><span>{t("menuAddPlaylist")}</span><ChevronRight size={18} className="chev" />
           </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => { shareTrack(track, pushToast, t); })}>
+            <Share2 size={20} /><span>{t("menuShareSong")}</span>
+          </button>
           <button className="aivy-trackmenu-item" onClick={run(() => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); })}>
             <Copy size={20} /><span>{t("menuCopyLink")}</span>
           </button>
@@ -398,13 +406,40 @@ function TrackMenuSheet({ menu, onClose }) {
     document.body
   );
 }
+function MenuSheet({ menu, onClose }) {
+  const sheet = menu.items.sheet;
+  const run = (fn) => () => { onClose(); fn && fn(); };
+  return createPortal(
+    <div className="aivy-trackmenu-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }} onContextMenu={(e) => { e.preventDefault(); if (e.target === e.currentTarget) onClose(); }}>
+      <div className="aivy-trackmenu" role="dialog" aria-label={sheet.title}>
+        <div className="aivy-trackmenu-head">
+          <span className="cover"><SmartCover src={sheet.cover} seed={sheet.seed || sheet.title} size={96} radius={6} style={{ width: "100%", height: "100%" }} /></span>
+          <div className="txt">
+            <div className="t">{sheet.title}</div>
+            {sheet.subtitle ? <div className="a">{sheet.subtitle}</div> : null}
+          </div>
+        </div>
+        <div className="aivy-trackmenu-list">
+          {menu.items.map((item, i) => (
+            item.divider ? <div key={i} className="aivy-trackmenu-divider" /> : (
+              <button key={i} className={`aivy-trackmenu-item ${item.danger ? "danger" : ""}`} disabled={item.disabled} onClick={run(item.onSelect)}>
+                {item.icon}<span>{item.label}</span>
+              </button>
+            )
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 export function GlobalContextMenu() {
   const { contextMenu, closeContextMenu } = useUI();
   const menuRef = useRef(null);
   useEffect(() => {
     if (!contextMenu) return;
-    const isSheet = !!contextMenu.track;
+    const isSheet = !!contextMenu.track || !!contextMenu.items?.sheet;
     function onDown(e) { if (!isSheet && menuRef.current && !menuRef.current.contains(e.target)) closeContextMenu(); }
     function onKey(e) { if (e.key === "Escape") closeContextMenu(); }
     function onScroll() { if (!isSheet) closeContextMenu(); }
@@ -416,6 +451,7 @@ export function GlobalContextMenu() {
 
   if (!contextMenu) return null;
   if (contextMenu.track) return <TrackMenuSheet menu={contextMenu} onClose={closeContextMenu} />;
+  if (contextMenu.items?.sheet) return <MenuSheet menu={contextMenu} onClose={closeContextMenu} />;
 
   const menuW = 240;
   const left = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
@@ -583,6 +619,26 @@ export function buildShareUrl(track) {
   if (track.artist?.id) return `${origin}/artist/${track.artist.id}?track=${encodeURIComponent(track.id)}`;
   return `${origin}/cari?q=${encodeURIComponent(track.title)}`;
 }
+export async function shareLink({ title, text, url }) {
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title, text, url });
+      return "shared";
+    } catch (err) {
+      if (err?.name === "AbortError") return "cancelled";
+    }
+  }
+  try { await navigator.clipboard?.writeText(url); return "copied"; } catch { return "cancelled"; }
+}
+
+export function shareTrack(track, pushToast, t) {
+  const artistName = (track.artists?.length ? track.artists : (track.artist ? [track.artist] : [])).map((a) => a.name).filter(Boolean).join(", ");
+  return shareLink({
+    title: track.title,
+    text: artistName ? `${track.title} \u2014 ${artistName}` : track.title,
+    url: buildShareUrl(track),
+  }).then((r) => { if (r === "copied") pushToast(t("linkCopied")); return r; });
+}
 
 export function useTrackMenuItems(track, opts = {}) {
   const { liked, toggleLike, addToQueueEnd, playNextInQueue } = usePlayer();
@@ -596,7 +652,8 @@ export function useTrackMenuItems(track, opts = {}) {
     { label: t("menuAddQueue"), icon: <Plus size={15} />, onSelect: () => addToQueueEnd(track) },
     { label: t("menuAddPlaylist"), icon: <Library size={15} />, onSelect: () => openAddToPlaylist(track) },
     { divider: true },
-    { label: t("menuCopyLink"), icon: <Share2 size={15} />, onSelect: () => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); } },
+    { label: t("menuShareSong"), icon: <Share2 size={15} />, onSelect: () => { shareTrack(track, pushToast, t); } },
+    { label: t("menuCopyLink"), icon: <Copy size={15} />, onSelect: () => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); } },
   ];
   if (track.artist?.id) items.push({ label: t("menuGoArtist"), icon: <Music2 size={15} />, onSelect: () => navigate("artist", { params: { id: track.artist.id } }) });
   if (track.album?.id) items.push({ label: t("menuGoAlbum"), icon: <Music2 size={15} />, onSelect: () => navigate("album", { params: { id: track.album.id } }) });
@@ -908,6 +965,7 @@ function CardArtistBase({ artist }) {
 }
 
 export const CardArtist = React.memo(CardArtistBase);
+
 export function HoverRail({ children, className = "", step = 0.86 }) {
   const ref = useRef(null);
   const [edge, setEdge] = useState({ start: true, end: true });
@@ -3131,7 +3189,7 @@ export function Sidebar() {
         </nav>
         <div className="aivy-side-footer aivy-side-footer-rail">
           {authUser ? (
-            <Link to="settings" className="aivy-user-chip aivy-user-chip-rail" title={authUser.username} aria-label={authUser.username}>
+            <Link to="settings" className="aivy-user-chip aivy-user-chip-rail" title={resolveDisplayName(authUser)} aria-label={resolveDisplayName(authUser)}>
               <Avatar user={authUser} />
             </Link>
           ) : (
@@ -3189,7 +3247,7 @@ export function Sidebar() {
         {authUser ? (
           <Link to="settings" className="aivy-user-chip">
             <Avatar user={authUser} />
-            <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{authUser.username}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{resolveDisplayName(authUser)}</span>
           </Link>
         ) : (
           <button className="aivy-login-btn" onClick={login}><LogIn size={15} /> {t("navLoginDiscord")}</button>
@@ -3222,7 +3280,7 @@ const LG_SURFACES = [
   [".aivy-dock-search", "lg-search"],
 ];
 const LG_PX = 24;
-const LG_ABER = 0.08; 
+const LG_ABER = 0.08;
 
 const LiquidGlassDefs = React.memo(function LiquidGlassDefs() {
   const S = LG_PX * 2;
@@ -3411,7 +3469,7 @@ export function TopBar({ isMobile }) {
         </>
       )}
       {isMobile && !authUser && <button className="aivy-btn-ghost" style={{ padding: "7px 14px", fontSize: 12.5 }} onClick={login}>{t("navLogin")}</button>}
-      {isMobile && authUser && <Link to="settings" aria-label="Akun" className="aivy-avatar-link"><Avatar user={authUser} /></Link>}
+      {isMobile && authUser && <Link to="settings" aria-label={resolveDisplayName(authUser) || "Akun"} className="aivy-avatar-link"><span className="aivy-topbar-username">{resolveDisplayName(authUser)}</span><Avatar user={authUser} /></Link>}
     </div>
   );
 }

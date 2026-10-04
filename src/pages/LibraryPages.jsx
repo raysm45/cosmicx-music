@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
-import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur } from "../components.jsx";
+import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur, shareLink } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
 import { useArtworkTint, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 import { Api } from "../lib/api.js";
@@ -622,15 +622,20 @@ export function PlaylistPage() {
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             const hasSongs = pl.songs?.length > 0;
-            openContextMenu(r.left, r.bottom + 6, [
-              ...(hasSongs ? [{ label: t("findInPlaylistBtn"), icon: <Search size={15} />, onSelect: () => setSearchOpen(true) }] : []),
-              ...(hasSongs ? [{ label: t("playAfterThisBtn"), icon: <ListPlus size={15} />, onSelect: () => playAllNext(pl.songs) }] : []),
-              ...(hasSongs ? [{ label: t("addToQueueBtn"), icon: <ListMusic size={15} />, onSelect: () => addAllToQueueEnd(pl.songs) }] : []),
-              ...(hasSongs ? [{ label: t("saveToPlaylistBtn"), icon: <LibraryIcon size={15} />, onSelect: () => openAddToPlaylist(pl.songs) }] : []),
-              ...(isOwner ? [{ label: t("changeCoverBtn"), icon: <ImagePlus size={15} />, onSelect: () => setCoverPickerOpen(true) }] : []),
-              { label: t("sharePlaylistBtn"), icon: <Share2 size={15} />, onSelect: () => { navigator.clipboard?.writeText(window.location.href); pushToast(t("playlistLinkCopied")); } },
-              ...(isOwner ? [{ divider: true }, { label: t("deletePlaylistBtn"), icon: <X size={15} />, onSelect: () => setConfirmDelete(true) }] : []),
-            ]);
+            const items = [
+              ...(hasSongs ? [{ label: t("findInPlaylistBtn"), icon: <Search size={20} />, onSelect: () => setSearchOpen(true) }] : []),
+              ...(hasSongs ? [{ label: t("playAfterThisBtn"), icon: <ListMusic size={20} />, onSelect: () => playAllNext(pl.songs) }] : []),
+              ...(hasSongs ? [{ label: t("addToQueueBtn"), icon: <ListPlus size={20} />, onSelect: () => addAllToQueueEnd(pl.songs) }] : []),
+              ...(hasSongs ? [{ label: t("saveToPlaylistBtn"), icon: <LibraryIcon size={20} />, onSelect: () => openAddToPlaylist(pl.songs) }] : []),
+              ...(isOwner ? [{ label: t("changeCoverBtn"), icon: <ImagePlus size={20} />, onSelect: () => setCoverPickerOpen(true) }] : []),
+              { label: t("sharePlaylistBtn"), icon: <Share2 size={20} />, onSelect: () => { shareLink({ title: pl.name, text: pl.name, url: window.location.href }).then((res) => { if (res === "copied") pushToast(t("playlistLinkCopied")); }); } },
+              ...(isOwner ? [{ label: t("deletePlaylistBtn"), icon: <X size={20} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
+            ];
+            items.sheet = {
+              cover, seed: "pl" + pl.id, title: pl.name,
+              subtitle: `${pl.songs?.length || 0} ${t("songsCount")}`,
+            };
+            openContextMenu(r.left, r.bottom + 6, items);
           }}
         >
           <MoreHorizontal size={18} />

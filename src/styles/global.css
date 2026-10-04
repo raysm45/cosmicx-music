@@ -147,7 +147,9 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-user-chip:hover{ background: var(--bg-elev-2); }
 .aivy-avatar img{ width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
 .aivy-avatar.has-img{ background: var(--bg-elev-2); }
-.aivy-avatar-link{ display: inline-flex; flex-shrink: 0; }
+.aivy-avatar-link{ display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0; }
+.aivy-topbar-username{ max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--ink); }
+body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-topbar .aivy-avatar-link .aivy-avatar{ width: 30px; height: 30px; }
 .aivy-avatar{ overflow: hidden; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-elev-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--ink-dim); border: 1px solid var(--line); }
 
@@ -255,8 +257,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-card .art-wrap.round{ border-radius: 50%; }
 .aivy-card .art-wrap.round img, .aivy-card .art-wrap.round svg{ border-radius: 50%; }
 .aivy-card .title{ font-weight: 600; margin-bottom: .25rem; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Marquee (running text) for song titles that overflow their container. Only animates on mobile viewports; desktop always keeps a static ellipsis truncation. */
 .aivy-marquee-row{ display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
 .aivy-marquee{ display: block; flex: 1 1 auto; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
 .aivy-marquee .aivy-marquee-track{ display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
@@ -273,7 +273,6 @@ body.aivy-resizing *{ user-select: none !important; }
 @keyframes aivy-marquee-scroll{ from{ transform: translateX(0); } to{ transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce){ .aivy-marquee .aivy-marquee-track.is-animating{ animation: none !important; } }
 .aivy-card .sub{ font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0; }
-/* Hover card: tanpa efek naik. Cover menggelap + tombol play (ring putih) muncul di tengah. */
 .aivy-card .art-wrap:has(.aivy-card-play)::after{ content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.42); opacity: 0; transition: opacity .2s var(--ease); pointer-events: none; }
 .aivy-card:is(:hover, :has(:focus-visible)) .art-wrap:has(.aivy-card-play)::after{ opacity: 1; }
 .aivy-card-play{ position: absolute; inset: 0; margin: auto; z-index: 2; width: 46px; height: 46px; padding: 0; border-radius: 50%; background: transparent; color: #fff; border: 2px solid rgba(255,255,255,.6); display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(.85); transition: opacity .2s var(--ease), transform .2s var(--ease), background .15s var(--ease); box-shadow: none; cursor: pointer; }
@@ -309,6 +308,10 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-row .right{ display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .aivy-row .dur{ font-family: var(--font-body); font-size: 12px; color: var(--ink-faint); min-width: 40px; text-align: right; flex-shrink: 0; white-space: nowrap; }
 .aivy-row .row-actions{ display: flex; align-items: center; gap: 2px; opacity: 1; }
+@media (hover: hover) and (pointer: fine){
+  .aivy-row .row-actions{ opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+  .aivy-row:hover .row-actions, .aivy-row:focus-within .row-actions{ opacity: 1; }
+}
 @media (min-width: 860px){ .aivy-row .col-album{ display: block; } }
 
 .eq-bars{ display: flex; align-items: flex-end; gap: 2px; height: 13px; width: 100%; justify-content: center; }
@@ -535,9 +538,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-nowplaying-about-row .aivy-chip{ flex-shrink: 0; }
 .aivy-nowplaying-about-bio{ margin: 14px 0 0; font-size: 13px; line-height: 1.55; color: var(--ink-dim); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .aivy-nowplaying-pane .aivy-nowplaying-about{ text-align: left; }
-
-/* Glassmorphism: dipakai untuk card "About the Artist" & "Description" di right panel
-   ketika lagi berada di halaman Artist (lihat prop `glass` di AboutArtistSection/CreditsCard). */
 .aivy-nowplaying-about.is-glass{
   position: relative;
   background: rgba(255,255,255,.06);
@@ -652,17 +652,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-sheet.open{ transform: translateY(0) translateZ(0); }
 .aivy-sheet.aivy-queue-sheet{ background: var(--bg); --sheet-ink: var(--ink); --sheet-ink-dim: var(--ink-dim); --sheet-ink-faint: var(--ink-faint); --sheet-line: var(--line); --sheet-elev: var(--bg-elev-2); }
 .aivy-sheet-bg{
-  /* Per spesifikasi CSS, `filter` dirender pada UKURAN LAYOUT elemen ini
-     (sebelum `transform` diterapkan pada tahap compositing). Jadi kotaknya
-     sengaja dibikin kecil (30% dari ukuran aslinya secara linear, cuma
-     ~6% dari luasnya) lalu di-scale balik lewat transform supaya tampilan
-     akhir identik — tapi blur Gaussian-nya cuma perlu memproses ~16x lebih
-     sedikit piksel. Ini yang paling berat di seluruh sheet buat GPU
-     kelas bawah, karena biasanya box ini setinggi layar penuh (100dvh).
-     inset 35% -> lebar/tinggi kotak = 30% parent.
-     scale 4.6 = (1.2/0.3) * 1.15, biar hasil akhir sama persis kayak semula.
-     blur 8.5px = (34*1.15) / 4.6, biar radius blur yang KELIHATAN di layar
-     tetap sama walau dihitung di kotak yang lebih kecil. */
   position: absolute; inset: 35%; z-index: 0; background-size: cover; background-position: center;
   filter: blur(8.5px) saturate(1.5) brightness(.55); transform: scale(4.6) translateZ(0); pointer-events: none;
   backface-visibility: hidden; contain: paint;
@@ -977,8 +966,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-bio{ max-width: 64ch; color: var(--ink-dim); font-size: 14px; line-height: 1.65; padding: 4px 2px 6px; }
 .aivy-tagrow{ display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 2px 0; }
 @media (max-width: 640px){ .aivy-hero{ flex-direction: column; align-items: flex-start; gap: 14px; padding-top: 14px; } }
-
-/* ================= Artist page — Apple Music style ================= */
 .aivy-am-page{
   --am-hero-h: min(78vh, 760px);
   --am-bg: var(--artist-bg, var(--bg));
@@ -989,9 +976,6 @@ body.aivy-resizing *{ user-select: none !important; }
   position: relative; min-width: 0;
   background: var(--am-bg);
 }
-
-/* Hero media: fixed supaya membaur di belakang sidebar/panel kaca,
-   tapi digeser 1:1 mengikuti scroll sehingga terasa ikut naik & tertutup body. */
 .aivy-am-media{
   position: fixed; top: 0; left: 0; right: 0; height: var(--am-hero-h);
   z-index: 0; overflow: hidden; pointer-events: none; background: var(--am-bg);
@@ -1001,23 +985,15 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-am-media :is(video, img, canvas, svg){
   width: 100%; height: 100%; object-fit: cover; object-position: center 20%;
   border-radius: 0 !important;
-  /* Gaussian blur yang naik mengikuti scroll + sedikit zoom supaya tepi
-     gambar tidak ikut memudar saat di-blur. */
   filter: blur(var(--am-blur, 0px));
   transform: scale(var(--am-zoom, 1.02));
   transform-origin: center 30%;
   will-change: filter, transform;
 }
-
-/* Fade bawah hero dibuat dari Gaussian blur, bukan cuma gradient gelap:
-   lapisan ini mem-blur apa pun di belakangnya, lalu di-mask supaya kekuatannya
-   naik bertahap ke bawah dan menyatu mulus dengan warna solid halaman. */
 .aivy-am-media-blur{
   position: absolute; inset: 0; pointer-events: none;
   backdrop-filter: blur(calc(18px + var(--am-progress, 0) * 22px)) saturate(118%);
   -webkit-backdrop-filter: blur(calc(18px + var(--am-progress, 0) * 22px)) saturate(118%);
-  /* Kurva halus (bukan garis lurus): kekuatan blur naik landai lalu makin cepat
-     mendekati bawah, dan area blur ikut naik ke atas tapi tidak pernah mentok ke ujung. */
   mask-image: linear-gradient(180deg,
     transparent 18%,
     rgba(0,0,0,.05) 30%,
@@ -1043,7 +1019,6 @@ body.aivy-resizing *{ user-select: none !important; }
     -webkit-mask-image: linear-gradient(180deg, transparent 34%, rgba(0,0,0,.35) 54%, rgba(0,0,0,.82) 72%, #000 88%);
   }
 }
-/* Gradasi halus: gelap tipis di atas (agar tombol nav terbaca) lalu fade sempurna ke warna solid */
 .aivy-am-media-scrim{
   position: absolute; inset: 0; pointer-events: none;
   background:
@@ -1101,8 +1076,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-am-ghost:active{ transform: scale(.93); }
 .aivy-am-ghost:disabled{ opacity: .35; cursor: default; }
 .aivy-am-ghost.active{ background: var(--am-accent); color: var(--am-accent-ink); border-color: transparent; }
-
-/* Skeleton / not-found tetap perlu jarak karena topbar-nya melayang */
 .aivy-am-fallback{ padding: 64px 28px 0; }
 @media (max-width: 860px){ .aivy-am-fallback{ padding: 58px 18px 0; } }
 
@@ -1111,7 +1084,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-am-block{ margin: 0 0 34px; min-width: 0; }
 .aivy-am-topgrid{ display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); gap: 10px 48px; align-items: start; }
 .aivy-am-topgrid.is-single{ grid-template-columns: minmax(0, 1fr); }
-/* Kartu Latest Release ditengahkan di kolomnya (desktop & mobile) */
 .aivy-am-topgrid:not(.is-single) > .aivy-am-block:first-child{
   display: flex; flex-direction: column; align-items: center;
 }
@@ -1124,8 +1096,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-am-head.is-link{ cursor: pointer; }
 .aivy-am-head.is-link svg{ color: var(--am-dim); transition: transform var(--dur-fast) var(--ease); }
 .aivy-am-head.is-link:hover svg{ transform: translateX(3px); color: #fff; }
-
-/* Latest Release */
 .aivy-am-latest{ display: flex; align-items: center; gap: 18px; cursor: pointer; min-width: 0; }
 .aivy-am-latest .art{
   position: relative; width: 158px; height: 158px; flex-shrink: 0;
@@ -1133,8 +1103,6 @@ body.aivy-resizing *{ user-select: none !important; }
   box-shadow: none;
 }
 .aivy-am-latest .art :is(img, svg, canvas){ width: 100%; height: 100%; object-fit: cover; border-radius: 0 !important; }
-/* Lebar meta dikunci (fixed) supaya ukuran card tidak berubah-ubah mengikuti
-   panjang judul album/lagu — teks yang kepanjangan dipotong dengan ellipsis. */
 .aivy-am-latest .meta{ width: 180px; flex-shrink: 0; }
 .aivy-am-latest .date{ font-size: 12.5px; color: var(--am-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aivy-am-latest .title{
@@ -1155,8 +1123,6 @@ body.aivy-resizing *{ user-select: none !important; }
 }
 .tile-play svg{ margin-left: 2px; }
 .aivy-am-latest:hover .tile-play, .aivy-am-tile:hover .tile-play, .tile-play:focus-visible{ opacity: 1; transform: translateY(0); }
-
-/* Top Songs */
 .aivy-am-songgrid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 44px; }
 .aivy-am-song{
   position: relative; display: flex; align-items: center; gap: 12px;
@@ -1186,8 +1152,6 @@ body.aivy-resizing *{ user-select: none !important; }
   color: var(--am-dim); opacity: .75; transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .aivy-am-song .dots:hover{ opacity: 1; color: #fff; background: color-mix(in srgb, #fff 12%, transparent); }
-
-/* Rail horizontal: Music Videos / Singles & EPs / Artist Playlists / Similar Artists */
 .aivy-am-rail{ display: flex; gap: 18px; overflow-x: auto; padding: 2px 2px 12px; scroll-snap-type: x proximity; }
 .aivy-am-rail > *{ flex: 0 0 auto; scroll-snap-align: start; }
 .aivy-am-tile{ width: 168px; min-width: 0; cursor: pointer; }
@@ -1208,8 +1172,6 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-am-tile.is-round{ width: 132px; text-align: center; }
 .aivy-am-tile.is-round .art{ height: 132px; border-radius: 50%; }
 .aivy-am-tile.is-round .art :is(img, svg, canvas){ border-radius: 50% !important; }
-
-/* Popover Info */
 .aivy-am-about-backdrop{
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px;
   background: rgba(0,0,0,.58); 
@@ -1247,8 +1209,6 @@ body.aivy-resizing *{ user-select: none !important; }
   .aivy-am-tile.is-video .art{ height: 142px; }
   .aivy-am-songgrid{ grid-template-columns: 1fr; }
 }
-
-/* ---- Shell saat halaman artis aktif: topbar melayang + panel kaca bernuansa artwork ---- */
 body.aivy-artist-immersive #aivy-content-scroll{
   padding-top: 0; padding-left: 0; padding-right: 0;
   background: var(--artist-bg, var(--bg));
@@ -1285,11 +1245,7 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 body.aivy-artist-immersive .aivy-player{
   background: color-mix(in srgb, var(--artist-bg, hsl(230 30% 15%)) 78%, transparent);
 }
-
-/* ---- Album & Playlist: hero yang sama dengan Artist, tapi pakai satu cover persegi yang di-blur ---- */
 .aivy-am-page.is-cover-page{ --am-hero-h: min(54vh, 460px); }
-/* Cover persegi: tetap tajam di atas, blur naik bertahap ke bawah lewat .aivy-am-media-blur
-   (sama persis dengan hero Artist) — tidak di-blur penuh. */
 .aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center 30%; }
 .aivy-am-media .aivy-animated-cover-loading,
 .aivy-am-media .aivy-animated-cover-errbox{ display: none; }
@@ -1307,7 +1263,6 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-am-sub > span + span::before{ content: "\00b7"; margin-right: 10px; }
 .aivy-am-sub .is-link{ color: #fff; font-weight: 600; cursor: pointer; }
 .aivy-am-sub .is-link:hover{ text-decoration: underline; }
-/* Daftar lagu di bawah hero selalu di atas warna gelap, apa pun tema aplikasinya */
 .aivy-am-body.is-tracklist{
   --ink: #F2F2F2; --ink-dim: #B4B4B4; --ink-faint: #8A8A8A;
   --line: rgba(255,255,255,.12); --line-soft: rgba(255,255,255,.07);
@@ -1445,7 +1400,6 @@ body.aivy-artist-immersive .aivy-player{
   background: radial-gradient(60% 40% at 50% 0%, rgba(255,255,255,0.04), transparent 70%);
 }
 @media (min-width: 640px){
-  /* Desktop/tablet: tanpa bingkai HP, konten di-center dan ukurannya proporsional */
   .cx-stage{ height: auto; min-height: 100dvh; padding: 48px 24px; position: relative; overflow: hidden; }
   .cx-frame{
     width: 100%; max-width: 400px; height: auto; max-height: none; aspect-ratio: auto;
@@ -1502,8 +1456,6 @@ body.aivy-artist-immersive .aivy-player{
 @media (prefers-reduced-motion: reduce){
   .cx-glyph g, .cx-wordmark, .cx-letter{ transition: none !important; }
 }
-
-/* ===== Desktop (>= 960px): layout dua kolom — showcase kiri, kartu login kanan ===== */
 @keyframes cx-rise{ from{ opacity: 0; transform: translateY(14px); } to{ opacity: 1; transform: none; } }
 @keyframes cx-eq{ 0%, 100%{ transform: scaleY(var(--h)); } 50%{ transform: scaleY(calc(var(--h) * .35 + .08)); } }
 @media (min-width: 960px){
@@ -2795,7 +2747,6 @@ body.aivy-artist-immersive .aivy-player{
   --dock-bottom: 10px;
   --dock-ease: cubic-bezier(.32,.72,0,1);
   --dock-dur: 420ms;
-  /* Dua tahap gerak mini player (total tetap = --dock-dur) */
   --dock-y-dur: 230ms;
   --dock-x-dur: 250ms;
   --dock-x-delay: 170ms;
@@ -2839,10 +2790,6 @@ body.aivy-artist-immersive .aivy-player{
   transition: width var(--dock-dur) var(--dock-ease);
 }
 .slot-search{ right: 0; width: var(--dock-h); }
-/* Mini player: sumbu Y dan X dipisah (properti `translate` untuk Y, `transform` untuk X)
-   supaya geraknya berurutan, bukan diagonal.
-   - Mengecil: turun lurus ke bawah dulu, baru menyempit & geser ke kanan.
-   - Membesar: geser kembali ke kiri dulu, baru naik. */
 .slot-mini{
   left: 0; width: 100%;
   translate: 0 calc(-1 * (var(--dock-h) + var(--dock-gap)));
@@ -3077,6 +3024,8 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-trackmenu-item svg{ flex-shrink: 0; }
 .aivy-trackmenu-item .chev{ margin-left: auto; color: var(--ink-dim); }
 .aivy-trackmenu-item.danger{ color: #ff6b6b; }
+.aivy-trackmenu-item:disabled{ opacity: .4; cursor: default; }
+.aivy-trackmenu-divider{ height: 1px; background: var(--line-soft); margin: 6px 20px; }
 .aivy-trackmenu-foot{ border-top: 1px solid var(--line-soft); padding: 6px 0 8px; }
 .aivy-trackmenu-link{ width: 100%; display: flex; align-items: center; gap: 16px; padding: 10px 20px; text-align: left; color: var(--ink); transition: background var(--dur-fast) var(--ease); }
 .aivy-trackmenu-link:not(:disabled):hover{ background: var(--bg-elev-2); }
@@ -3126,8 +3075,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 .aivy-mv-backdrop{ background: rgba(0,0,0,.78); }
 .aivy-am-about-backdrop{ background: rgba(0,0,0,.72); }
 .aivy-trackmenu-backdrop{ background: rgba(0,0,0,.66); }
-
-/* Tab Library: dock kaca di tengah dengan indikator aksen yang meluncur antar tab. */
 .aivy-lib-tabs-wrap{ display: flex; justify-content: center; max-width: 100%; margin: 0 0 18px; }
 .aivy-lib-tabs{ position: relative; display: inline-flex; gap: 2px; max-width: 100%; padding: 5px; border-radius: 999px; background: color-mix(in srgb, var(--bg-elev) 82%, transparent); border: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .aivy-lib-tabs::-webkit-scrollbar{ display: none; }
