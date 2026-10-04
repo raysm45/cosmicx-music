@@ -22,6 +22,37 @@ import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
 import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
+export function resolveAvatarUrl(user) {
+  if (!user) return null;
+  const raw = user.avatarUrl || user.avatar_url || user.picture || user.photo || user.photoUrl
+    || user.image || user.imageUrl || user.avatar || null;
+  if (!raw || typeof raw !== "string") return null;
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith("data:") || raw.startsWith("/")) {
+    return raw.startsWith("//") ? `https:${raw}` : raw;
+  }
+  const discordId = user.discordId || user.discord_id || user.providerId || user.provider_id || user.id;
+  if (discordId) {
+    const ext = raw.startsWith("a_") ? "gif" : "png";
+    return `https://cdn.discordapp.com/avatars/${discordId}/${raw}.${ext}?size=128`;
+  }
+  return null;
+}
+
+export function Avatar({ user, className = "", title }) {
+  const url = resolveAvatarUrl(user);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [url]);
+  const name = user?.username || user?.name || "";
+  const showImg = url && !failed;
+  return (
+    <span className={`aivy-avatar ${showImg ? "has-img" : ""} ${className}`.trim()} title={title}>
+      {showImg
+        ? <img src={url} alt={name} referrerPolicy="no-referrer" draggable={false} onError={() => setFailed(true)} />
+        : name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
 function usePanelResize({ width, setWidth, min, max, side }) {
   const draggingRef = useRef(false);
   const startRef = useRef({ x: 0, width: 0 });
@@ -877,16 +908,9 @@ function CardArtistBase({ artist }) {
 }
 
 export const CardArtist = React.memo(CardArtistBase);
-
-/**
- * Rail horizontal dengan tombol panah yang muncul saat kursor hover.
- * Menggantikan scroll geser manual: konten digeser per "halaman" penuh.
- */
 export function HoverRail({ children, className = "", step = 0.86 }) {
   const ref = useRef(null);
   const [edge, setEdge] = useState({ start: true, end: true });
-  // pakai jumlah child (bukan `children` — array baru tiap render) supaya listener/observer
-  // tidak dipasang ulang terus-menerus.
   const childCount = React.Children.count(children);
 
   const measure = useCallback(() => {
@@ -1403,15 +1427,10 @@ export function VisualizerCanvas({ style, mode = "solid", sensitivity = 60, brig
 
     const draw = () => {
       rafRef.current = requestAnimationFrame(draw);
-      // Ada animasi transform berat lagi jalan (buka sheet / FLIP ke lyrics dst) —
-      // skip render frame visualizer ini, biar GPU fokus ke animasi transisi.
-      // Frame terakhir tetap nampil di layar, jadi ga ada visual yang "hilang".
       if (heavyRef.current) return;
       try {
         drawFrame();
       } catch (err) {
-        // Jangan biarkan error rendering visualizer (data audio ga terduga, dst)
-        // nge-crash seluruh app. Cukup stop loop-nya, halaman lain tetap normal.
         console.error("visualizer draw error:", err);
         cancelAnimationFrame(rafRef.current);
       }
@@ -1625,8 +1644,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
     else if (action === "prev") prev();
   };
   useEffect(() => { if (!open) setUiHidden(false); }, [open]);
-  // Sheet buka/tutup pakai transition transform ~360ms (--dur-slow) di atas layer
-  // blur + visualizer canvas. Kunci sementara biar GPU fokus ke satu animasi transform dulu.
   useEffect(() => {
     const end = beginHeavyTransition(500);
     return end;
@@ -1657,12 +1674,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
 
   const trackKey = currentTrack?.id;
   useEffect(() => { setSingMode(false); setLyricsUnsynced(false); }, [trackKey]);
-  // Penting: pakai `lyricsMode` (open && lyricsOpen), BUKAN `lyricsOpen` mentah.
-  // `lyricsOpen` adalah state global yang juga dipicu tombol lyric di mini player/overlay
-  // desktop, yang tidak ada hubungannya dengan sheet ini. Kalau dipakai langsung, sheet ini
-  // (yang selalu ter-mount di background, cuma digeser off-screen lewat transform) ikut
-  // me-mount <AppleLyricsPane> secara permanen dan terus di-drive oleh currentTime tiap tick,
-  // walau sheet-nya sendiri tidak pernah dibuka — inilah penyebab hover jadi patah-patah.
   useEffect(() => { if (lyricsMode) setLyricsMounted(true); else setLyricsUnsynced(false); }, [lyricsMode]);
   useEffect(() => {
     if (!open || lyricsMounted || lyricsDisabled) return undefined;
@@ -1716,11 +1727,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   }, [lyricsMounted, trackKey]);
 
   const remaining = Math.max(0, (duration || 0) - (currentTime || 0));
-  // Bekukan waktu yang dikirim ke lyrics pane saat sheet ini tidak kelihatan (open=false).
-  // Node-nya tetap di-mount (buat prefetch supaya cepat waktu dibuka lagi), tapi kalau tetap
-  // dikasih `playerTime` yang jalan terus tiap tick, `am-lyrics` bakal terus ngitung ulang
-  // animasi/filter di background walau lagi disembunyikan lewat transform — itu yang bikin
-  // hover ke card lain (Recommended Albums/Artists/Continue Listening) jadi patah-patah.
   const frozenLyricsTimeRef = useRef(0);
   if (open) frozenLyricsTimeRef.current = playerTime;
   const sheetLyricsTime = open ? playerTime : frozenLyricsTimeRef.current;
@@ -2924,7 +2930,7 @@ export function RoomChat() {
             if (m.type === "emoji") {
               return (
                 <div key={m.id} className={`aivy-chat-msg ${own ? "own" : ""}`}>
-                  {!own && <span className="aivy-avatar">{m.username?.slice(0, 1).toUpperCase()}</span>}
+                  {!own && <Avatar user={m} />}
                   <div className="bubble emoji-bubble"><span className="emoji">{m.emoji}</span></div>
                 </div>
               );
@@ -2934,7 +2940,7 @@ export function RoomChat() {
               const sender = m.username ? ` · @${m.username}` : "";
               return (
                 <div key={m.id} className={`aivy-chat-msg ${own ? "own" : ""}`}>
-                  {!own && <span className="aivy-avatar">{m.username?.slice(0, 1).toUpperCase()}</span>}
+                  {!own && <Avatar user={m} />}
                   <div className="song-wrap">
                     <button type="button" className={`bubble song-bubble ${queued ? "queued" : ""}`} onClick={() => handleSongTap(m)}>
                       <span className="cover">
@@ -2959,7 +2965,7 @@ export function RoomChat() {
             }
             return (
               <div key={m.id} className={`aivy-chat-msg ${own ? "own" : ""}`}>
-                {!own && <span className="aivy-avatar">{m.username?.slice(0, 1).toUpperCase()}</span>}
+                {!own && <Avatar user={m} />}
                 <div className="bubble">
                   {!own && <span className="who">{m.username}</span>}
                   <span className="txt">{m.text}</span>
@@ -3051,7 +3057,7 @@ function RoomPane() {
       <div className="aivy-room-members">
         {room.members?.map((m) => (
           <div key={m.id} className="aivy-room-member">
-            <span className="aivy-avatar">{m.username?.slice(0, 1).toUpperCase()}</span>
+            <Avatar user={m} />
             <span className="name">{m.username}</span>
             {m.isHost && <Crown size={13} color="var(--gold, var(--berry))" />}
           </div>
@@ -3073,7 +3079,7 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const { name } = useRouter();
   const {
-    theme, toggleTheme, authUser, login, t,
+    authUser, login, t,
     sidebarWidth, setSidebarWidth, sidebarCollapsed, toggleSidebarCollapsed,
     settings, pushToast,
   } = useUI();
@@ -3124,12 +3130,9 @@ export function Sidebar() {
           ))}
         </nav>
         <div className="aivy-side-footer aivy-side-footer-rail">
-          <button className="aivy-theme-btn" onClick={toggleTheme} title={theme === "black" ? t("navLightMode") : t("navDarkMode")} aria-label={theme === "black" ? t("navLightMode") : t("navDarkMode")}>
-            {theme === "black" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
           {authUser ? (
             <Link to="settings" className="aivy-user-chip aivy-user-chip-rail" title={authUser.username} aria-label={authUser.username}>
-              <span className="aivy-avatar">{authUser.username?.slice(0, 1).toUpperCase()}</span>
+              <Avatar user={authUser} />
             </Link>
           ) : (
             <button className="aivy-login-btn" onClick={login} title={t("navLoginDiscord")} aria-label={t("navLoginDiscord")}><LogIn size={15} /></button>
@@ -3183,10 +3186,9 @@ export function Sidebar() {
       <div className="aivy-side-footer">
         {}
         <Link to="settings" className="aivy-theme-btn"><SettingsIcon size={15} />{t("navSettings")}</Link>
-        <button className="aivy-theme-btn" onClick={toggleTheme}>{theme === "black" ? <Sun size={15} /> : <Moon size={15} />}{theme === "black" ? t("navLightMode") : t("navDarkMode")}</button>
         {authUser ? (
           <Link to="settings" className="aivy-user-chip">
-            <span className="aivy-avatar">{authUser.username?.slice(0, 1).toUpperCase()}</span>
+            <Avatar user={authUser} />
             <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{authUser.username}</span>
           </Link>
         ) : (
@@ -3204,9 +3206,6 @@ export function Sidebar() {
     </aside>
   );
 }
-
-// ---- Liquid glass (gaya rdev/liquid-glass-react) ----
-// Tiap permukaan kaca = warp (backdrop blur + refraksi) + 2 lapis rim spekular.
 function GlassLayers() {
   return (
     <>
@@ -3222,8 +3221,8 @@ const LG_SURFACES = [
   [".aivy-mini-player", "lg-mini"],
   [".aivy-dock-search", "lg-search"],
 ];
-const LG_PX = 24;      // pergeseran maksimum di tepi (px)
-const LG_ABER = 0.08;  // kekuatan chromatic aberration
+const LG_PX = 24;
+const LG_ABER = 0.08; 
 
 const LiquidGlassDefs = React.memo(function LiquidGlassDefs() {
   const S = LG_PX * 2;
@@ -3247,9 +3246,6 @@ const LiquidGlassDefs = React.memo(function LiquidGlassDefs() {
     </svg>
   );
 });
-
-// Dock collapse: scroll turun -> tab bar mengecil jadi lingkaran & mini player turun ke baris yang sama.
-// Tidak ada setState per frame: listener passive + rAF, state cuma berubah saat melewati ambang (histeresis).
 function useDockCollapse(routeName, enabled) {
   const [collapsed, setCollapsed] = useState(false);
   const stateRef = useRef(false);
@@ -3294,10 +3290,7 @@ export function MobileDock({ onExpandPlayer }) {
   const dockRef = useRef(null);
   const refract = settings?.liquidGlass !== false && supportsRefraction();
   const [lgReady, setLgReady] = useState(false);
-  // Liquid Glass dimatikan -> reset; peta refraksi dibangun ulang saat dinyalakan lagi
   useEffect(() => { if (!refract) setLgReady(false); }, [refract]);
-
-  // Bangun peta refraksi sesuai ukuran elemen saat ini (hanya saat diam, bukan tiap frame)
   const regen = useCallback(() => {
     const dock = dockRef.current;
     if (!dock || !refract) return;
@@ -3328,9 +3321,6 @@ export function MobileDock({ onExpandPlayer }) {
     window.addEventListener("resize", on);
     return () => { clearTimeout(tm); window.removeEventListener("resize", on); };
   }, [regen]);
-
-  // Selama animasi collapse: refraksi dimatikan sementara (filter SVG paling mahal), will-change aktif.
-  // Setelah selesai: peta dibuat ulang untuk ukuran baru, refraksi menyala lagi.
   const [morphing, setMorphing] = useState(false);
   const firstRun = useRef(true);
   useEffect(() => {
@@ -3346,8 +3336,6 @@ export function MobileDock({ onExpandPlayer }) {
   const tabItems = items.filter((i) => i.route !== "search");
   const shownRoute = tabItems.some((i) => i.route === name) ? name : tabItems[0]?.route;
   const SearchIcon = searchItem?.icon;
-
-  // Saat mengecil, tap lingkaran = buka lagi (bukan pindah halaman)
   const onNavClickCapture = (e) => {
     if (!collapsed) return;
     e.preventDefault();
@@ -3392,7 +3380,7 @@ export function MobileDock({ onExpandPlayer }) {
 
 export function TopBar({ isMobile }) {
   const { name, back } = useRouter();
-  const { theme, toggleTheme, authUser, login, t } = useUI();
+  const { authUser, login, t } = useUI();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const el = document.getElementById("aivy-content-scroll");
@@ -3419,13 +3407,11 @@ export function TopBar({ isMobile }) {
       {isMobile && (
         <>
           {}
-          <button className="aivy-navbtn" onClick={toggleTheme} aria-label={t("navSettings")} title={t("navSettings")}>{theme === "black" ? <Sun size={15} /> : <Moon size={15} />}</button>
-          {}
           {!authUser && <Link to="settings" className="aivy-navbtn" aria-label={t("navSettings")} title={t("navSettings")}><SettingsIcon size={15} /></Link>}
         </>
       )}
       {isMobile && !authUser && <button className="aivy-btn-ghost" style={{ padding: "7px 14px", fontSize: 12.5 }} onClick={login}>{t("navLogin")}</button>}
-      {isMobile && authUser && <Link to="settings" className="aivy-avatar" aria-label="Akun">{authUser.username?.slice(0, 1).toUpperCase()}</Link>}
+      {isMobile && authUser && <Link to="settings" aria-label="Akun" className="aivy-avatar-link"><Avatar user={authUser} /></Link>}
     </div>
   );
 }
@@ -4166,8 +4152,6 @@ export function AiAssistantWidget() {
     </>
   );
 }
-
-/* ---------- Music Video viewer: tampilan khusus untuk video musik (PC & mobile) ---------- */
 export function MusicVideoView({ video, onClose, onAudioPlay }) {
   const { t } = useUI();
   const stageRef = useRef(null);
@@ -4178,7 +4162,7 @@ export function MusicVideoView({ video, onClose, onAudioPlay }) {
 
   const [src, setSrc] = useState(null);
   const [streamType, setStreamType] = useState("mp4");
-  const [status, setStatus] = useState("idle"); // loading | ready | error
+  const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -4201,8 +4185,6 @@ export function MusicVideoView({ video, onClose, onAudioPlay }) {
       if (playingRef.current) setControlsHidden(true);
     }, 2600);
   }, []);
-
-  // tutup modal: Esc (saat fullscreen, Esc keluar fullscreen dulu) + scroll lock
   useEffect(() => {
     if (!video) return undefined;
     const onKey = (e) => {
@@ -4222,8 +4204,6 @@ export function MusicVideoView({ video, onClose, onAudioPlay }) {
       document.body.classList.remove("aivy-video-open");
     };
   }, [video, onClose]);
-
-  // pantau state fullscreen (termasuk keluar via Esc/browser)
   useEffect(() => {
     const onChange = () => setFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onChange);
@@ -4233,15 +4213,11 @@ export function MusicVideoView({ video, onClose, onAudioPlay }) {
       document.removeEventListener("webkitfullscreenchange", onChange);
     };
   }, []);
-
-  // bersihkan player saat modal ditutup
   useEffect(() => () => {
     if (controlsTimer.current) clearTimeout(controlsTimer.current);
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     if (videoRef.current) { videoRef.current.pause(); videoRef.current.removeAttribute("src"); }
   }, []);
-
-  // resolve stream video (tiket kind=video + meta type)
   const reload = useCallback(() => {
     setStatus("loading");
     setErrorMsg(null);
@@ -4264,8 +4240,6 @@ export function MusicVideoView({ video, onClose, onAudioPlay }) {
     reload();
     return undefined;
   }, [video, vId, reload]);
-
-  // attach stream ke <video> (native mp4) atau hls.js (m3u8)
   useEffect(() => {
     const video = videoRef.current;
     if (status !== "ready" || !src || !video) return undefined;

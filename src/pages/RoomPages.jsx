@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Users, Lock, Globe, Plus, LogIn, Play, Search as SearchIcon, Copy, Share2, Pause, SkipForward, Hash, ChevronDown } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
-import { TrackRow, ViewLoading, RoomChat } from "../components.jsx";
+import { TrackRow, ViewLoading, RoomChat, Avatar } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
 import { relativeTime } from "../lib/utils.js";
 import { Api } from "../lib/api.js";
@@ -207,7 +207,7 @@ export function RoomPage() {
         <div className="members-row">
           <span className="stack">
             {members.slice(0, 5).map((m) => (
-              <span className="aivy-avatar" key={m.id} title={m.username}>{m.username?.slice(0, 1).toUpperCase()}</span>
+              <Avatar key={m.id} user={m} title={m.username} />
             ))}
             {members.length > 5 && <span className="aivy-avatar more">+{members.length - 5}</span>}
           </span>

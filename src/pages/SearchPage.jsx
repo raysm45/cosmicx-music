@@ -3,7 +3,7 @@ import { Search, X, Clock, TrendingUp, ArrowLeft, ArrowUpLeft, Mic, Music2, Smil
 import { Api } from "../lib/api.js";
 import { useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
-import { TrackRow, HoverRail } from "../components.jsx";
+import { TrackRow, HoverRail, SkeletonList } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
 import { useAnimatedList } from "../lib/useAnimatedList.js";
 import { usePlayer } from "../context.jsx";
@@ -37,6 +37,7 @@ export function SearchPage() {
   const [results, setResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [noResults, setNoResults] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [recent, setRecent] = useState([]);
@@ -141,7 +142,7 @@ export function SearchPage() {
     const onPop = () => {
       const q = new URLSearchParams(window.location.search).get("q") || "";
       setQuery(q);
-      if (q.trim()) doSearch(q); else { setResults([]); setHasSearched(false); setArtistHit(null); setArtistHits([]); }
+      if (q.trim()) doSearch(q); else { setResults([]); setHasSearched(false); setSearching(false); setArtistHit(null); setArtistHits([]); }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -155,6 +156,7 @@ export function SearchPage() {
   };
 
   const applyResults = (trimmed, res, artist) => {
+    setSearching(false);
     setArtistHit(artist && isRelevantArtistMatch(artist.name, trimmed) ? artist : null);
     setResults(res || []);
     setNoResults(!res || res.length === 0);
@@ -168,7 +170,7 @@ export function SearchPage() {
 
   const doSearch = async (q) => {
     const trimmed = q.trim();
-    if (!trimmed) { setResults([]); setHasSearched(false); setArtistHit(null); setArtistHits([]); setNextCursor(null); return; }
+    if (!trimmed) { setResults([]); setHasSearched(false); setSearching(false); setArtistHit(null); setArtistHits([]); setNextCursor(null); return; }
     const seq = ++requestSeqRef.current;
     setHasSearched(true);
     setNoResults(false);
@@ -179,16 +181,23 @@ export function SearchPage() {
     if (!entry) { prefetchResults(trimmed); entry = resultCacheRef.current.get(key); }
 
     if (entry?.results) { applyResults(trimmed, entry.results, entry.artist); return; }
+    setResults([]);
+    setArtistHit(null);
+    setArtistHits([]);
+    setNextCursor(null);
+    setSearching(true);
 
     try {
       await entry?.promise;
       if (seq !== requestSeqRef.current) return;
       if (entry?.results) { applyResults(trimmed, entry.results, entry.artist); return; }
+      setSearching(false);
       setResults([]);
       setNoResults(true);
       setNextCursor(null);
     } catch {
       if (seq !== requestSeqRef.current) return;
+      setSearching(false);
       setResults([]);
       setNoResults(true);
       setNextCursor(null);
@@ -227,7 +236,7 @@ export function SearchPage() {
       debouncedSuggest.cancel?.();
       debouncedPrefetch.cancel?.();
       stopLive();
-      setSuggestions([]); setResults([]); setHasSearched(false); setNextCursor(null); setArtistHits([]);
+      setSuggestions([]); setResults([]); setHasSearched(false); setSearching(false); setNextCursor(null); setArtistHits([]);
       setLiveData(EMPTY_LIVE);
       return;
     }
@@ -507,6 +516,22 @@ export function SearchPage() {
         </>
       )}
 
+      {hasSearched && searching && (
+        <div aria-busy="true" aria-live="polite">
+          <section className="aivy-section" style={{ marginTop: 0 }}>
+            <div className="aivy-skeleton" style={{ width: 90, height: 16, borderRadius: 6, marginBottom: 14 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div className="aivy-skeleton" style={{ width: 84, height: 84, borderRadius: "50%", flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div className="aivy-skel-line aivy-skeleton" style={{ height: 18, width: "40%", marginBottom: 10 }} />
+                <div className="aivy-skel-line w35 aivy-skeleton" style={{ height: 12 }} />
+              </div>
+            </div>
+          </section>
+          <SkeletonList count={8} />
+        </div>
+      )}
+
       {hasSearched && topArtist && (
         <section className="aivy-section" style={{ marginTop: 0 }}>
           <div className="aivy-section-head"><h2 className="aivy-section-title">{t("artistLabel")}</h2></div>
@@ -562,7 +587,7 @@ export function SearchPage() {
         </div>
       )}
 
-      {hasSearched && noResults && sortedList.length === 0 && (
+      {hasSearched && !searching && noResults && sortedList.length === 0 && (
         <div className="aivy-empty"><Search size={34} color="var(--ink-faint)" /><div className="title">{t("noResults")}</div><div className="sub">{t("noResultsSub")}</div></div>
       )}
 

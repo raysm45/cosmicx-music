@@ -4,6 +4,7 @@ import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
 import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
+import { useArtworkTint, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 import { Api } from "../lib/api.js";
 
 function normalizeLikedRows(rows) {
@@ -116,8 +117,6 @@ function LibTabs({ tabs, value, onChange }) {
     Object.values(btnRefs.current).forEach((b) => b && ro.observe(b));
     return () => ro.disconnect();
   }, [measure, sig]);
-
-  // Aktifkan transisi setelah posisi awal terpasang, supaya indikator tidak "terbang" dari kiri saat pertama muncul.
   React.useEffect(() => {
     const id = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(id);
@@ -575,61 +574,49 @@ export function PlaylistPage() {
   React.useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
   React.useEffect(() => { setSearchOpen(false); setQuery(""); }, [params.id]);
 
-  if (!pl) return <ViewNotFound label={t("playlistLabel")} />;
-  const isOwner = !!authUser && String(authUser.id) === String(pl.user_id);
-  const cover = pl.cover_thumbnail ?? pl.songs?.[0]?.cover ?? null;
+  const isOwner = !!authUser && String(authUser.id) === String(pl?.user_id);
+  const cover = pl?.cover_thumbnail ?? pl?.songs?.[0]?.cover ?? null;
+  const tint = useArtworkTint(cover);
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!pl, tint });
+
+  if (!pl) return <div className="aivy-am-fallback"><ViewNotFound label={t("playlistLabel")} /></div>;
   const q = query.trim().toLowerCase();
   const visibleSongs = q
     ? (displaySongs || []).filter((s) => s.title?.toLowerCase().includes(q) || s.artist?.name?.toLowerCase().includes(q))
     : displaySongs;
 
   return (
-    <div className="aivy-view-enter aivy-playlist-page">
-      {cover && (
-        <div className="aivy-playlist-banner">
-          <SmartCover src={cover} seed={"banner-pl" + pl.id} size={800} radius={0} style={{ width: "100%", height: "100%" }} />
-          <div className="aivy-playlist-banner-fade" />
-        </div>
-      )}
-      <div className={`aivy-hero ${cover ? "aivy-playlist-hero" : ""}`}>
-        <div className="art" style={{ position: "relative" }}>
-          {cover ? <SmartCover src={cover} seed={"pl" + pl.id} size={176} radius={16} style={{ width: 176, height: 176 }} /> : (
-            <div style={{ width: 176, height: 176, borderRadius: "var(--radius-lg)", background: "var(--bg-elev-2)", display: "flex", alignItems: "center", justifyContent: "center" }}><LibraryIcon size={40} color="var(--ink-faint)" /></div>
+    <div ref={pageRef} className="aivy-view-enter aivy-am-page is-cover-page aivy-playlist-page">
+      <ImmersiveHero
+        mediaRef={mediaRef}
+        heroRef={heroRef}
+        coverStyle
+        media={<SmartCover src={cover} seed={"banner-pl" + pl.id} size={800} radius={0} style={{ width: "100%", height: "100%" }} />}
+      >
+        <div className="aivy-am-kicker">
+          {t("playlistLabel")}
+          {pl.is_public !== undefined && (
+            <span className="aivy-playlist-visibility">
+              {pl.is_public ? <Globe size={12} /> : <Lock size={12} />} {pl.is_public ? t("publicLabel") : t("privateLabel")}
+            </span>
           )}
+        </div>
+        <h1 className="aivy-am-name">{pl.name}</h1>
+        <div className="aivy-am-sub"><span>{pl.songs?.length || 0} {t("songsCount")}</span></div>
+        <div className="aivy-am-actions">
           {isOwner && (
-            <button className="aivy-cover-edit-btn" onClick={() => setCoverPickerOpen(true)} aria-label={t("changeCoverBtn")} title={t("changeCoverBtn")}>
-              <ImagePlus size={16} />
+            <button className="aivy-am-ghost" onClick={() => setEditOpen(true)} aria-label={t("editPlaylistBtn")} title={t("editPlaylistBtn")}>
+              <Pencil size={17} />
             </button>
           )}
-        </div>
-        <div className="aivy-hero-meta">
-          <div className="eyebrow">
-            {t("playlistLabel")}
-            {pl.is_public !== undefined && (
-              <span className="aivy-playlist-visibility" style={{ marginLeft: 6 }}>
-                · {pl.is_public ? <Globe size={12} /> : <Lock size={12} />} {pl.is_public ? t("publicLabel") : t("privateLabel")}
-              </span>
-            )}
-          </div>
-          <h1 className="font-display">{pl.name}</h1>
-          <div className="stats"><span>{pl.songs?.length || 0} {t("songsCount")}</span></div>
-        </div>
-      </div>
-      <div className="aivy-hero-actions">
-        {isOwner && (
-          <button className="aivy-icon-btn-solid" onClick={() => setEditOpen(true)} aria-label={t("editPlaylistBtn")} title={t("editPlaylistBtn")}>
-            <Pencil size={16} />
-          </button>
-        )}
-        {pl.songs?.length > 0 && <button className="aivy-play-btn is-hero" style={{ width: 52, height: 52 }} onClick={() => playList(pl.songs, 0, { type: "library", label: pl.name }, localShuffle)} aria-label={t("playAll")}><Play size={22} fill="currentColor" /></button>}
-        {pl.songs?.length > 0 && (
-          <button className={`aivy-icon-btn-solid ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((s) => !s)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}>
-            <Shuffle size={18} />
-          </button>
-        )}
+          {pl.songs?.length > 0 && (
+            <button className={`aivy-am-ghost ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((v) => !v)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}>
+              <Shuffle size={18} />
+            </button>
+          )}
+          {pl.songs?.length > 0 && <button className="aivy-am-cta" onClick={() => playList(pl.songs, 0, { type: "library", label: pl.name }, localShuffle)} aria-label={t("playAll")} title={t("playAll")}><Play size={25} fill="currentColor" /></button>}
         <button
-          className="aivy-icon-btn"
-          style={{ width: 40, height: 40 }}
+          className="aivy-am-ghost"
           aria-label={t("playlistMenuLabel")}
           title={t("playlistMenuLabel")}
           onClick={(e) => {
@@ -648,7 +635,11 @@ export function PlaylistPage() {
         >
           <MoreHorizontal size={18} />
         </button>
-      </div>
+        </div>
+      </ImmersiveHero>
+
+      <div className="aivy-am-body is-tracklist">
+        <div className="aivy-am-body-inner">
       {searchOpen && (
         <div className="aivy-field" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ position: "relative", flex: 1 }}>
@@ -666,6 +657,23 @@ export function PlaylistPage() {
           <button className="aivy-icon-btn sm" onClick={() => { setSearchOpen(false); setQuery(""); }} aria-label={t("close")}><X size={17} /></button>
         </div>
       )}
+          {pl.songs?.length > 0 ? (
+            visibleSongs.length > 0 ? (
+              <FlipList
+                items={visibleSongs}
+                getKey={(tr) => tr.id}
+                renderItem={(tr) => (
+                  <TrackRow track={tr} index={pl.songs.indexOf(tr)} list={pl.songs} showAlbum onRemove={isOwner ? () => removeFromPlaylist(pl.id, tr.id) : undefined} removeLabel={t("removeFromThisPlaylist")} queueMode="context" source={{ type: "library", label: pl.name }} shuffleOverride={localShuffle} />
+                )}
+              />
+            ) : (
+              <div className="aivy-empty"><div className="title">{t("findInPlaylistNoResults")}</div></div>
+            )
+          ) : (
+            <div className="aivy-empty"><div className="title">{t("playlistEmpty")}</div><div className="sub">{t("playlistEmptySub")}</div></div>
+          )}
+        </div>
+      </div>
       {isOwner && coverPickerOpen && <PlaylistCoverModal pl={pl} onClose={() => setCoverPickerOpen(false)} />}
       {isOwner && editOpen && <PlaylistEditModal pl={pl} onClose={() => setEditOpen(false)} />}
       <ConfirmDialog

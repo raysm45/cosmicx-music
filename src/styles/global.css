@@ -145,7 +145,11 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-login-btn:hover{ background: var(--accent-strong); }
 .aivy-user-chip{ display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: var(--radius-sm); }
 .aivy-user-chip:hover{ background: var(--bg-elev-2); }
-.aivy-avatar{ width: 26px; height: 26px; border-radius: 50%; background: var(--bg-elev-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--ink-dim); border: 1px solid var(--line); }
+.aivy-avatar img{ width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
+.aivy-avatar.has-img{ background: var(--bg-elev-2); }
+.aivy-avatar-link{ display: inline-flex; flex-shrink: 0; }
+.aivy-topbar .aivy-avatar-link .aivy-avatar{ width: 30px; height: 30px; }
+.aivy-avatar{ overflow: hidden; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-elev-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--ink-dim); border: 1px solid var(--line); }
 
 .aivy-main{ grid-area: main; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; }
 .aivy-topbar{ display: flex; align-items: center; gap: 10px; padding: 12px 28px; flex-shrink: 0; border-bottom: 1px solid transparent; }
@@ -1282,17 +1286,39 @@ body.aivy-artist-immersive .aivy-player{
   background: color-mix(in srgb, var(--artist-bg, hsl(230 30% 15%)) 78%, transparent);
 }
 
-.aivy-playlist-banner{ position: relative; margin: -6px -28px 0; height: clamp(220px, 34vw, 380px); overflow: hidden; background: var(--bg-elev-2); }
-.aivy-playlist-banner img{ width: 100%; height: 100%; object-fit: cover; }
-.aivy-playlist-banner :is(img, canvas, svg){ filter: blur(36px) saturate(1.35) brightness(.62); transform: scale(1.25); }
-.aivy-playlist-banner-fade{ position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.15) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 62%, var(--bg) 96%); }
-.aivy-playlist-hero{ margin-top: -104px; position: relative; z-index: 1; align-items: flex-end; }
-.aivy-playlist-hero .art{ box-shadow: none; }
-.aivy-playlist-hero .art img, .aivy-playlist-hero .art svg{ border-radius: var(--radius-lg); }
-@media (max-width: 860px){
-  .aivy-playlist-banner{ margin: -6px -16px 0; height: 220px; }
-  .aivy-playlist-hero{ margin-top: -74px; }
+/* ---- Album & Playlist: hero yang sama dengan Artist, tapi pakai satu cover persegi yang di-blur ---- */
+.aivy-am-page.is-cover-page{ --am-hero-h: min(54vh, 460px); }
+.aivy-am-media.is-cover :is(video, img, canvas, svg){
+  object-position: center;
+  filter: blur(calc(34px + var(--am-blur, 0px))) saturate(1.25) brightness(.8);
+  transform: scale(calc(1.32 + var(--am-zoom, 1.02) - 1));
+  transform-origin: center;
 }
+.aivy-am-media .aivy-animated-cover-loading,
+.aivy-am-media .aivy-animated-cover-errbox{ display: none; }
+.aivy-am-kicker{
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  margin-bottom: 10px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: color-mix(in srgb, #fff 72%, transparent);
+}
+.aivy-am-kicker .aivy-playlist-visibility{ display: inline-flex; align-items: center; gap: 5px; }
+.aivy-am-kicker .aivy-playlist-visibility::before{ content: "\00b7"; margin-right: 3px; }
+.aivy-am-sub{
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px;
+  margin-top: 12px; font-size: 14px; color: color-mix(in srgb, #fff 70%, transparent);
+}
+.aivy-am-sub > span + span::before{ content: "\00b7"; margin-right: 10px; }
+.aivy-am-sub .is-link{ color: #fff; font-weight: 600; cursor: pointer; }
+.aivy-am-sub .is-link:hover{ text-decoration: underline; }
+/* Daftar lagu di bawah hero selalu di atas warna gelap, apa pun tema aplikasinya */
+.aivy-am-body.is-tracklist{
+  --ink: #F2F2F2; --ink-dim: #B4B4B4; --ink-faint: #8A8A8A;
+  --line: rgba(255,255,255,.12); --line-soft: rgba(255,255,255,.07);
+  --bg-elev: rgba(255,255,255,.06); --bg-elev-2: rgba(255,255,255,.09); --bg-elev-3: rgba(255,255,255,.13);
+  color: var(--ink); padding-top: 14px; min-height: 40vh;
+}
+.aivy-am-body.is-tracklist .aivy-am-body-inner{ max-width: 1100px; }
+@media (max-width: 860px){ .aivy-am-page.is-cover-page{ --am-hero-h: min(46vh, 380px); } }
 
 .aivy-cover-edit-btn{ position: absolute; right: 8px; bottom: 8px; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
 .aivy-cover-edit-btn:hover{ background: var(--bg-elev-3); transform: scale(1.06); }
@@ -2772,6 +2798,11 @@ body.aivy-artist-immersive .aivy-player{
   --dock-bottom: 10px;
   --dock-ease: cubic-bezier(.32,.72,0,1);
   --dock-dur: 420ms;
+  /* Dua tahap gerak mini player (total tetap = --dock-dur) */
+  --dock-y-dur: 230ms;
+  --dock-x-dur: 250ms;
+  --dock-x-delay: 170ms;
+  --dock-y-delay: 170ms;
   --lg-blur: 6px;
   --lg-sat: 140%;
   --lg-tint: rgba(14,14,14,.16);
@@ -2805,23 +2836,36 @@ body.aivy-artist-immersive .aivy-player{
   position: absolute; bottom: 0; height: var(--dock-h);
   pointer-events: auto; contain: layout style;
 }
-.aivy-dock.is-morphing .aivy-dock-slot{ will-change: transform, width; }
+.aivy-dock.is-morphing .aivy-dock-slot{ will-change: transform, translate, width; }
 .slot-tabs{
   left: 0; width: calc(100% - var(--dock-search) * (var(--dock-h) + var(--dock-gap)));
   transition: width var(--dock-dur) var(--dock-ease);
 }
 .slot-search{ right: 0; width: var(--dock-h); }
+/* Mini player: sumbu Y dan X dipisah (properti `translate` untuk Y, `transform` untuk X)
+   supaya geraknya berurutan, bukan diagonal.
+   - Mengecil: turun lurus ke bawah dulu, baru menyempit & geser ke kanan.
+   - Membesar: geser kembali ke kiri dulu, baru naik. */
 .slot-mini{
   left: 0; width: 100%;
-  transform: translate3d(0, calc(-1 * (var(--dock-h) + var(--dock-gap))), 0);
-  transition: transform var(--dock-dur) var(--dock-ease), width var(--dock-dur) var(--dock-ease);
+  translate: 0 calc(-1 * (var(--dock-h) + var(--dock-gap)));
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform var(--dock-x-dur) var(--dock-ease) 0ms,
+    width var(--dock-x-dur) var(--dock-ease) 0ms,
+    translate var(--dock-y-dur) var(--dock-ease) var(--dock-y-delay);
   animation: aivy-dock-in 320ms var(--ease) backwards;
 }
 @keyframes aivy-dock-in{ from{ opacity: 0; } to{ opacity: 1; } }
 .aivy-dock.is-collapsed .slot-tabs{ width: var(--dock-h); }
 .aivy-dock.is-collapsed .slot-mini{
   width: calc(100% - (1 + var(--dock-search)) * (var(--dock-h) + var(--dock-gap)));
+  translate: 0 0;
   transform: translate3d(calc(var(--dock-h) + var(--dock-gap)), 0, 0);
+  transition:
+    translate var(--dock-y-dur) var(--dock-ease) 0ms,
+    transform var(--dock-x-dur) var(--dock-ease) var(--dock-x-delay),
+    width var(--dock-x-dur) var(--dock-ease) var(--dock-x-delay);
 }
 .aivy-dock .aivy-tabbar,
 .aivy-dock .aivy-mini-player,
@@ -2926,6 +2970,8 @@ body.aivy-artist-immersive .aivy-player{
   transition: width var(--dock-dur) var(--dock-ease), margin var(--dock-dur) var(--dock-ease), opacity 200ms var(--ease);
 }
 .aivy-dock.is-collapsed .aivy-mini-player .meta .a{ max-height: 0; opacity: 0; }
+.aivy-dock.is-collapsed .aivy-mini-player .meta .a,
+.aivy-dock.is-collapsed .aivy-mini-player .skip-next{ transition-delay: var(--dock-x-delay); }
 .aivy-dock.is-collapsed .aivy-mini-player .skip-next{ width: 0; margin-left: -10px; opacity: 0; pointer-events: none; }
 .aivy-mini-player .mini-ring{ position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 0; }
 .aivy-mini-player .mini-ring rect{ fill: none; stroke-width: 4; }

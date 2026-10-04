@@ -4,92 +4,12 @@ import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { TrackRow, ViewNotFound, SkeletonHeroPage, filterExplicit, FlipList, shuffleArray, useTrackMenuItems, HoverRail, MusicVideoView, MarqueeText } from "../components.jsx";
-import { SmartCover } from "../lib/brand.jsx";
+import { SmartCover, AnimatedCover } from "../lib/brand.jsx";
 import { setSeo, SITE_URL } from "../lib/seo.js";
+import { useArtworkTint, tintFromHex, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 
 const TOP_SONGS_PREVIEW = 15;
 
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h = 0, s = 0;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h *= 60;
-  }
-  return [h, s, l];
-}
-function useArtworkTint(src) {
-  const [tint, setTint] = useState(null);
-  useEffect(() => {
-    if (!src) { setTint(null); return undefined; }
-    let alive = true;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      if (!alive) return;
-      try {
-        const canvas = document.createElement("canvas");
-        const size = 28;
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-        let r = 0, g = 0, b = 0, w = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          if (data[i + 3] < 32) continue;
-          const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-          const mn = Math.min(data[i], data[i + 1], data[i + 2]);
-          const weight = 0.35 + (mx - mn) / 255;
-          r += data[i] * weight; g += data[i + 1] * weight; b += data[i + 2] * weight; w += weight;
-        }
-        if (!w) return;
-        const [h, s] = rgbToHsl(r / w, g / w, b / w);
-        if (alive) setTint(tintFromHsl(h, s * 100));
-      } catch {
-        // Canvas ke-taint (gambar cross-origin tanpa header CORS) atau gagal decode.
-        // Daripada diem-diem gak pasang tint sama sekali (sidebar jadi item polos),
-        // pasang fallback glass netral biar panel tetep keliatan kaca, bukan hitam.
-        if (alive) setTint(FALLBACK_TINT);
-      }
-    };
-    img.onerror = () => { if (alive) setTint(FALLBACK_TINT); };
-    img.src = src;
-    return () => { alive = false; };
-  }, [src]);
-  return tint;
-}
-
-// Lightness dinaikin dari 9% -> 15% dan saturation minimum dari 14 -> 22 biar tint-nya
-// kebaca sebagai kaca berwarna, bukan nyaris-hitam yang keliatan sama aja kayak panel polos.
-function tintFromHsl(h, satPct) {
-  const hue = Math.round(h);
-  const s = Math.round(Math.min(52, Math.max(22, satPct)));
-  return {
-    bg: `hsl(${hue} ${s}% 15%)`,
-    accent: `hsl(${hue} ${Math.min(72, s + 24)}% 78%)`,
-    accentInk: `hsl(${hue} ${Math.min(60, s + 10)}% 12%)`,
-  };
-}
-// Dipakai kalau ekstraksi warna dari artwork gagal (misal canvas ke-taint karena CORS)
-// supaya panel tetep kelihatan kaca (frosted), bukan jatuh balik ke hitam polos.
-const FALLBACK_TINT = tintFromHsl(230, 30);
-function hexToRgb(hex) {
-  const m = String(hex || "").trim().replace("#", "");
-  if (!/^[0-9a-fA-F]{6}$/.test(m)) return null;
-  return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)];
-}
-function tintFromHex(hex) {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return null;
-  const [h, sat] = rgbToHsl(rgb[0], rgb[1], rgb[2]);
-  return tintFromHsl(h, sat * 100);
-}
 function pickHeroRendition(hero) {
   if (!hero) return null;
   const conn = typeof navigator !== "undefined" ? navigator.connection : null;
@@ -211,14 +131,7 @@ export function ArtistPage() {
   const [heroInfo, setHeroInfo] = useState(null);
   const [logoBroken, setLogoBroken] = useState(false);
   const [videoBroken, setVideoBroken] = useState(false);
-  const mediaRef = useRef(null);
-  const pageRef = useRef(null);
-  const heroRef = useRef(null);
   const heroVideoRef = useRef(null);
-
-  // Hero video cuma perlu decode selagi ada di viewport. Halaman artist bisa panjang
-  // (scroll ke bawah buat liat semua lagu/album), jadi kalau hero-nya udah lewat,
-  // video di-pause biar decoder ga jalan sia-sia di background.
   useEffect(() => {
     const el = heroVideoRef.current;
     if (!el) return undefined;
@@ -234,16 +147,6 @@ export function ArtistPage() {
   }, [heroVideoUrl]);
   const { playList, playSingle } = usePlayer();
   const { t, settings } = useUI();
-
-  useEffect(() => {
-    document.body.classList.add("aivy-artist-immersive");
-    return () => {
-      document.body.classList.remove("aivy-artist-immersive");
-      document.body.style.removeProperty("--artist-bg");
-      document.body.style.removeProperty("--artist-accent");
-      document.body.style.removeProperty("--artist-accent-ink");
-    };
-  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -296,59 +199,7 @@ export function ArtistPage() {
     const derived = tintFromHex(heroBgColor);
     return derived || tintFromArt;
   }, [heroBgColor, tintFromArt]);
-  useEffect(() => {
-    if (!tint) return undefined;
-    document.body.style.setProperty("--artist-bg", tint.bg);
-    document.body.style.setProperty("--artist-accent", tint.accent);
-    document.body.style.setProperty("--artist-accent-ink", tint.accentInk);
-    return undefined;
-  }, [tint]);
-  useEffect(() => {
-    if (!artist) return undefined;
-    const scroller = document.getElementById("aivy-content-scroll");
-    if (!scroller) return undefined;
-    let raf = 0;
-    let lastBlurStep = -1;
-    let lastProgStep = -1;
-    // filter: blur() dan backdrop-filter: blur() itu paling mahal buat GPU low-end.
-    // shift/zoom (transform) aman di-update tiap frame, tapi kedua nilai blur cukup
-    // di-quantize ke step kasar — browser skip repaint blur kalau nilai CSS var-nya
-    // sama persis, dan mata ga bisa bedain step sehalus ini pas lagi scroll cepat.
-    const BLUR_STEPS = 14;
-    const apply = () => {
-      raf = 0;
-      const heroH = heroRef.current?.offsetHeight || Math.round((window.innerHeight || 800) * 0.78);
-      const top = scroller.scrollTop;
-      const shift = Math.min(top, heroH);
-      const progress = Math.min(1, top / Math.max(1, heroH * 0.82));
-      const step = Math.round(progress * BLUR_STEPS) / BLUR_STEPS;
-      if (mediaRef.current) {
-        mediaRef.current.style.setProperty("--am-shift", `${-shift}px`);
-        const blurStep = Math.round(progress * BLUR_STEPS);
-        if (blurStep !== lastBlurStep) {
-          lastBlurStep = blurStep;
-          mediaRef.current.style.setProperty("--am-blur", `${(step * 26).toFixed(1)}px`);
-        }
-        mediaRef.current.style.setProperty("--am-zoom", (1 + progress * 0.06).toFixed(4));
-      }
-      if (pageRef.current) {
-        const progStep = Math.round(progress * BLUR_STEPS);
-        if (progStep !== lastProgStep) {
-          lastProgStep = progStep;
-          pageRef.current.style.setProperty("--am-progress", step.toFixed(3));
-        }
-      }
-    };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
-    apply();
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      scroller.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [artist]);
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!artist, tint });
 
   useEffect(() => {
     if (!aboutOpen) return undefined;
@@ -400,10 +251,6 @@ export function ArtistPage() {
   if (!artist) return <div className="aivy-am-fallback"><ViewNotFound label={t("artistLabel")} /></div>;
 
   const songs = showAllSongs ? topTracks : topTracks.slice(0, TOP_SONGS_PREVIEW);
-  // Video hero selalu ditampilkan (autoplay seperti semula) — deteksi "low-end device"
-  // pakai navigator.deviceMemory/hardwareConcurrency ternyata gak reliable (banyak HP
-  // normal ikut ke-flag gara-gara browser nge-cap nilai itu), jadi cuma dipakai IO
-  // buat pause pas di luar viewport, bukan buat matiin videonya sama sekali.
   const showHeroVideo = heroVideoUrl && !videoBroken;
   const heroLogoUrl = heroInfo?.customName?.url ? Api.appleMusicVideoUrl(heroInfo.customName.url) : null;
   const showLogo = heroLogoUrl && !logoBroken;
@@ -641,6 +488,7 @@ export function AlbumPage() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    document.getElementById("aivy-content-scroll")?.scrollTo({ top: 0 });
     Api.album(params.id).then((res) => { if (alive) { setAlbum(res); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [params.id]);
@@ -665,34 +513,57 @@ export function AlbumPage() {
     setDisplayTracks(localShuffle ? shuffleArray(albumTracks) : albumTracks);
   }, [albumTracks, localShuffle]);
 
-  if (loading) return <SkeletonHeroPage rows={7} />;
-  if (!album) return <ViewNotFound label={t("albumLabel")} />;
+  const tint = useArtworkTint(album?.cover || null);
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!album, tint });
+  const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  if (loading) return <div className="aivy-am-fallback"><SkeletonHeroPage rows={7} /></div>;
+  if (!album) return <div className="aivy-am-fallback"><ViewNotFound label={t("albumLabel")} /></div>;
   const albumSaved = savedAlbumIds.has(String(album.id));
 
   return (
-    <div className="aivy-view-enter">
-      <div className="aivy-hero">
-        <div className="art"><SmartCover src={album.cover} seed={"album" + album.id + album.title} size={176} radius={16} style={{ width: 176, height: 176 }} /></div>
-        <div className="aivy-hero-meta">
-          <div className="eyebrow">{t("albumLabel")}</div>
-          <h1 className="font-display">{album.title}</h1>
-          <div className="stats">
-            <span onClick={() => navigate("artist", { params: { id: album.artist.id } })} style={{ cursor: "pointer", color: "var(--ink)", fontWeight: 600 }}>{album.artist?.name}</span>
-            <span>{album.releaseDate ? `\u00b7 ${String(album.releaseDate).slice(0, 4)}` : ""}</span>
-            <span>{`\u00b7 ${albumTracks.length} ${t("trackCountLabel")}, ${totalMin} ${t("minutesLabel")}`}</span>
-          </div>
+    <div ref={pageRef} className="aivy-view-enter aivy-am-page is-cover-page">
+      <ImmersiveHero
+        mediaRef={mediaRef}
+        heroRef={heroRef}
+        coverStyle
+        media={(
+          <AnimatedCover
+            src={album.cover} seed={"album-bg" + album.id + album.title} size={800} radius={0}
+            style={{ width: "100%", height: "100%" }}
+            song={album.title} artist={album.artist?.name}
+            animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+          />
+        )}
+      >
+        <div className="aivy-am-kicker">{t("albumLabel")}</div>
+        <h1 className="aivy-am-name">{album.title}</h1>
+        <div className="aivy-am-sub">
+          {album.artist?.name && (
+            <span
+              className={album.artist.id ? "is-link" : undefined}
+              onClick={album.artist.id ? () => navigate("artist", { params: { id: album.artist.id } }) : undefined}
+            >{album.artist.name}</span>
+          )}
+          {album.releaseDate ? <span>{String(album.releaseDate).slice(0, 4)}</span> : null}
+          <span>{`${albumTracks.length} ${t("trackCountLabel")}, ${totalMin} ${t("minutesLabel")}`}</span>
+        </div>
+        <div className="aivy-am-actions">
+          <button className={`aivy-am-ghost ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((v) => !v)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}><Shuffle size={18} /></button>
+          <button className="aivy-am-cta" onClick={() => playList(albumTracks, 0, null, localShuffle)} aria-label={t("playAlbum")} title={t("playAlbum")}><Play size={25} fill="currentColor" /></button>
+          <button className={`aivy-am-ghost ${albumSaved ? "active" : ""}`} onClick={() => toggleSaveAlbum(album)} aria-label={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")} aria-pressed={albumSaved} title={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")}><Heart size={18} fill={albumSaved ? "currentColor" : "none"} /></button>
+        </div>
+      </ImmersiveHero>
+
+      <div className="aivy-am-body is-tracklist">
+        <div className="aivy-am-body-inner">
+          <FlipList
+            items={displayTracks}
+            getKey={(tr) => tr.id}
+            renderItem={(tr) => <TrackRow track={tr} index={albumTracks.indexOf(tr)} list={albumTracks} queueMode="context" shuffleOverride={localShuffle} />}
+          />
         </div>
       </div>
-      <div className="aivy-hero-actions">
-        <button className="aivy-play-btn is-hero" style={{ width: 52, height: 52 }} onClick={() => playList(albumTracks, 0, null, localShuffle)} aria-label={t("playAlbum")}><Play size={22} fill="currentColor" /></button>
-        <button className={`aivy-icon-btn-solid ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((s) => !s)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}><Shuffle size={18} /></button>
-        <button className={`aivy-icon-btn-solid ${albumSaved ? "active" : ""}`} onClick={() => toggleSaveAlbum(album)} aria-label={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")} aria-pressed={albumSaved} title={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")}><Heart size={18} fill={albumSaved ? "currentColor" : "none"} /></button>
-      </div>
-      <FlipList
-        items={displayTracks}
-        getKey={(tr) => tr.id}
-        renderItem={(tr) => <TrackRow track={tr} index={albumTracks.indexOf(tr)} list={albumTracks} queueMode="context" shuffleOverride={localShuffle} />}
-      />
     </div>
   );
 }
