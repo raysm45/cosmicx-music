@@ -18,6 +18,13 @@ function highlightEnd(lines, i) {
   return next.timestamp;
 }
 
+// Catatan: di data am-lyrics, flag `background: true` artinya baris itu PUNYA vokal latar
+// (backgroundText terisi), bukan baris latar yang berdiri sendiri. Teks utamanya tetap di `text`.
+// Baris latar mandiri dikenali dari teks utamanya yang kosong.
+function hasMainText(line) {
+  return (line.text || []).some((s) => (s.text || "").trim());
+}
+
 function lineText(line) {
   const raw = (line.text || []).map((s) => s.text || "").join("");
   const t = raw.replace(/\s+/g, " ").trim();
@@ -32,7 +39,7 @@ export function lyricAt(lines, tMs) {
   let idx = -1;
   for (let i = 0; i < lines.length; i += 1) {
     if (lines[i].timestamp > tMs) break;
-    if (!lines[i].background) idx = i;
+    if (hasMainText(lines[i])) idx = i;
   }
   if (idx < 0 || tMs >= highlightEnd(lines, idx)) return null;
   return lineText(lines[idx]);
