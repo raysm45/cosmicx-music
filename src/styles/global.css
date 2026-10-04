@@ -1288,12 +1288,9 @@ body.aivy-artist-immersive .aivy-player{
 
 /* ---- Album & Playlist: hero yang sama dengan Artist, tapi pakai satu cover persegi yang di-blur ---- */
 .aivy-am-page.is-cover-page{ --am-hero-h: min(54vh, 460px); }
-.aivy-am-media.is-cover :is(video, img, canvas, svg){
-  object-position: center;
-  filter: blur(calc(34px + var(--am-blur, 0px))) saturate(1.25) brightness(.8);
-  transform: scale(calc(1.32 + var(--am-zoom, 1.02) - 1));
-  transform-origin: center;
-}
+/* Cover persegi: tetap tajam di atas, blur naik bertahap ke bawah lewat .aivy-am-media-blur
+   (sama persis dengan hero Artist) — tidak di-blur penuh. */
+.aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center 30%; }
 .aivy-am-media .aivy-animated-cover-loading,
 .aivy-am-media .aivy-animated-cover-errbox{ display: none; }
 .aivy-am-kicker{
