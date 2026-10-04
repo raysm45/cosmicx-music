@@ -1422,15 +1422,23 @@ body.aivy-artist-immersive .aivy-player{
   background: radial-gradient(60% 40% at 50% 0%, rgba(255,255,255,0.04), transparent 70%);
 }
 @media (min-width: 640px){
-  .cx-stage{ height: auto; min-height: 100dvh; padding: 32px 16px; }
+  /* Desktop/tablet: tanpa bingkai HP, konten di-center dan ukurannya proporsional */
+  .cx-stage{ height: auto; min-height: 100dvh; padding: 48px 24px; position: relative; overflow: hidden; }
   .cx-frame{
-    width: 100%; max-width: 360px; aspect-ratio: 9 / 18.5; max-height: 780px;
-    background: radial-gradient(120% 90% at 50% 8%, #131315 0%, var(--cx-frame) 46%, #050506 100%);
-    border-radius: 40px; border: 1px solid var(--cx-line-soft);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-    padding: 56px 32px 40px;
+    width: 100%; max-width: 400px; height: auto; max-height: none; aspect-ratio: auto;
+    background: none; border: none; border-radius: 0; box-shadow: none;
+    justify-content: center; gap: 56px; padding: 0; overflow: visible;
   }
-  .cx-frame::before{ background: radial-gradient(60% 40% at 50% 0%, rgba(255,255,255,0.05), transparent 70%); }
+  .cx-frame::before{
+    inset: auto; top: 0; left: 50%; width: 680px; height: 680px; transform: translate(-50%, -38%);
+    background: radial-gradient(closest-side, rgba(255,255,255,0.07), transparent 72%);
+  }
+  .cx-mark{ margin-top: 0; gap: 26px; }
+  .cx-glyph{ width: 160px; height: 160px; }
+  .cx-wordmark{ font-size: 40px; }
+  .cx-bottom-group{ max-width: 360px; }
+  .cx-btn{ height: 52px; }
+  .cx-foot{ margin-top: 24px; }
 }
 
 .cx-mark{ display: flex; flex-direction: column; align-items: center; gap: 22px; margin-top: 8vh; }
@@ -1441,7 +1449,7 @@ body.aivy-artist-immersive .aivy-player{
 .cx-letter{ display: inline-block; will-change: opacity, transform, filter; }
 
 .cx-bottom-group{ width: 100%; display: flex; flex-direction: column; align-items: center; }
-.cx-foot{ margin-top: 28px; font-size: 12px; color: rgba(245,245,244,0.34); text-align: center; }
+.cx-foot{ margin-top: 28px; font-size: 12px; color: rgba(245,245,244,0.34); text-align: center; text-wrap: balance; }
 
 .cx-actions{ width: 100%; display: flex; flex-direction: column; gap: 12px; }
 .cx-btn{
