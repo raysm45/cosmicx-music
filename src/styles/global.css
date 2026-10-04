@@ -1314,7 +1314,7 @@ body.aivy-artist-immersive .aivy-player{
   --bg-elev: rgba(255,255,255,.06); --bg-elev-2: rgba(255,255,255,.09); --bg-elev-3: rgba(255,255,255,.13);
   color: var(--ink); padding-top: 14px; min-height: 40vh;
 }
-.aivy-am-body.is-tracklist .aivy-am-body-inner{ max-width: 1100px; }
+.aivy-am-body.is-tracklist .aivy-am-body-inner{ max-width: none; }
 @media (max-width: 860px){ .aivy-am-page.is-cover-page{ --am-hero-h: min(46vh, 380px); } }
 
 .aivy-cover-edit-btn{ position: absolute; right: 8px; bottom: 8px; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink); transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
