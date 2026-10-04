@@ -561,6 +561,10 @@ export function SettingsPage() {
         <ToggleRow label={t("settingNotifyInvite")} hint={t("settingNotifyInviteHint")} checked={settings.notifyRoomInvite !== false} onChange={set("notifyRoomInvite")} />
       </SettingSection>
 
+      <SettingSection title="Discord" desc={tt("Tampilkan lagu yang kamu dengar di profil Discord (seperti Spotify). Butuh presence bridge yang berjalan di PC dan Discord desktop yang terbuka.", "Show what you're listening to on your Discord profile (like Spotify). Requires the presence bridge running on your PC and the Discord desktop app open.")}>
+        <ToggleRow label={tt("Status \"Listening to\" di profil", "\"Listening to\" status on profile")} hint={tt("Judul, artis, cover, dan progress lagu", "Song title, artist, cover, and progress")} checked={!!settings.discordPresence} onChange={set("discordPresence")} />
+      </SettingSection>
+
       <SettingSection title={tt("Cache & Data", "Cache & Data")}>
         <ActionRow label={tt("Cache", "Cache")} hint={tt("Hapus respons API yang tersimpan", "Clear cached API responses")} buttonText={tt("Bersihkan Cache", "Clear Cache")} onAction={clearCache} />
         <ActionRow tone="danger" label={tt("Reset data lokal", "Reset Local Data")} hint={tt("Hapus data tersimpan di browser ini (sync awan aman)", "Clear local storage on this device (cloud sync unaffected)")} buttonText={tt("Reset", "Reset")} onAction={resetLocalData} />

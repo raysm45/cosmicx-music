@@ -8,7 +8,7 @@ import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/ut
 import { makeT } from "./lib/i18n.js";
 import { seoState } from "./lib/seo.js";
 import { trackArtistsReady, loadTrackArtists } from "./lib/artistProfile.js";
-import { useDiscordActivity } from "./lib/discordActivity.js";
+import { useDiscordPresence } from "./lib/discordPresence.js";
 import { applyLiquidGlass, isLowEndDevice } from "./lib/perf.js";
 
 export const EQ_BANDS_HZ = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -187,6 +187,7 @@ const DEFAULT_SETTINGS = {
   roomVisibilityDefault: "public",
   historyEnabled: true,
   searchHistoryEnabled: true,
+  discordPresence: false,
 };
 
 function loadCachedSettings() {
@@ -702,11 +703,7 @@ export function PlayerProvider({ children }) {
   const currentKey = currentTrack ? currentTrack.id : null;
   const inRoom = !!room;
 
-  const { updateActivity } = useDiscordActivity();
-  useEffect(() => {
-    if (!currentTrack) return;
-    updateActivity({ title: currentTrack.title, artist: currentTrack.artist?.name, isPlaying });
-  }, [currentKey, isPlaying, updateActivity]);
+  useDiscordPresence({ enabled: !!settings.discordPresence, track: currentTrack, isPlaying, audioRef });
 
   const defaultDocTitleRef = useRef(typeof document !== "undefined" ? document.title : "");
   useEffect(() => {

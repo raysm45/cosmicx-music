@@ -59,10 +59,8 @@ export function RouterProvider({ children }) {
   const navigate = useCallback((to, opts = {}) => {
     const target = to.startsWith("/") ? to : pathFor(to, opts.params);
     if (target === window.location.pathname && !opts.force) return;
-    const cur = window.location.search;
-    const historyTarget = !target.includes("?") && cur.includes("frame_id=") ? target + cur : target;
-    if (opts.replace) window.history.replaceState({}, "", historyTarget);
-    else window.history.pushState({}, "", historyTarget);
+    if (opts.replace) window.history.replaceState({}, "", target);
+    else window.history.pushState({}, "", target);
     setPath(target);
     if (!opts.preserveScroll) window.scrollTo({ top: 0 });
   }, []);

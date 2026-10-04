@@ -1,15 +1,11 @@
 import { getPreferredAudioQuality, getPreferredAudioFormat } from "./audioFormat.js";
 
-import { IS_DISCORD_ACTIVITY, DISCORD_PROXY_PREFIX } from "./discordEnv.js";
-
 const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || "https://api.cosmicx.fun";
 
-export const API_BASE = IS_DISCORD_ACTIVITY
-  ? `${window.location.origin}/.proxy${DISCORD_PROXY_PREFIX}`
-  : DEFAULT_API_BASE;
+export const API_BASE = DEFAULT_API_BASE;
 
-export const SOCKET_ORIGIN = IS_DISCORD_ACTIVITY ? window.location.origin : DEFAULT_API_BASE;
-export const SOCKET_PATH = IS_DISCORD_ACTIVITY ? `/.proxy${DISCORD_PROXY_PREFIX}/socket.io` : "/socket.io";
+export const SOCKET_ORIGIN = DEFAULT_API_BASE;
+export const SOCKET_PATH = "/socket.io";
 let authToken = null;
 export function setAuthToken(token) { authToken = token || null; }
 export function getAuthToken() { return authToken; }
@@ -192,6 +188,4 @@ export const Api = {
   commitYoutubeImport: (body) => apiSend("/api/import/youtube/commit", "POST", body),
 
   publicRooms: () => apiGet("/api/rooms"),
-
-  discordActivityToken: (code) => apiSend("/api/discord-activity/token", "POST", { code }),
 };

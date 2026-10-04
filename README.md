@@ -19,7 +19,7 @@
 - 📚 **Personal Library** — playlists, liked songs, and imports
 - 🎬 **Shorts** — swipeable short-form music video feed
 - 👥 **Listen Together** — real-time synced rooms (public/private, host-controlled, password-protected) powered by Socket.IO
-- 🕹️ **Discord Activity** — launch and play directly inside a Discord voice call
+- 🎧 **Discord Profile Status** — show what you're listening to on your Discord profile (title, artist, cover, progress), Spotify-style, via the local `presence-bridge`
 - 📝 **Synced Lyrics** — line-by-line lyrics view while you listen
 - 🌐 **Multi-language** — English & Bahasa Indonesia out of the box
 - 📱 **Responsive UI** — polished desktop layout and a dedicated mobile experience (mini player, bottom sheets, tab bar)
@@ -66,8 +66,9 @@ Create a `.env` file in the project root:
 # Base URL of the backend API (defaults to the production API if omitted)
 VITE_API_BASE=http://localhost:3000
 
-# Discord Client ID (only needed for the Discord Activity integration)
-VITE_DISCORD_CLIENT_ID=your_discord_client_id
+# (Optional) URL presence bridge untuk status "Listening to" di profil Discord.
+# Default: http://127.0.0.1:6464 — lihat folder presence-bridge/
+# VITE_PRESENCE_BRIDGE_URL=http://127.0.0.1:6464
 ```
 
 ### Development
@@ -123,7 +124,6 @@ Aivy is built on top of the amazing work of the open-source community. Huge than
 [![Lit](https://img.shields.io/badge/Lit-lit%2Flit-324FFF?logo=lit&logoColor=white)](https://github.com/lit/lit)
 [![Lucide](https://img.shields.io/badge/Lucide-lucide--icons%2Flucide-F56565?logo=lucide&logoColor=white)](https://github.com/lucide-icons/lucide)
 [![Socket.IO Client](https://img.shields.io/badge/Socket.IO_Client-socketio%2Fsocket.io--client-black?logo=socket.io&logoColor=white)](https://github.com/socketio/socket.io-client)
-[![Discord Embedded App SDK](https://img.shields.io/badge/Embedded_App_SDK-discord%2Fembedded--app--sdk-5865F2?logo=discord&logoColor=white)](https://github.com/discord/embedded-app-sdk)
 
 ### Vendored
 

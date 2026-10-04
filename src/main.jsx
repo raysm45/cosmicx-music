@@ -3,19 +3,10 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./styles/global.css";
 import { applyLiquidGlass, readCachedLiquidGlass } from "./lib/perf.js";
-import { IS_DISCORD_ACTIVITY, bootDiscordActivity } from "./lib/discordActivity.js";
 
 applyLiquidGlass(readCachedLiquidGlass());
 
-async function start() {
-  if (IS_DISCORD_ACTIVITY) {
-    try {
-      await Promise.race([
-        bootDiscordActivity(),
-        new Promise((resolve) => setTimeout(resolve, 30000)),
-      ]);
-    } catch {}
-  }
+function start() {
   ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
       <App />
