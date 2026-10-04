@@ -194,10 +194,12 @@ export function estimateIntroOffsetSeconds(candidateDuration, trackDuration) {
 
 export function debounce(fn, ms) {
   let t;
-  return (...args) => {
+  const debounced = (...args) => {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), ms);
   };
+  debounced.cancel = () => clearTimeout(t);
+  return debounced;
 }
 
 export function isRelevantArtistMatch(name, q) {
@@ -261,5 +263,3 @@ export function removeRecentSearchThumb(query) {
 export function clearRecentSearchThumbs() {
   writeRecentSearchThumbs([]);
 }
-
-    

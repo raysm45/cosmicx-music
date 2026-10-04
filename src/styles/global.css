@@ -3067,3 +3067,41 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   .aivy-lib-feature, .aivy-lib-mini{ transition: none; }
   .aivy-lib-feature:hover, .aivy-lib-mini:hover{ transform: none; }
 }
+
+.aivy-live-title-list{ position: relative; }
+.aivy-live-rows{ position: relative; }
+.aivy-live-title-row{ box-sizing: border-box; background: none; cursor: pointer; will-change: transform, opacity; }
+.aivy-live-title-row > svg{ flex-shrink: 0; }
+.aivy-live-title-row .txt{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aivy-live-title-row .typed{ color: var(--ink-dim); font-weight: 400; }
+.aivy-live-title-row b{ font-weight: 600; color: var(--ink); }
+.aivy-live-title-row.is-leaving{ position: absolute; pointer-events: none; animation: aivy-live-out 150ms var(--ease) forwards; }
+@keyframes aivy-live-out{ to{ opacity: 0; transform: translateY(4px); } }
+
+.aivy-live-progress{ position: relative; height: 2px; margin: 0 4px 4px; border-radius: 2px; overflow: hidden; opacity: 0; transition: opacity var(--dur-base) var(--ease); }
+.aivy-live-progress.on{ opacity: 1; }
+.aivy-live-progress::after{ content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--ink-dim), transparent); animation: aivy-live-slide 1.05s var(--ease) infinite; }
+@keyframes aivy-live-slide{ from{ transform: translateX(-100%); } to{ transform: translateX(300%); } }
+
+.aivy-live-skel{ display: flex; align-items: center; gap: 12px; padding: 11px 4px; animation: aivy-live-skel-in 240ms var(--ease) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.aivy-live-skel .dot{ width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; }
+.aivy-live-skel .bar{ height: 11px; border-radius: 6px; max-width: 100%; }
+@keyframes aivy-live-skel-in{ from{ opacity: 0; transform: translateY(-4px); } to{ opacity: 1; transform: none; } }
+
+.aivy-search-box-v2.is-loading > svg:first-child{ color: var(--ink-dim); animation: aivy-live-icon 1s ease-in-out infinite; }
+@keyframes aivy-live-icon{ 0%, 100%{ transform: scale(1); opacity: .6; } 50%{ transform: scale(1.18); opacity: 1; } }
+
+.aivy-searching{ gap: 9px; flex-wrap: nowrap; }
+.aivy-searching-dots{ display: inline-flex; align-items: center; gap: 3px; }
+.aivy-searching-dots i{ width: 5px; height: 5px; border-radius: 50%; background: var(--ink-dim); animation: aivy-searching-dot 1s ease-in-out infinite; }
+.aivy-searching-dots i:nth-child(2){ animation-delay: .15s; }
+.aivy-searching-dots i:nth-child(3){ animation-delay: .3s; }
+@keyframes aivy-searching-dot{ 0%, 80%, 100%{ transform: translateY(0); opacity: .35; } 40%{ transform: translateY(-4px); opacity: 1; } }
+.aivy-searching-text{ background: linear-gradient(90deg, var(--ink-faint) 0%, var(--ink) 50%, var(--ink-faint) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; animation: aivy-searching-shimmer 1.6s linear infinite; }
+@keyframes aivy-searching-shimmer{ from{ background-position: 200% 0; } to{ background-position: -200% 0; } }
+.aivy-label-swap{ animation: aivy-fade-in 220ms var(--ease) both; }
+
+@media (prefers-reduced-motion: reduce){
+  .aivy-live-title-row.is-leaving{ animation: none; opacity: 0; }
+  .aivy-live-progress::after, .aivy-searching-dots i, .aivy-searching-text, .aivy-search-box-v2.is-loading > svg:first-child{ animation: none; }
+}

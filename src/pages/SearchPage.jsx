@@ -5,6 +5,7 @@ import { useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { TrackRow, SkeletonList, HoverRail } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
+import { useAnimatedList } from "../lib/useAnimatedList.js";
 import { usePlayer } from "../context.jsx";
 import {
   debounce, isRelevantArtistMatch, cleanTrackTitleForLyrics,
@@ -12,6 +13,30 @@ import {
 } from "../lib/utils.js";
 
 const GENRE_SHORTCUTS = ["Pop", "Hip-Hop", "R&B", "Indie", "Rock", "Electronic", "Jazz", "Dangdut", "K-Pop", "Reggae", "Klasik", "Akustik"];
+
+function SearchingLabel({ text }) {
+  return (
+    <span className="eyebrow aivy-searching" role="status" aria-live="polite">
+      <span className="aivy-searching-dots" aria-hidden="true"><i /><i /><i /></span>
+      <span className="aivy-searching-text">{text}</span>
+    </span>
+  );
+}
+
+function renderLiveText(text, needle) {
+  const i = needle ? text.toLowerCase().indexOf(needle) : -1;
+  if (i < 0) return text;
+  const end = i + needle.length;
+  return (
+    <>
+      {i > 0 && <b>{text.slice(0, i)}</b>}
+      <span className="typed">{text.slice(i, end)}</span>
+      {end < text.length && <b>{text.slice(end)}</b>}
+    </>
+  );
+}
+
+const EMPTY_LIVE = { q: "", suggestions: [], titles: [] };
 
 export function SearchPage() {
   const { authUser, settings, t } = useUI();
@@ -46,46 +71,57 @@ export function SearchPage() {
   const debouncedSuggest = useRef(debounce((q) => {
     if (!authUser || settings.searchHistoryEnabled === false) return;
     Api.suggestSearches(q).then(setSuggestions).catch(() => {});
-  }, 200)).current;
+  }, 120)).current;
 
   const requestSeqRef = useRef(0);
 
-  const [liveTitles, setLiveTitles] = useState([]);
+  const [liveData, setLiveData] = useState(EMPTY_LIVE);
   const [liveLoading, setLiveLoading] = useState(false);
   const liveSeqRef = useRef(0);
+  const liveAbortRef = useRef(null);
+  const liveCacheRef = useRef(new Map());
 
-  const liveTitleSearch = async (q) => {
+  const rememberLive = (key, data) => {
+    const cache = liveCacheRef.current;
+    if (cache.size >= 80) cache.delete(cache.keys().next().value);
+    cache.set(key, data);
+  };
+
+  const stopLive = () => {
+    debouncedLiveSearch.cancel?.();
+    liveAbortRef.current?.abort();
+    liveSeqRef.current++;
+    setLiveLoading(false);
+  };
+
+  const liveSearch = async (q) => {
     const trimmed = q.trim();
-    if (!trimmed) { setLiveTitles([]); setLiveLoading(false); return; }
+    if (!trimmed) { setLiveData(EMPTY_LIVE); setLiveLoading(false); return; }
+    const key = trimmed.toLowerCase();
+    const hit = liveCacheRef.current.get(key);
+    if (hit) { setLiveData({ q: key, ...hit }); setLiveLoading(false); return; }
+
+    liveAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    liveAbortRef.current = ctrl;
     const seq = ++liveSeqRef.current;
     setLiveLoading(true);
     try {
-      const res = await Api.search(trimmed);
+      const data = await Api.suggestLive(trimmed, ctrl.signal);
       if (seq !== liveSeqRef.current) return;
-      const needle = trimmed.toLowerCase();
-      const seen = new Set();
-      const titlesOnly = [];
-      for (const r of (res || [])) {
-        const title = r.title || "";
-        const key = title.toLowerCase();
-        if (!title || !key.includes(needle) || seen.has(key)) continue;
-        seen.add(key);
-        titlesOnly.push({ id: r.videoId || title, title });
-        if (titlesOnly.length >= 20) break;
-      }
-      setLiveTitles(titlesOnly);
+      if (data.suggestions.length || data.titles.length) rememberLive(key, data);
+      setLiveData({ q: key, ...data });
     } catch {
-      if (seq !== liveSeqRef.current) return;
-      setLiveTitles([]);
     } finally {
       if (seq === liveSeqRef.current) setLiveLoading(false);
     }
   };
 
-  const debouncedLiveSearch = useRef(debounce((q) => { liveTitleSearch(q); }, 350)).current;
+  const debouncedLiveSearch = useRef(debounce((q) => { liveSearch(q); }, 120)).current;
 
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => () => { try { recognitionRef.current?.stop(); } catch { } }, []);
+  useEffect(() => () => { liveAbortRef.current?.abort(); }, []);
   useEffect(() => {
     if (authUser && settings.searchHistoryEnabled !== false) Api.recentSearches(8).then(setRecent).catch(() => {});
   }, [authUser, settings.searchHistoryEnabled]);
@@ -177,22 +213,32 @@ export function SearchPage() {
 
   const onChangeQuery = (val) => {
     setQuery(val);
-    if (!val.trim()) {
-      debouncedSuggest.cancel?.(); debouncedLiveSearch.cancel?.();
+    const trimmed = val.trim();
+    if (!trimmed) {
+      debouncedSuggest.cancel?.();
+      stopLive();
       setSuggestions([]); setResults([]); setHasSearched(false); setNextCursor(null); setArtistHits([]);
-      setLiveTitles([]); setLiveLoading(false);
+      setLiveData(EMPTY_LIVE);
       return;
     }
-    debouncedSuggest(val.trim());
-    debouncedLiveSearch(val);
+    debouncedSuggest(trimmed);
+    const hit = liveCacheRef.current.get(trimmed.toLowerCase());
+    if (hit) {
+      stopLive();
+      setLiveData({ q: trimmed.toLowerCase(), ...hit });
+    } else {
+      setLiveLoading(true);
+      debouncedLiveSearch(val);
+    }
   };
 
   const runSearch = (q) => {
     setQuery(q);
     setFocused(false);
     setSuggestions([]);
-    setLiveTitles([]);
-    debouncedLiveSearch.cancel?.();
+    debouncedSuggest.cancel?.();
+    stopLive();
+    setLiveData(EMPTY_LIVE);
     syncUrlQuery(q);
     if (authUser && settings.searchHistoryEnabled !== false) {
       Api.recordSearch(q).then(() => Api.recentSearches(8).then(setRecent)).catch(() => {});
@@ -251,6 +297,31 @@ export function SearchPage() {
   };
 
   const showBrowse = !query.trim() && !hasSearched;
+
+  const liveNeedle = query.trim().toLowerCase();
+  const liveItems = useMemo(() => {
+    if (!liveNeedle) return [];
+    const out = [];
+    const seen = new Set();
+    const push = (text, kind) => {
+      const clean = String(text || "").replace(/\s+/g, " ").trim();
+      const key = clean.toLowerCase();
+      if (!clean || seen.has(key) || !key.includes(liveNeedle)) return;
+      seen.add(key);
+      out.push({ id: key, text: clean, kind });
+    };
+    for (const sg of suggestions) push(sg.query, "history");
+    for (const sg of liveData.suggestions) push(sg, "suggest");
+    for (const ti of liveData.titles) push(ti.title, "title");
+    return out.slice(0, 12);
+  }, [liveNeedle, suggestions, liveData]);
+
+  const liveRows = useMemo(() => {
+    if (liveItems.length || liveLoading || !liveNeedle) return liveItems;
+    return [{ id: "__enter__", text: query.trim(), kind: "enter" }];
+  }, [liveItems, liveLoading, liveNeedle, query]);
+
+  const { containerRef: liveBoxRef, rendered: liveRendered } = useAnimatedList(liveRows);
   const allArtists = useMemo(() => {
     const out = [];
     const seenIds = new Set();
@@ -314,7 +385,7 @@ export function SearchPage() {
         <button className="aivy-icon-btn" onClick={() => back()} aria-label={t("previous")}><ArrowLeft size={18} /></button>
 
         <div className="aivy-search-box-wrap-v2">
-          <div className="aivy-search-box-v2">
+          <div className={`aivy-search-box-v2${liveLoading || searching ? " is-loading" : ""}`}>
             <Search size={16} />
             <input
               ref={inputRef} className="aivy-input" placeholder={t("searchPlaceholder")}
@@ -323,7 +394,7 @@ export function SearchPage() {
               onKeyDown={(e) => { if (e.key === "Enter" && query.trim()) runSearch(query.trim()); }}
             />
             {query ? (
-              <button className="aivy-icon-btn sm" onClick={() => { setQuery(""); setResults([]); setHasSearched(false); setSuggestions([]); setLiveTitles([]); setArtistHits([]); syncUrlQuery(""); }} aria-label={t("clear")}><X size={15} /></button>
+              <button className="aivy-icon-btn sm" onClick={() => { onChangeQuery(""); syncUrlQuery(""); inputRef.current?.focus(); }} aria-label={t("clear")}><X size={15} /></button>
             ) : (
               <button className={`aivy-icon-btn sm ${listening ? "active" : ""}`} onClick={handleVoiceSearch} aria-label={listening ? t("stopVoiceSearch") : t("searchWithVoice")}><Mic size={16} /></button>
             )}
@@ -332,23 +403,44 @@ export function SearchPage() {
       </div>
 
       {query.trim() && !hasSearched && (
-        <div className="aivy-live-title-list">
-          {suggestions.map((s) => (
-            <button key={`sg-${s.query}`} className="aivy-live-title-row" onMouseDown={() => runSearch(s.query)}>
-              <TrendingUp size={15} color="var(--ink-faint)" />
-              <span>{s.query}</span>
-            </button>
-          ))}
-          {liveLoading ? (
-            <span className="eyebrow">{t("searching")}</span>
-          ) : (
-            liveTitles.map((item) => (
-              <button key={item.id} className="aivy-live-title-row" onClick={() => runSearch(item.title)}>
-                <Search size={15} color="var(--ink-faint)" />
-                <span>{item.title}</span>
-              </button>
-            ))
+        <div className="aivy-live-title-list" role="listbox" aria-label={t("searchPlaceholder")}>
+          <div className={`aivy-live-progress${liveLoading ? " on" : ""}`} aria-hidden="true" />
+          {liveLoading && liveRows.length === 0 && (
+            <div className="aivy-live-skels" role="status" aria-label={t("searching")}>
+              {[62, 48, 74, 55, 40].map((w, i) => (
+                <div key={i} className="aivy-live-skel" style={{ "--i": i }}>
+                  <span className="dot aivy-skeleton" />
+                  <span className="bar aivy-skeleton" style={{ width: `${w}%` }} />
+                </div>
+              ))}
+            </div>
           )}
+          <div className="aivy-live-rows" ref={liveBoxRef}>
+            {liveRendered.map((e) => {
+              const it = e.item;
+              const Icon = it.kind === "history" ? Clock : it.kind === "title" ? Music2 : Search;
+              const style = e.leaving && e.rect ? { top: e.rect.top, left: e.rect.left, width: e.rect.width } : undefined;
+              return (
+                <button
+                  key={e.key}
+                  type="button"
+                  role="option"
+                  data-key={e.key}
+                  data-leaving={e.leaving ? "true" : undefined}
+                  className={`aivy-live-title-row${e.leaving ? " is-leaving" : ""}`}
+                  style={style}
+                  tabIndex={e.leaving ? -1 : 0}
+                  onMouseDown={(ev) => ev.preventDefault()}
+                  onClick={() => runSearch(it.text)}
+                >
+                  <Icon size={15} color="var(--ink-faint)" />
+                  <span className="txt">
+                    {it.kind === "enter" ? `${tt("Cari", "Search for")} “${it.text}”` : renderLiveText(it.text, liveNeedle)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -402,7 +494,9 @@ export function SearchPage() {
 
       {hasSearched && (
         <div style={{ padding: "4px 2px 12px" }}>
-          {searching ? <span className="eyebrow">{t("searching")}</span> : <span className="eyebrow">{results.length} {t("resultsFor")} "{searchedQuery}"</span>}
+          {searching
+            ? <SearchingLabel key="searching" text={t("searching")} />
+            : <span key="done" className="eyebrow aivy-label-swap">{results.length} {t("resultsFor")} "{searchedQuery}"</span>}
         </div>
       )}
 

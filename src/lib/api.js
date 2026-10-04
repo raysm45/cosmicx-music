@@ -71,6 +71,12 @@ export const Api = {
     mapped.videos = extras?.videos || [];
     return mapped;
   },
+  suggestLive: async (q, signal) => {
+    const res = await fetch(`${API_BASE}/api/search/suggest?q=${encodeURIComponent(q)}`, { credentials: "include", headers: withAuth(undefined), signal });
+    if (!res.ok) await throwApiError(res);
+    const data = await res.json();
+    return { suggestions: Array.isArray(data?.suggestions) ? data.suggestions : [], titles: Array.isArray(data?.titles) ? data.titles : [] };
+  },
   artist: (q) => apiGet(`/api/artist?q=${encodeURIComponent(q)}`),
   artistQuick: (q) => apiGet(`/api/artist/quick?q=${encodeURIComponent(q)}`),
   appleMusicHero: (name, country = "us") =>
