@@ -1,6 +1,22 @@
 import { getPreferredAudioQuality, getPreferredAudioFormat } from "./audioFormat.js";
 
-export const API_BASE = import.meta.env.VITE_API_BASE || "https://api.cosmicx.fun";
+import { IS_DISCORD_ACTIVITY, DISCORD_PROXY_PREFIX } from "./discordEnv.js";
+
+const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || "https://api.cosmicx.fun";
+
+export const API_BASE = IS_DISCORD_ACTIVITY
+  ? `${window.location.origin}/.proxy${DISCORD_PROXY_PREFIX}`
+  : DEFAULT_API_BASE;
+
+export const SOCKET_ORIGIN = IS_DISCORD_ACTIVITY ? window.location.origin : DEFAULT_API_BASE;
+export const SOCKET_PATH = IS_DISCORD_ACTIVITY ? `/.proxy${DISCORD_PROXY_PREFIX}/socket.io` : "/socket.io";
+let authToken = null;
+export function setAuthToken(token) { authToken = token || null; }
+export function getAuthToken() { return authToken; }
+function withAuth(headers) {
+  if (!authToken) return headers;
+  return { ...(headers || {}), Authorization: `Bearer ${authToken}` };
+}
 
 async function throwApiError(res) {
   let message = `${res.status} ${res.statusText}`;
@@ -14,7 +30,7 @@ async function throwApiError(res) {
 }
 
 async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`, { credentials: "include" });
+  const res = await fetch(`${API_BASE}${path}`, { credentials: "include", headers: withAuth(undefined) });
   if (!res.ok) await throwApiError(res);
   return res.json();
 }
@@ -27,7 +43,7 @@ async function apiSend(path, method, body, opts = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     credentials: "include",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: withAuth(body ? { "Content-Type": "application/json" } : undefined),
     body: body ? JSON.stringify(body) : undefined,
     keepalive: !!opts.keepalive,
   });
@@ -100,8 +116,6 @@ export const Api = {
     if (cached && cached.expiresAt - TICKET_MARGIN_S > nowS) {
       return `${API_BASE}/api/s/${encodeURIComponent(cached.sid)}${suffix}`;
     }
-    // Format FLAC butuh title+artist karena sumbernya stream.py (YouTube
-    // nggak punya FLAC). Tanpa itu, backend fallback ke transcode ffmpeg.
     const body = { videoId, quality, format };
     if (title) body.title = title;
     if (artist) body.artist = artist;
@@ -117,11 +131,6 @@ export const Api = {
       if (key.startsWith(`${videoId}:`)) streamTicketCache.delete(key);
     }
   },
-
-  // Stream music VIDEO (dedicated player, bukan embed YouTube).
-  // Ticket khusus kind=video, lalu cek type-nya (hls / mp4) via meta
-  // supaya frontend tahu pakai hls.js atau <video> native, dan biar
-  // resolve yt-dlp keburu kepanaskan sebelum <video> mulai buffering.
   async musicVideoStream(videoId) {
     if (!videoId) throw new Error("videoId kosong");
     const quality = getPreferredAudioQuality();
@@ -133,7 +142,7 @@ export const Api = {
     try {
       const meta = await apiGet(`/api/s/${sid}?meta=1`);
       if (meta?.ok && (meta.type === "hls" || meta.type === "mp4")) type = meta.type;
-    } catch { /* meta gagal -> coba native mp4 dulu */ }
+    } catch {}
     return { url, type };
   },
 
@@ -141,7 +150,11 @@ export const Api = {
     apiGet(`/api/track/audio-info?videoId=${encodeURIComponent(videoId || "")}&quality=${getPreferredAudioQuality()}&format=${getPreferredAudioFormat()}`),
 
   me: () => apiGet("/auth/me"),
-  logout: () => apiSend("/auth/logout", "POST", undefined, { keepalive: true }),
+  logout: () => {
+    const p = apiSend("/auth/logout", "POST", undefined, { keepalive: true });
+    setAuthToken(null);
+    return p;
+  },
   discordLoginUrl: () => `${API_BASE}/auth/discord`,
   googleLoginUrl: () => `${API_BASE}/auth/google`,
 

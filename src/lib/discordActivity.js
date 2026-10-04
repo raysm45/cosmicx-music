@@ -1,72 +1,87 @@
-import { useEffect, useRef, useCallback } from "react";
-import { Api } from "./api.js";
+import { useEffect, useCallback } from "react";
+import { Api, setAuthToken } from "./api.js";
+import { IS_DISCORD_ACTIVITY, DISCORD_HOST_CLIENT_ID, debug, note, restoreDiscordQuery } from "./discordEnv.js";
 
-function isInsideDiscord() {
-  if (typeof window === "undefined") return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.has("frame_id") && params.has("instance_id");
+export { IS_DISCORD_ACTIVITY };
+
+let sessionPromise = null;
+let sessionSdk = null;
+let pendingActivity = null;
+
+export function bootDiscordActivity() {
+  if (!IS_DISCORD_ACTIVITY) return Promise.resolve(null);
+  if (sessionPromise) return sessionPromise;
+
+  const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID || DISCORD_HOST_CLIENT_ID;
+  debug.clientId = clientId || null;
+
+  sessionPromise = (async () => {
+    if (!clientId) throw new Error("VITE_DISCORD_CLIENT_ID kosong dan host bukan *.discordsays.com");
+    restoreDiscordQuery();
+    const { DiscordSDK } = await import("@discord/embedded-app-sdk");
+    const sdk = new DiscordSDK(clientId);
+    await sdk.ready();
+    note("sdk.ready", true);
+
+    const { code } = await sdk.commands.authorize({
+      client_id: clientId,
+      response_type: "code",
+      state: "",
+      prompt: "none",
+      scope: ["identify", "rpc.activities.write"],
+    });
+    note("authorize", true);
+
+    const tokenRes = await Api.discordActivityToken(code);
+    if (!tokenRes?.access_token) throw new Error("backend tidak mengembalikan access_token");
+    if (tokenRes.token) setAuthToken(tokenRes.token);
+    note("token-exchange", true);
+
+    await sdk.commands.authenticate({ access_token: tokenRes.access_token });
+    note("authenticate", true);
+
+    sessionSdk = sdk;
+    if (pendingActivity) pushActivity(sdk, pendingActivity);
+    return sdk;
+  })();
+  sessionPromise.catch((e) => note("boot", false, e));
+  return sessionPromise;
+}
+
+async function pushActivity(sdk, activity) {
+  try {
+    await sdk.commands.setActivity({ activity });
+    note("setActivity", true);
+  } catch (e) {
+    note("setActivity", false, e);
+    const { assets, type, ...rest } = activity;
+    try {
+      await sdk.commands.setActivity({ activity: { ...rest, type: 0 } });
+      note("setActivity(fallback)", true);
+    } catch (e2) {
+      note("setActivity(fallback)", false, e2);
+    }
+  }
 }
 
 export function useDiscordActivity() {
-  const sdkRef = useRef(null);
-  const readyRef = useRef(false);
-  const lastActivityRef = useRef(null);
-
-  const applyActivity = useCallback((sdk, activity) => {
-    if (!sdk?.commands?.setActivity) return;
-    sdk.commands.setActivity({ activity }).catch(() => {});
-  }, []);
-
   useEffect(() => {
-    if (!isInsideDiscord()) return;
-    const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-    if (!clientId) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { DiscordSDK } = await import("@discord/embedded-app-sdk");
-        const sdk = new DiscordSDK(clientId);
-        await sdk.ready();
-        if (cancelled) return;
-
-        const { code } = await sdk.commands.authorize({
-          client_id: clientId,
-          response_type: "code",
-          state: "",
-          prompt: "none",
-          scope: ["identify", "rpc.activities.write"],
-        });
-
-        const tokenRes = await Api.discordActivityToken(code);
-        if (cancelled || !tokenRes?.access_token) return;
-
-        await sdk.commands.authenticate({ access_token: tokenRes.access_token });
-        if (cancelled) return;
-
-        sdkRef.current = sdk;
-        readyRef.current = true;
-        if (lastActivityRef.current) applyActivity(sdk, lastActivityRef.current);
-      } catch {
-        readyRef.current = false;
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [applyActivity]);
+    if (IS_DISCORD_ACTIVITY) bootDiscordActivity().catch(() => {});
+  }, []);
 
   const updateActivity = useCallback(({ title, artist, cover, isPlaying }) => {
     if (!title) return;
+    const status = isPlaying ? "Mendengarkan" : "Dijeda";
     const activity = {
       type: 2,
       details: title.slice(0, 128),
-      state: (artist ? `${isPlaying ? "Mendengarkan" : "Dijeda"} \u00b7 ${artist}` : (isPlaying ? "Mendengarkan" : "Dijeda")).slice(0, 128),
+      state: (artist ? `${status} · ${artist}` : status).slice(0, 128),
       assets: cover ? { large_image: cover, large_text: title.slice(0, 128) } : undefined,
       timestamps: isPlaying ? { start: Date.now() } : undefined,
     };
-    lastActivityRef.current = activity;
-    if (readyRef.current && sdkRef.current) applyActivity(sdkRef.current, activity);
-  }, [applyActivity]);
+    pendingActivity = activity;
+    if (sessionSdk) pushActivity(sessionSdk, activity);
+  }, []);
 
-  return { updateActivity, isInsideDiscord: isInsideDiscord() };
+  return { updateActivity, isInsideDiscord: IS_DISCORD_ACTIVITY };
 }

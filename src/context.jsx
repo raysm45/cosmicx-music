@@ -2,7 +2,7 @@ import React, { useSyncExternalStore,
   createContext, useContext, useState, useEffect, useRef, useMemo, useCallback,
 } from "react";
 import { io } from "socket.io-client";
-import { Api, API_BASE } from "./lib/api.js";
+import { Api, SOCKET_ORIGIN, SOCKET_PATH, getAuthToken } from "./lib/api.js";
 import { setPreferredAudioFormat, getPreferredAudioFormat } from "./lib/audioFormat.js";
 import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
 import { makeT } from "./lib/i18n.js";
@@ -43,11 +43,6 @@ const GOOGLE_FONT_QUERY = {
   montserrat: "Montserrat:wght@400;500;600;700",
   poppins: "Poppins:wght@400;500;600;700",
 };
-
-// ---- Waktu putar (currentTime) disimpan di store terpisah, BUKAN di state PlayerProvider. ----
-// Dulu setCurrentTime dipanggil tiap `timeupdate` (~4x/detik) sehingga PlayerProvider re-render
-// dan SEMUA konsumen usePlayer() (semua card di Home, dll) ikut re-render terus selama lagu main.
-// Sekarang hanya komponen yang memang butuh waktu (progress/lirik) yang subscribe lewat usePlayerTime().
 const playbackTimeStore = { value: 0, subs: new Set() };
 function setPlaybackTime(v) {
   const next = typeof v === "number" && isFinite(v) ? v : 0;
@@ -122,7 +117,6 @@ function clearPlaybackState() {
 
 const DEFAULT_SETTINGS = {
   audioQuality: "preview",
-  // 'aac' | 'opus' | 'flac'
   audioFormat: "opus",
   autoplay: true,
   crossfadeSeconds: 0,
@@ -143,7 +137,7 @@ const DEFAULT_SETTINGS = {
   artistBanners: true,
   reducedMotion: false,
   highContrast: false,
-  liquidGlass: !isLowEndDevice(), // device lemah: default blur biasa (tanpa refraksi SVG); tetap bisa dinyalakan di Pengaturan
+  liquidGlass: !isLowEndDevice(),
 
   waveformSeekbar: false,
   coverBackground: true,
@@ -277,8 +271,6 @@ export function UIProvider({ children }) {
   useEffect(() => {
     applyLiquidGlass(settings.liquidGlass);
   }, [settings.liquidGlass]);
-
-  // Dipakai lib/api.js pas bikin tiket stream (aac / opus / flac).
   useEffect(() => {
     setPreferredAudioFormat(settings.audioFormat);
   }, [settings.audioFormat]);
@@ -389,7 +381,6 @@ export function UIProvider({ children }) {
     const track = (items && items.track) || null;
     const seq = ++ctxOpenSeq.current;
     const show = () => { if (seq === ctxOpenSeq.current) setContextMenu({ x, y, items, track }); };
-    // Menu lagu: siapkan foto artis dulu (maks 900ms) supaya langsung tampil di klik pertama.
     if (!track || trackArtistsReady(track)) { show(); return; }
     Promise.race([loadTrackArtists(track), new Promise((r) => setTimeout(r, 900))]).then(show);
   }, []);
@@ -515,7 +506,7 @@ export function PlayerProvider({ children }) {
   const [order, setOrder] = useState([]);
   const [posInOrder, setPosInOrder] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const setCurrentTime = setPlaybackTime; // lihat playbackTimeStore di atas
+  const setCurrentTime = setPlaybackTime;
   const [clipDuration, setClipDuration] = useState(0);
   const [isPreviewClip, setIsPreviewClip] = useState(true);
   const [audioFormat, setAudioFormat] = useState(null);
@@ -879,8 +870,6 @@ export function PlayerProvider({ children }) {
       } else if (resolved.preview) {
         setAudioFormat({ label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" });
       } else if (resolved.videoId) {
-        // Format FLAC disiapkan server (stream.py / transcode) — byte yang
-        // masuk ke <audio> pasti FLAC, nggak perlu nanya audio-info dulu.
         if (getPreferredAudioFormat() === "flac") {
           setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
         } else Api.trackAudioInfo(resolved.videoId)
@@ -1716,7 +1705,13 @@ export function PlayerProvider({ children }) {
 
   const ensureSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
-    const socket = io(API_BASE, { withCredentials: true, autoConnect: true, transports: ["websocket", "polling"] });
+    const socket = io(SOCKET_ORIGIN, {
+      path: SOCKET_PATH,
+      withCredentials: true,
+      auth: (cb) => cb(getAuthToken() ? { token: getAuthToken() } : {}),
+      autoConnect: true,
+      transports: ["websocket", "polling"],
+    });
     socket.on("members-updated", (members) => {
       setRoom((r) => {
         if (!r) return r;
