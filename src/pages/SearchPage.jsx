@@ -5,6 +5,7 @@ import { useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { TrackRow, HoverRail } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
+import { useAnimatedList } from "../lib/useAnimatedList.js";
 import { usePlayer } from "../context.jsx";
 import {
   debounce, isRelevantArtistMatch, cleanTrackTitleForLyrics,
@@ -99,7 +100,9 @@ export function SearchPage() {
       if (seq !== liveSeqRef.current) return;
       if (data.suggestions.length || data.titles.length) rememberLive(key, data);
       setLiveData({ q: key, ...data });
-    } catch {
+    } catch (err) {
+      if (err?.name === "AbortError" || seq !== liveSeqRef.current) return;
+      setLiveData({ q: key, suggestions: [], titles: [] });
     }
   };
 
@@ -331,11 +334,20 @@ export function SearchPage() {
     return out.slice(0, 12);
   }, [liveNeedle, suggestions, liveData]);
 
+  const liveRowsRef = useRef([]);
   const liveRows = useMemo(() => {
-    if (liveItems.length || !liveNeedle) return liveItems;
-    return [{ id: "__enter__", text: query.trim(), kind: "enter" }];
-  }, [liveItems, liveNeedle, query]);
+    let next = liveItems;
+    if (!next.length && liveNeedle && liveData.q === liveNeedle) {
+      next = [{ id: "__enter__", text: query.trim(), kind: "enter" }];
+    }
+    const prev = liveRowsRef.current;
+    const same = prev.length === next.length && prev.every((p, k) => p.id === next[k].id && p.text === next[k].text && p.kind === next[k].kind);
+    if (same) return prev;
+    liveRowsRef.current = next;
+    return next;
+  }, [liveItems, liveNeedle, liveData.q, query]);
 
+  const { containerRef: liveBoxRef, rendered: liveRendered } = useAnimatedList(liveRows, { exitMs: 120, moveMs: 220, enterMs: 180, stagger: 14 });
   const allArtists = useMemo(() => {
     const out = [];
     const seenIds = new Set();
@@ -418,15 +430,21 @@ export function SearchPage() {
 
       {query.trim() && !hasSearched && (
         <div className="aivy-live-title-list" role="listbox" aria-label={t("searchPlaceholder")}>
-          <div className="aivy-live-rows">
-            {liveRows.map((it) => {
+          <div className="aivy-live-rows" ref={liveBoxRef}>
+            {liveRendered.map((e) => {
+              const it = e.item;
               const Icon = it.kind === "history" ? Clock : it.kind === "title" ? Music2 : Search;
+              const style = e.leaving && e.rect ? { top: e.rect.top, left: e.rect.left, width: e.rect.width } : undefined;
               return (
                 <button
-                  key={it.id}
+                  key={e.key}
                   type="button"
                   role="option"
-                  className="aivy-live-title-row"
+                  data-key={e.key}
+                  data-leaving={e.leaving ? "true" : undefined}
+                  className={`aivy-live-title-row${e.leaving ? " is-leaving" : ""}`}
+                  style={style}
+                  tabIndex={e.leaving ? -1 : 0}
                   onMouseDown={(ev) => ev.preventDefault()}
                   onClick={() => runSearch(it.text)}
                 >
