@@ -1,8 +1,8 @@
-const DEFAULT_SERVER_DOWN_MODE = "off";
+const DEFAULT_SERVER_DOWN_MODE = "manual";
 
 export const SERVER_DOWN_INFO = {
-  eta: "± 2 jam",
-  updatedAt: "13:30:00 WIB",
+  eta: "± 3 jam",
+  updatedAt: "21:54:00 WIB",
 };
 
 const VALID_MODES = ["auto", "manual", "off"];
