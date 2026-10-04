@@ -1,16 +1,10 @@
-// Mengirim info lagu yang sedang diputar ke "presence bridge" lokal
-// (lihat folder presence-bridge/), yang meneruskannya ke Discord desktop
-// sebagai status "Listening to ..." di profil — mirip Spotify.
-//
-// Kenapa lewat bridge? Discord tidak punya API publik buat web/backend
-// untuk mengubah status profil user. Hanya client Discord desktop yang bisa.
 import { useEffect, useRef } from "react";
 import { API_BASE } from "./api.js";
 
 const BRIDGE_URL = (import.meta.env.VITE_PRESENCE_BRIDGE_URL || "http://127.0.0.1:6464").replace(/\/+$/, "");
 
-let active = false;      // sudah pernah kirim presence yang belum di-clear?
-let downUntil = 0;       // bridge mati -> jangan spam request
+let active = false;
+let downUntil = 0;
 
 function post(path, body, keepalive = false) {
   if (Date.now() < downUntil) return;
@@ -27,8 +21,6 @@ function clearPresence(keepalive = false) {
   active = false;
   post("/clear", {}, keepalive);
 }
-
-// Discord hanya bisa menampilkan gambar dari URL https publik.
 function publicCover(cover) {
   if (!cover || typeof cover !== "string") return null;
   let url = cover;
@@ -41,7 +33,6 @@ function publicCover(cover) {
 export function useDiscordPresence({ enabled, track, isPlaying, audioRef }) {
   const lastKeyRef = useRef(null);
   const key = track ? track.id : null;
-  // lagu dari perangkat lokal tidak dibagikan
   const shareable = !!enabled && !!track && track.source !== "local";
 
   useEffect(() => {
@@ -57,7 +48,6 @@ export function useDiscordPresence({ enabled, track, isPlaying, audioRef }) {
     if (!audio) return undefined;
 
     const push = () => {
-      // jangan kirim posisi basi saat src lagu baru belum siap
       if (audio.paused || audio.readyState < 2) return;
       const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : Number(track.duration) || 0;
       active = true;
@@ -74,13 +64,13 @@ export function useDiscordPresence({ enabled, track, isPlaying, audioRef }) {
 
     const events = ["playing", "seeked", "durationchange"];
     events.forEach((ev) => audio.addEventListener(ev, push));
-    // lagu sama (resume / toggle dinyalakan): kirim langsung.
-    // lagu baru: tunggu event "playing" supaya posisinya akurat.
     if (!trackChanged) push();
     const fallback = setTimeout(push, 2500);
+    const heartbeat = setInterval(push, 10000);
 
     return () => {
       clearTimeout(fallback);
+      clearInterval(heartbeat);
       events.forEach((ev) => audio.removeEventListener(ev, push));
     };
   }, [shareable, isPlaying, key]);
