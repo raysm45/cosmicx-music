@@ -1,4 +1,4 @@
-const DEFAULT_SERVER_DOWN_MODE = "manual";
+const DEFAULT_SERVER_DOWN_MODE = "off";
 
 export const SERVER_DOWN_INFO = {
   eta: "± 3 jam",
