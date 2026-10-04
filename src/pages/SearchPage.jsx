@@ -3,9 +3,8 @@ import { Search, X, Clock, TrendingUp, ArrowLeft, ArrowUpLeft, Mic, Music2, Smil
 import { Api } from "../lib/api.js";
 import { useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
-import { TrackRow, SkeletonList, HoverRail } from "../components.jsx";
+import { TrackRow, HoverRail } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
-import { useAnimatedList } from "../lib/useAnimatedList.js";
 import { usePlayer } from "../context.jsx";
 import {
   debounce, isRelevantArtistMatch, cleanTrackTitleForLyrics,
@@ -13,15 +12,6 @@ import {
 } from "../lib/utils.js";
 
 const GENRE_SHORTCUTS = ["Pop", "Hip-Hop", "R&B", "Indie", "Rock", "Electronic", "Jazz", "Dangdut", "K-Pop", "Reggae", "Klasik", "Akustik"];
-
-function SearchingLabel({ text }) {
-  return (
-    <span className="eyebrow aivy-searching" role="status" aria-live="polite">
-      <span className="aivy-searching-dots" aria-hidden="true"><i /><i /><i /></span>
-      <span className="aivy-searching-text">{text}</span>
-    </span>
-  );
-}
 
 function renderLiveText(text, needle) {
   const i = needle ? text.toLowerCase().indexOf(needle) : -1;
@@ -44,8 +34,8 @@ export function SearchPage() {
   const { playRadio } = usePlayer();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [noResults, setNoResults] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [recent, setRecent] = useState([]);
@@ -71,15 +61,15 @@ export function SearchPage() {
   const debouncedSuggest = useRef(debounce((q) => {
     if (!authUser || settings.searchHistoryEnabled === false) return;
     Api.suggestSearches(q).then(setSuggestions).catch(() => {});
-  }, 120)).current;
+  }, 60)).current;
 
   const requestSeqRef = useRef(0);
 
   const [liveData, setLiveData] = useState(EMPTY_LIVE);
-  const [liveLoading, setLiveLoading] = useState(false);
   const liveSeqRef = useRef(0);
   const liveAbortRef = useRef(null);
   const liveCacheRef = useRef(new Map());
+  const resultCacheRef = useRef(new Map());
 
   const rememberLive = (key, data) => {
     const cache = liveCacheRef.current;
@@ -91,33 +81,46 @@ export function SearchPage() {
     debouncedLiveSearch.cancel?.();
     liveAbortRef.current?.abort();
     liveSeqRef.current++;
-    setLiveLoading(false);
   };
 
   const liveSearch = async (q) => {
     const trimmed = q.trim();
-    if (!trimmed) { setLiveData(EMPTY_LIVE); setLiveLoading(false); return; }
+    if (!trimmed) { setLiveData(EMPTY_LIVE); return; }
     const key = trimmed.toLowerCase();
     const hit = liveCacheRef.current.get(key);
-    if (hit) { setLiveData({ q: key, ...hit }); setLiveLoading(false); return; }
+    if (hit) { setLiveData({ q: key, ...hit }); return; }
 
     liveAbortRef.current?.abort();
     const ctrl = new AbortController();
     liveAbortRef.current = ctrl;
     const seq = ++liveSeqRef.current;
-    setLiveLoading(true);
     try {
       const data = await Api.suggestLive(trimmed, ctrl.signal);
       if (seq !== liveSeqRef.current) return;
       if (data.suggestions.length || data.titles.length) rememberLive(key, data);
       setLiveData({ q: key, ...data });
     } catch {
-    } finally {
-      if (seq === liveSeqRef.current) setLiveLoading(false);
     }
   };
 
-  const debouncedLiveSearch = useRef(debounce((q) => { liveSearch(q); }, 120)).current;
+  const prefetchResults = (q) => {
+    const key = q.trim().toLowerCase();
+    if (!key || resultCacheRef.current.has(key)) return;
+    const entry = { results: null, artist: null, promise: null };
+    resultCacheRef.current.set(key, entry);
+    if (resultCacheRef.current.size > 30) resultCacheRef.current.delete(resultCacheRef.current.keys().next().value);
+    entry.promise = Promise.all([
+      Api.search(q.trim()).catch(() => null),
+      Api.artistQuick(q.trim()).catch(() => null),
+    ]).then(([res, artist]) => {
+      if (!res) { resultCacheRef.current.delete(key); return; }
+      entry.results = res;
+      entry.artist = artist;
+    });
+  };
+
+  const debouncedLiveSearch = useRef(debounce((q) => { liveSearch(q); }, 60)).current;
+  const debouncedPrefetch = useRef(debounce((q) => { prefetchResults(q); }, 350)).current;
 
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => () => { try { recognitionRef.current?.stop(); } catch { } }, []);
@@ -148,46 +151,49 @@ export function SearchPage() {
     window.history.replaceState({}, "", url.pathname + url.search);
   };
 
+  const applyResults = (trimmed, res, artist) => {
+    setArtistHit(artist && isRelevantArtistMatch(artist.name, trimmed) ? artist : null);
+    setResults(res || []);
+    setNoResults(!res || res.length === 0);
+    setNextCursor(res?.nextCursor || null);
+    setArtistHits(Array.isArray(res?.artists) ? res.artists : []);
+    if (res && res[0] && res[0].videoId) {
+      saveRecentSearchThumb(trimmed, res[0]);
+      setRecentThumbs(getRecentSearchThumbs());
+    }
+  };
+
   const doSearch = async (q) => {
     const trimmed = q.trim();
-    if (!trimmed) { setResults([]); setHasSearched(false); setSearching(false); setArtistHit(null); setArtistHits([]); setNextCursor(null); return; }
+    if (!trimmed) { setResults([]); setHasSearched(false); setArtistHit(null); setArtistHits([]); setNextCursor(null); return; }
     const seq = ++requestSeqRef.current;
-    setSearching(true);
     setHasSearched(true);
+    setNoResults(false);
     setSearchedQuery(trimmed);
-    setArtistHit(null);
-    setNextCursor(null);
 
-    Api.artistQuick(trimmed).then((res) => {
-      if (seq !== requestSeqRef.current) return;
-      setArtistHit(res && isRelevantArtistMatch(res.name, trimmed) ? res : null);
-    }).catch(() => {
-      if (seq !== requestSeqRef.current) return;
-      setArtistHit(null);
-    });
+    const key = trimmed.toLowerCase();
+    let entry = resultCacheRef.current.get(key);
+    if (!entry) { prefetchResults(trimmed); entry = resultCacheRef.current.get(key); }
+
+    if (entry?.results) { applyResults(trimmed, entry.results, entry.artist); return; }
 
     try {
-      const res = await Api.search(trimmed);
-      if (seq !== requestSeqRef.current)
-        return;
-      setResults(res || []);
-      setNextCursor(res?.nextCursor || null);
-      setArtistHits(Array.isArray(res?.artists) ? res.artists : []);
-      if (res && res[0] && res[0].videoId) {
-        saveRecentSearchThumb(trimmed, res[0]);
-        setRecentThumbs(getRecentSearchThumbs());
-      }
+      await entry?.promise;
+      if (seq !== requestSeqRef.current) return;
+      if (entry?.results) { applyResults(trimmed, entry.results, entry.artist); return; }
+      setResults([]);
+      setNoResults(true);
+      setNextCursor(null);
     } catch {
       if (seq !== requestSeqRef.current) return;
       setResults([]);
+      setNoResults(true);
       setNextCursor(null);
-    } finally {
-      if (seq === requestSeqRef.current) setSearching(false);
     }
   };
 
   const loadMoreResults = async () => {
-    if (loadingMore || !nextCursor || searching) return;
+    if (loadingMore || !nextCursor) return;
     const seq = requestSeqRef.current;
     setLoadingMore(true);
     try {
@@ -209,25 +215,26 @@ export function SearchPage() {
     const io = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) loadMoreResults(); }, { rootMargin: "600px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [nextCursor, loadingMore, searching, searchedQuery]);
+  }, [nextCursor, loadingMore, searchedQuery]);
 
   const onChangeQuery = (val) => {
     setQuery(val);
     const trimmed = val.trim();
     if (!trimmed) {
       debouncedSuggest.cancel?.();
+      debouncedPrefetch.cancel?.();
       stopLive();
       setSuggestions([]); setResults([]); setHasSearched(false); setNextCursor(null); setArtistHits([]);
       setLiveData(EMPTY_LIVE);
       return;
     }
     debouncedSuggest(trimmed);
+    debouncedPrefetch(trimmed);
     const hit = liveCacheRef.current.get(trimmed.toLowerCase());
     if (hit) {
       stopLive();
       setLiveData({ q: trimmed.toLowerCase(), ...hit });
     } else {
-      setLiveLoading(true);
       debouncedLiveSearch(val);
     }
   };
@@ -237,6 +244,7 @@ export function SearchPage() {
     setFocused(false);
     setSuggestions([]);
     debouncedSuggest.cancel?.();
+    debouncedPrefetch.cancel?.();
     stopLive();
     setLiveData(EMPTY_LIVE);
     syncUrlQuery(q);
@@ -311,17 +319,23 @@ export function SearchPage() {
       out.push({ id: key, text: clean, kind });
     };
     for (const sg of suggestions) push(sg.query, "history");
-    for (const sg of liveData.suggestions) push(sg, "suggest");
-    for (const ti of liveData.titles) push(ti.title, "title");
+    let src = liveData;
+    if (liveData.q !== liveNeedle) {
+      for (let n = liveNeedle.length - 1; n >= 1; n--) {
+        const pre = liveCacheRef.current.get(liveNeedle.slice(0, n));
+        if (pre) { src = pre; break; }
+      }
+    }
+    for (const sg of src.suggestions) push(sg, "suggest");
+    for (const ti of src.titles) push(ti.title, "title");
     return out.slice(0, 12);
   }, [liveNeedle, suggestions, liveData]);
 
   const liveRows = useMemo(() => {
-    if (liveItems.length || liveLoading || !liveNeedle) return liveItems;
+    if (liveItems.length || !liveNeedle) return liveItems;
     return [{ id: "__enter__", text: query.trim(), kind: "enter" }];
-  }, [liveItems, liveLoading, liveNeedle, query]);
+  }, [liveItems, liveNeedle, query]);
 
-  const { containerRef: liveBoxRef, rendered: liveRendered } = useAnimatedList(liveRows);
   const allArtists = useMemo(() => {
     const out = [];
     const seenIds = new Set();
@@ -385,7 +399,7 @@ export function SearchPage() {
         <button className="aivy-icon-btn" onClick={() => back()} aria-label={t("previous")}><ArrowLeft size={18} /></button>
 
         <div className="aivy-search-box-wrap-v2">
-          <div className={`aivy-search-box-v2${liveLoading || searching ? " is-loading" : ""}`}>
+          <div className="aivy-search-box-v2">
             <Search size={16} />
             <input
               ref={inputRef} className="aivy-input" placeholder={t("searchPlaceholder")}
@@ -404,32 +418,15 @@ export function SearchPage() {
 
       {query.trim() && !hasSearched && (
         <div className="aivy-live-title-list" role="listbox" aria-label={t("searchPlaceholder")}>
-          <div className={`aivy-live-progress${liveLoading ? " on" : ""}`} aria-hidden="true" />
-          {liveLoading && liveRows.length === 0 && (
-            <div className="aivy-live-skels" role="status" aria-label={t("searching")}>
-              {[62, 48, 74, 55, 40].map((w, i) => (
-                <div key={i} className="aivy-live-skel" style={{ "--i": i }}>
-                  <span className="dot aivy-skeleton" />
-                  <span className="bar aivy-skeleton" style={{ width: `${w}%` }} />
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="aivy-live-rows" ref={liveBoxRef}>
-            {liveRendered.map((e) => {
-              const it = e.item;
+          <div className="aivy-live-rows">
+            {liveRows.map((it) => {
               const Icon = it.kind === "history" ? Clock : it.kind === "title" ? Music2 : Search;
-              const style = e.leaving && e.rect ? { top: e.rect.top, left: e.rect.left, width: e.rect.width } : undefined;
               return (
                 <button
-                  key={e.key}
+                  key={it.id}
                   type="button"
                   role="option"
-                  data-key={e.key}
-                  data-leaving={e.leaving ? "true" : undefined}
-                  className={`aivy-live-title-row${e.leaving ? " is-leaving" : ""}`}
-                  style={style}
-                  tabIndex={e.leaving ? -1 : 0}
+                  className="aivy-live-title-row"
                   onMouseDown={(ev) => ev.preventDefault()}
                   onClick={() => runSearch(it.text)}
                 >
@@ -492,15 +489,7 @@ export function SearchPage() {
         </>
       )}
 
-      {hasSearched && (
-        <div style={{ padding: "4px 2px 12px" }}>
-          {searching
-            ? <SearchingLabel key="searching" text={t("searching")} />
-            : <span key="done" className="eyebrow aivy-label-swap">{results.length} {t("resultsFor")} "{searchedQuery}"</span>}
-        </div>
-      )}
-
-      {hasSearched && !searching && topArtist && (
+      {hasSearched && topArtist && (
         <section className="aivy-section" style={{ marginTop: 0 }}>
           <div className="aivy-section-head"><h2 className="aivy-section-title">{t("artistLabel")}</h2></div>
           <div
@@ -522,7 +511,7 @@ export function SearchPage() {
         </section>
       )}
 
-      {hasSearched && !searching && otherArtists.length > 0 && (
+      {hasSearched && otherArtists.length > 0 && (
         <section className="aivy-section">
           <div className="aivy-section-head"><h2 className="aivy-section-title">{t("similarArtists")}</h2></div>
           <HoverRail>
@@ -548,18 +537,15 @@ export function SearchPage() {
         </section>
       )}
 
-      {hasSearched && (
-        searching ? <SkeletonList count={8} /> : (
-          sortedList.length ? (
-            <div>
-              {sortedList.map((tr, i) => <TrackRow key={`${tr.id}-${i}`} track={tr} index={i} list={sortedList} queueMode="radio" source={{ type: "search" }} />)}
-              {nextCursor && <div ref={sentinelRef} style={{ height: 1 }} />}
-              {loadingMore && <SkeletonList count={4} />}
-            </div>
-          ) : (
-            <div className="aivy-empty"><Search size={34} color="var(--ink-faint)" /><div className="title">{t("noResults")}</div><div className="sub">{t("noResultsSub")}</div></div>
-          )
-        )
+      {hasSearched && sortedList.length > 0 && (
+        <div>
+          {sortedList.map((tr, i) => <TrackRow key={`${tr.id}-${i}`} track={tr} index={i} list={sortedList} queueMode="radio" source={{ type: "search" }} />)}
+          {nextCursor && <div ref={sentinelRef} style={{ height: 1 }} />}
+        </div>
+      )}
+
+      {hasSearched && noResults && sortedList.length === 0 && (
+        <div className="aivy-empty"><Search size={34} color="var(--ink-faint)" /><div className="title">{t("noResults")}</div><div className="sub">{t("noResultsSub")}</div></div>
       )}
 
       {listening && (
