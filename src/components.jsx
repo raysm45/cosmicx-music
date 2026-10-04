@@ -1367,7 +1367,6 @@ const VISUALIZER_COLOR_SETS = {
   martian: ["#e36f4f", "#ffb27f", "#f5ded0"],
   sunset: ["#e35f8a", "#ffb27f", "#fff0d6"],
   kaleido: ["#a78bfa", "#f472b6", "#7fd1e6"],
-  matrix: ["#39ff88", "#0fae4f", "#0a2a12"],
 };
 
 export function VisualizerCanvas({ style, mode = "solid", sensitivity = 60, brightness = 100, preset = "auto", height = 220, running = true }) {
@@ -3785,7 +3784,7 @@ export function LyricsOverlay() {
 
   const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime: scrubTime, duration: scrubDuration } = useScrubberBinding();
   const cycleFontSize = () => setFontSize((s) => (s === "sm" ? "md" : s === "md" ? "lg" : "sm"));
-  const highlightColor = isMobile || !isLightResolved ? "#f5f5f5" : "#14150f";
+  const highlightColor = isMobile || !isLightResolved ? "#f5f5f5" : "#141414";
   const lyricsMenuItems = useTrackMenuItems(currentTrack || {});
   const handleLyricsMore = (e) => { if (!currentTrack) return; openContextMenu(e.clientX, e.clientY, lyricsMenuItems); };
 

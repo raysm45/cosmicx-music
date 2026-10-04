@@ -644,8 +644,9 @@ body.aivy-resizing *{ user-select: none !important; }
 .aivy-sheet-backdrop{ position: fixed; inset: 0; background: rgba(0,0,0,.44); z-index: 60; opacity: 0; transition: opacity var(--dur-base) var(--ease); pointer-events: none; will-change: opacity; }
 .aivy-sheet-backdrop.open{ opacity: 1; pointer-events: auto; }
 .aivy-sheet-backdrop.over-sheet{ z-index: 62; }
-.aivy-sheet{ position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; height: 100dvh; background: #16180f; display: flex; flex-direction: column; transform: translateY(100%) translateZ(0); backface-visibility: hidden; contain: layout paint; transition: transform var(--dur-slow) var(--ease); box-shadow: var(--shadow-sheet); overflow: hidden; will-change: transform; --sheet-ink: #f5f5f5; --sheet-ink-dim: rgba(245,245,245,.66); --sheet-ink-faint: rgba(245,245,245,.42); --sheet-line: rgba(255,255,255,.14); --sheet-elev: rgba(255,255,255,.08); }
+.aivy-sheet{ position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; height: 100dvh; background: #0b0b0b; display: flex; flex-direction: column; transform: translateY(100%) translateZ(0); backface-visibility: hidden; contain: layout paint; transition: transform var(--dur-slow) var(--ease); box-shadow: var(--shadow-sheet); overflow: hidden; will-change: transform; --sheet-ink: #f5f5f5; --sheet-ink-dim: rgba(245,245,245,.66); --sheet-ink-faint: rgba(245,245,245,.42); --sheet-line: rgba(255,255,255,.14); --sheet-elev: rgba(255,255,255,.08); }
 .aivy-sheet.open{ transform: translateY(0) translateZ(0); }
+.aivy-sheet.aivy-queue-sheet{ background: var(--bg); --sheet-ink: var(--ink); --sheet-ink-dim: var(--ink-dim); --sheet-ink-faint: var(--ink-faint); --sheet-line: var(--line); --sheet-elev: var(--bg-elev-2); }
 .aivy-sheet-bg{
   /* Per spesifikasi CSS, `filter` dirender pada UKURAN LAYOUT elemen ini
      (sebelum `transform` diterapkan pada tahap compositing). Jadi kotaknya
@@ -677,7 +678,7 @@ body.aivy-resizing *{ user-select: none !important; }
 .npx-cover.has-tilt{ will-change: transform; transform-style: preserve-3d; }
 .npx-cover.cd-spin{ border-radius: 50%; }
 .npx-cover.cd-spin img, .npx-cover.cd-spin > *{ border-radius: 50%; }
-.npx-cover.cd-spin::after{ content: ""; position: absolute; inset: 0; margin: auto; width: 14%; height: 14%; border-radius: 50%; background: var(--bg, #16180f); box-shadow: inset 0 0 0 2px rgba(255,255,255,.25); z-index: 3; }
+.npx-cover.cd-spin::after{ content: ""; position: absolute; inset: 0; margin: auto; width: 14%; height: 14%; border-radius: 50%; background: var(--bg, #0b0b0b); box-shadow: inset 0 0 0 2px rgba(255,255,255,.25); z-index: 3; }
 .aivy-player .npx-cover.cd-spin, .aivy-player-cover.cd-spin{ animation: aivy-cd-spin 6s linear infinite; }
 .aivy-sheet:not(.is-spinning) .npx-cover.cd-spin{ animation-play-state: paused; }
 .npx-cover.cd-spin{ animation: aivy-cd-spin 6s linear infinite; animation-play-state: paused; }
@@ -1923,13 +1924,6 @@ body.aivy-artist-immersive .aivy-player{
   --bg:#13101E; --bg-elev:#181227; --bg-elev-2:#211A33; --bg-elev-3:#2A2142;
   --line:#332A52; --line-soft:#251E3C; --ink:#EAE4F6; --ink-dim:#A89DC6; --ink-faint:#6E6296;
   --accent:#EAE4F6; --accent-strong:#FFFFFF; --accent-ink:#13101E;
-  --accent-soft: rgba(255,255,255,.10);
-  color-scheme: dark;
-}
-:root[data-theme="forest"]{
-  --bg:#0E1510; --bg-elev:#121C15; --bg-elev-2:#18241B; --bg-elev-3:#1F2D22;
-  --line:#28392C; --line-soft:#1D2B21; --ink:#E2ECDF; --ink-dim:#97AB94; --ink-faint:#5D7260;
-  --accent:#E2ECDF; --accent-strong:#FFFFFF; --accent-ink:#0E1510;
   --accent-soft: rgba(255,255,255,.10);
   color-scheme: dark;
 }

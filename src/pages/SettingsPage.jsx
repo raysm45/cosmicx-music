@@ -13,7 +13,6 @@ const THEME_SWATCHES = {
   white: ["#ffffff", "#141414", "#141414"],
   ocean: ["#0b1220", "#dfe9f5", "#dfe9f5"],
   purple: ["#13101e", "#eae4f6", "#eae4f6"],
-  forest: ["#0e1510", "#e2ecdf", "#e2ecdf"],
   mocha: ["#1e1e2e", "#cdd6f4", "#cdd6f4"],
   macchiato: ["#24273a", "#cad3f5", "#cad3f5"],
   frappe: ["#303446", "#c6d0f5", "#c6d0f5"],
@@ -50,7 +49,6 @@ const VISUALIZER_PRESETS = [
   { value: "martian", label: "Martian" },
   { value: "sunset", label: "Sunset" },
   { value: "kaleido", label: "Kaleidoscope" },
-  { value: "matrix", label: "Matrix" },
 ];
 
 function downloadJson(filename, data) {
@@ -343,7 +341,6 @@ export function SettingsPage() {
             ["white", "White"],
             ["ocean", "Ocean"],
             ["purple", "Purple"],
-            ["forest", "Forest"],
             ["mocha", "Mocha"],
             ["macchiato", "Macchiato"],
             ["frappe", "Frappé"],
@@ -457,7 +454,7 @@ export function SettingsPage() {
         <SliderRow label={tt("Sensitivitas visualizer", "Visualizer Sensitivity")} hint={tt("Hati-hati: sensitivitas tinggi bisa memicu fotosensitif", "Warning: high sensitivity may cause flashing lights")} value={Number(settings.visualizerSensitivity) || 60} min={10} max={200} step={5} onChange={set("visualizerSensitivity")} format={(v) => `${v}%`} />
         <SliderRow label={tt("Kecerahan visualizer", "Visualizer Brightness")} value={Number(settings.visualizerBrightness) || 100} min={20} max={200} step={5} onChange={set("visualizerBrightness")} format={(v) => `${v}%`} />
         <ToggleRow label={tt("Ganti preset otomatis", "Cycle Presets")} checked={!!settings.cyclePresets} onChange={set("cyclePresets")} />
-        <SelectRow label={tt("Preset saat ini", "Current Preset")} value={settings.visualizerPreset || "auto"} onChange={set("visualizerPreset")} options={VISUALIZER_PRESETS} />
+        <SelectRow label={tt("Preset saat ini", "Current Preset")} value={VISUALIZER_PRESETS.some((x) => x.value === settings.visualizerPreset) ? settings.visualizerPreset : "auto"} onChange={set("visualizerPreset")} options={VISUALIZER_PRESETS} />
         <SliderRow label={tt("Durasi siklus", "Cycle Duration")} hint={tt("Detik antar pergantian preset", "Seconds between preset changes")} value={Number(settings.cycleDuration) || 30} min={5} max={120} step={5} onChange={set("cycleDuration")} format={(v) => `${v}s`} />
         <ToggleRow label={tt("Acak preset", "Randomize Presets")} hint={tt("Preset berikutnya dipilih acak", "Pick the next preset randomly")} checked={!!settings.randomizePresets} onChange={set("randomizePresets")} />
       </SettingSection>

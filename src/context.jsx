@@ -191,13 +191,19 @@ const DEFAULT_SETTINGS = {
   discordPresenceLyrics: true,
 };
 
+function migrateSettings(obj) {
+  const next = { ...obj };
+  if (next.theme === "forest") next.theme = "black";
+  if (next.visualizerPreset === "matrix") next.visualizerPreset = "auto";
+  return next;
+}
 function loadCachedSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    return migrateSettings({ ...DEFAULT_SETTINGS, ...parsed });
   } catch { return DEFAULT_SETTINGS; }
 }
 function saveCachedSettings(s) {
@@ -237,7 +243,7 @@ export function UIProvider({ children }) {
     Api.getSettings()
       .then((s) => {
         const local = loadCachedSettings();
-        const merged = { ...DEFAULT_SETTINGS, ...local, ...(s || {}) };
+        const merged = migrateSettings({ ...DEFAULT_SETTINGS, ...local, ...(s || {}) });
         setSettings(merged);
         saveCachedSettings(merged);
         setTheme(typeof merged.theme === "string" && merged.theme && merged.theme !== "dark" ? merged.theme : "black");

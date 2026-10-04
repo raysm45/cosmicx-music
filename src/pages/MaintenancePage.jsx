@@ -876,7 +876,7 @@ const CSS = `
 .pm-progress-panel{
   position:absolute; left:20px; bottom:20px; z-index:30;
   display:flex; align-items:flex-start; gap:10px;
-  background:rgba(21,23,15,.8); backdrop-filter:blur(8px);
+  background:rgba(21,21,21,.8); backdrop-filter:blur(8px);
   border:1px solid var(--pm-line,#262626); border-radius:16px;
   padding:12px 16px; max-width:250px;
   box-shadow: 0 8px 24px rgba(0,0,0,.35);
@@ -901,13 +901,13 @@ const CSS = `
 }
 .pm-wall{
   position:absolute; inset:0 0 68% 0;
-  background: linear-gradient(180deg, #2A3120 0%, #3C4530 62%, #4B5A40 100%);
+  background: linear-gradient(180deg, #2A2A2A 0%, #3C3C3C 62%, #4B4B4B 100%);
 }
 .pm-wall::before{ content:""; position:absolute; inset:0; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 42px); }
 .pm-wall::after{
   content:""; position:absolute; left:0; right:0; bottom:0; height:16px;
   background: linear-gradient(180deg, #8A6A3C 0%, #5E4527 100%);
-  border-top:2px solid var(--pm-outline,#14170D);
+  border-top:2px solid var(--pm-outline,#141414);
   box-shadow: 0 4px 10px rgba(0,0,0,.4);
 }
 .pm-floor{ position:absolute; inset:32% 0 0 0; background: repeating-linear-gradient(0deg, #1B1B1B 0 34px, #161616 34px 68px); border-top:3px solid var(--pm-line,#262626); }
@@ -942,11 +942,11 @@ const CSS = `
   position:absolute; left:16%; top:22%; width:60%;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   font-family: var(--pm-font-mono,"JetBrains Mono",monospace);
-  font-size:7.5px; font-weight:700; letter-spacing:.05em; color:#DDF2CE;
-  text-shadow: 0 0 6px rgba(124,214,140,.65);
+  font-size:7.5px; font-weight:700; letter-spacing:.05em; color:#F2F2F2;
+  text-shadow: 0 0 6px rgba(255,255,255,.55);
   animation: pm-glitch 3.6s steps(1) infinite;
 }
-.pm-tv-cursor{ width:5px; height:5px; background:#DDF2CE; margin-top:2px; animation: pm-blink 1s steps(1) infinite; }
+.pm-tv-cursor{ width:5px; height:5px; background:#F2F2F2; margin-top:2px; animation: pm-blink 1s steps(1) infinite; }
 
 .pm-wind{ position:absolute; left:100%; top:6%; width:220px; height:60px; pointer-events:none; }
 .pm-wind-streak{
@@ -964,7 +964,7 @@ const CSS = `
 .pm-smoke{ position:absolute; left:38%; top:-6%; width:40px; height:120px; pointer-events:none; }
 .pm-smoke-puff{
   position:absolute; left:0; bottom:0; width:7px; height:7px; border-radius:2px;
-  background: rgba(185,188,176,.55); opacity:0;
+  background: rgba(185,185,185,.55); opacity:0;
   animation: pm-smoke-rise 4.6s ease-in infinite;
 }
 .pm-smoke-puff-1{ left:5px; }
