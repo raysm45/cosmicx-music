@@ -10,6 +10,7 @@ import { seoState } from "./lib/seo.js";
 import { trackArtistsReady, loadTrackArtists } from "./lib/artistProfile.js";
 import { useDiscordPresence } from "./lib/discordPresence.js";
 import { applyLiquidGlass, isLowEndDevice } from "./lib/perf.js";
+import { applyCustomFont, useLocalFont } from "./lib/fonts.js";
 
 export const EQ_BANDS_HZ = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 export const EQ_PRESETS = {
@@ -283,29 +284,29 @@ export function UIProvider({ children }) {
     setPreferredAudioFormat(settings.audioFormat);
   }, [settings.audioFormat]);
 
+  const localFont = useLocalFont();
   useEffect(() => {
     const root = document.documentElement;
-    const customUrl = (settings.fontUrl || "").trim();
-    let faceEl = document.getElementById("aivy-custom-font-face");
-    if (customUrl) {
-      if (!faceEl) { faceEl = document.createElement("style"); faceEl.id = "aivy-custom-font-face"; document.head.appendChild(faceEl); }
-      faceEl.textContent = `@font-face{font-family:"Cosmicx Custom";src:url("${customUrl}");font-display:swap;}`;
-    } else if (faceEl) faceEl.remove();
-    const stack = customUrl ? "'Cosmicx Custom', sans-serif" : (FONT_STACKS[settings.fontFamily] ?? FONT_STACKS.default);
-    if (stack) {
-      root.style.setProperty("--font-display", stack);
-      root.style.setProperty("--font-body", stack);
-    } else {
-      root.style.removeProperty("--font-display");
-      root.style.removeProperty("--font-body");
-    }
-    const gq = GOOGLE_FONT_QUERY[settings.fontFamily];
+    const applyStack = (customStack) => {
+      const stack = customStack || (FONT_STACKS[settings.fontFamily] ?? FONT_STACKS.default);
+      if (stack) {
+        root.style.setProperty("--font-display", stack);
+        root.style.setProperty("--font-body", stack);
+      } else {
+        root.style.removeProperty("--font-display");
+        root.style.removeProperty("--font-body");
+      }
+    };
+    // Font kustom: file/terpasang di perangkat (prioritas) atau URL dari sumber gratis.
+    const custom = applyCustomFont({ fontUrl: settings.fontUrl, localFont }, applyStack);
+    const gq = custom.active ? null : GOOGLE_FONT_QUERY[settings.fontFamily];
     let link = document.getElementById("aivy-gfont");
     if (gq) {
       if (!link) { link = document.createElement("link"); link.id = "aivy-gfont"; link.rel = "stylesheet"; document.head.appendChild(link); }
       link.href = `https://fonts.googleapis.com/css2?family=${gq}&display=swap`;
     } else if (link) link.remove();
-  }, [settings.fontFamily, settings.fontUrl]);
+    return custom.cleanup;
+  }, [settings.fontFamily, settings.fontUrl, localFont]);
 
   useEffect(() => {
     const scale = Number(settings.fontScale) || 100;

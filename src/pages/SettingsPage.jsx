@@ -7,6 +7,10 @@ import { useUI, usePlayer, EQ_BANDS_HZ, EQ_PRESETS } from "../context.jsx";
 import { Api } from "../lib/api.js";
 import { CustomSelect } from "../components.jsx";
 import { useCookieConsent, openCookieSettings } from "../lib/cookieConsent.js";
+import {
+  checkFontUrl, useLocalFont, setFontFile, setInstalledFont, clearLocalFont, isFontInstalled,
+  FONT_FILE_ACCEPT, FONT_URL_PLACEHOLDER, FREE_FONT_SOURCES, MAX_FONT_FILE_BYTES,
+} from "../lib/fonts.js";
 
 const THEME_SWATCHES = {
   system: ["#000000", "#ffffff", "#f2f2f0"],
@@ -126,6 +130,140 @@ function TextRow({ label, hint, value, onChange, type = "text", placeholder, mon
   );
 }
 
+function FontUrlRow({ value, onCommit, tt }) {
+  const [draft, setDraft] = useState(value || "");
+  const [error, setError] = useState("");
+  React.useEffect(() => { setDraft(value || ""); setError(""); }, [value]);
+
+  const reasons = {
+    invalid: tt("URL tidak valid.", "Invalid URL."),
+    insecure: tt("Gunakan URL https://.", "Use an https:// URL."),
+    paid: tt(
+      "Situs font berbayar (mis. MyFonts, Fonts.com, Adobe Fonts) tidak didukung. Pakai sumber gratis.",
+      "Paid font sites (e.g. MyFonts, Fonts.com, Adobe Fonts) aren't supported. Use a free source."
+    ),
+  };
+  const commit = () => {
+    const v = draft.trim();
+    if (v === (value || "")) return;
+    if (!v) { setError(""); onCommit(""); return; }
+    const res = checkFontUrl(v);
+    if (!res.ok) { setError(reasons[res.reason] || reasons.invalid); return; }
+    setError("");
+    onCommit(v);
+  };
+
+  return (
+    <div className="aivy-settings-row">
+      <div>
+        <div className="label">{tt("Font dari URL (gratis)", "Font from URL (free)")}</div>
+        <div className="hint">
+          {tt(
+            `Tempel link CSS atau file font (.woff2/.woff/.ttf/.otf) dari sumber gratis: ${FREE_FONT_SOURCES}. Font berbayar tidak didukung.`,
+            `Paste a CSS link or font file (.woff2/.woff/.ttf/.otf) from a free source: ${FREE_FONT_SOURCES}. Paid fonts aren't supported.`
+          )}
+        </div>
+        {error && <div className="hint" style={{ color: "var(--danger, #e5484d)" }}>{error}</div>}
+      </div>
+      <input
+        className="aivy-settings-input mono"
+        type="url"
+        value={draft}
+        placeholder={FONT_URL_PLACEHOLDER}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => { setDraft(e.target.value); if (error) setError(""); }}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      />
+    </div>
+  );
+}
+
+function LocalFontRows({ localFont, onActivate, tt, pushToast }) {
+  const fileRef = useRef(null);
+  const [draft, setDraft] = useState(localFont?.kind === "installed" ? localFont.name : "");
+  const [warn, setWarn] = useState(false);
+  React.useEffect(() => {
+    setDraft(localFont?.kind === "installed" ? localFont.name : "");
+    setWarn(false);
+  }, [localFont]);
+
+  const onPickFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const name = await setFontFile(file);
+      onActivate();
+      pushToast(tt(`Font "${name}" dipakai`, `Font "${name}" applied`));
+    } catch (err) {
+      const msgs = {
+        type: tt("Format harus .woff2, .woff, .ttf, atau .otf.", "File must be .woff2, .woff, .ttf or .otf."),
+        size: tt(`Ukuran file maksimal ${Math.round(MAX_FONT_FILE_BYTES / 1048576)} MB.`, `Max file size is ${Math.round(MAX_FONT_FILE_BYTES / 1048576)} MB.`),
+        storage: tt("Gagal menyimpan font di perangkat.", "Couldn't store the font on this device."),
+      };
+      pushToast(msgs[err?.message] || tt("File font tidak valid.", "Invalid font file."));
+    }
+  };
+
+  const commitInstalled = () => {
+    const v = draft.trim();
+    if (!v) { if (localFont?.kind === "installed") clearLocalFont(); setWarn(false); return; }
+    if (localFont?.kind === "installed" && localFont.name === v) return;
+    const name = setInstalledFont(v);
+    if (name) { onActivate(); setWarn(!isFontInstalled(name)); }
+  };
+
+  return (
+    <>
+      <div className="aivy-settings-row">
+        <div>
+          <div className="label">{tt("Font dari file lokal", "Font from local file")}</div>
+          <div className="hint">
+            {localFont?.kind === "file"
+              ? tt(`Dipakai: ${localFont.name}. Disimpan di perangkat ini saja.`, `In use: ${localFont.name}. Stored on this device only.`)
+              : tt("Pilih file .woff2/.woff/.ttf/.otf dari perangkat kamu. Disimpan di perangkat ini saja.", "Pick a .woff2/.woff/.ttf/.otf file from your device. Stored on this device only.")}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <input ref={fileRef} type="file" accept={FONT_FILE_ACCEPT} onChange={onPickFile} hidden />
+          <button className="aivy-btn-ghost sm" onClick={() => fileRef.current?.click()}>
+            <FileUp size={14} />{tt("Pilih file", "Choose file")}
+          </button>
+          {localFont?.kind === "file" && (
+            <button className="aivy-btn-danger sm" onClick={clearLocalFont}>{tt("Hapus", "Remove")}</button>
+          )}
+        </div>
+      </div>
+      <div className="aivy-settings-row">
+        <div>
+          <div className="label">{tt("Font terpasang di perangkat", "Font installed on device")}</div>
+          <div className="hint">
+            {tt("Ketik nama font yang sudah terpasang di sistem (mis. Segoe UI, Helvetica Neue, Menlo).", "Type the name of a font already installed on your system (e.g. Segoe UI, Helvetica Neue, Menlo).")}
+          </div>
+          {warn && (
+            <div className="hint" style={{ color: "var(--danger, #e5484d)" }}>
+              {tt("Font ini sepertinya tidak terpasang di perangkat ini, jadi tampilan memakai font cadangan.", "This font doesn't seem to be installed on this device, so a fallback font is shown.")}
+            </div>
+          )}
+        </div>
+        <input
+          className="aivy-settings-input"
+          type="text"
+          value={draft}
+          placeholder="Segoe UI"
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitInstalled}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        />
+      </div>
+    </>
+  );
+}
+
 function ActionRow({ label, hint, tone = "ghost", buttonText, onAction, disabled, icon: Icon }) {
   const cls = tone === "danger" ? "aivy-btn-danger" : "aivy-btn-ghost";
   return (
@@ -197,6 +335,7 @@ function EqualizerPanel({ eq, onChange, tt }) {
 
 export function SettingsPage() {
   const { settings, updateSettings, resetSettings, authUser, logout, loggingOut, pushToast, t } = useUI();
+  const localFont = useLocalFont();
   const player = usePlayer();
   const cookieConsent = useCookieConsent();
   const [tab, setTab] = useState("appearance");
@@ -401,13 +540,16 @@ export function SettingsPage() {
           onChange={set("fontFamily")}
           options={FONT_OPTIONS}
         />
-        <TextRow
-          label={tt("Font dari URL", "Font from URL")}
-          hint={tt("Masukkan URL file font (.woff2/.ttf/.otf) untuk dipakai di seluruh aplikasi.", "Paste a font file URL (.woff2/.ttf/.otf) to use it app-wide.")}
-          mono
+        <FontUrlRow
           value={settings.fontUrl || ""}
-          onChange={(v) => set("fontUrl")(v.trim())}
-          placeholder="https://…/MyFont.woff2"
+          tt={tt}
+          onCommit={(v) => { if (v) clearLocalFont(); set("fontUrl")(v); }}
+        />
+        <LocalFontRows
+          localFont={localFont}
+          tt={tt}
+          pushToast={pushToast}
+          onActivate={() => { if (settings.fontUrl) set("fontUrl")(""); }}
         />
         <SliderRow
           label={tt("Ukuran font", "Font size")}
@@ -420,7 +562,7 @@ export function SettingsPage() {
           label={tt("Reset font", "Reset font")}
           buttonText={tt("Reset", "Reset")}
           icon={RotateCcw}
-          onAction={() => updateSettings({ fontFamily: "default", fontUrl: "", fontScale: 100 })}
+          onAction={() => { clearLocalFont(); updateSettings({ fontFamily: "default", fontUrl: "", fontScale: 100 }); }}
         />
       </SettingSection>
 
