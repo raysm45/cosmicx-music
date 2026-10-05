@@ -105,13 +105,30 @@ export function CoverArt({ seed, size = 160, radius = 14, style = {} }) {
   );
 }
 
-export function SmartCover({ src, seed, size = 160, radius = 14, style = {}, alt = "" }) {
+const THUMB_BUCKETS = [128, 256, 384, 512, 720];
+
+// Cover lagu dilayani backend di /vi/<id>?w=720. Untuk tampilan kecil (baris lagu 80px, kartu, dll.)
+// cukup minta ukuran yang pas: file jauh lebih kecil, cepat sampai, dan lebih sering kena cache.
+// URL selain /vi/<id> (cover album, foto artist, dll.) dibiarkan apa adanya.
+export function sizedThumb(src, px) {
+  if (!src || typeof src !== "string") return src;
+  const m = src.match(/^(.*\/vi\/[\w-]{11})(?:\?(.*))?$/);
+  if (!m) return src;
+  const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const want = px * dpr;
+  const w = THUMB_BUCKETS.find((b) => b >= want) || THUMB_BUCKETS[THUMB_BUCKETS.length - 1];
+  const params = new URLSearchParams(m[2] || "");
+  params.set("w", String(w));
+  return `${m[1]}?${params.toString()}`;
+}
+
+export function SmartCover({ src, seed, size = 160, radius = 14, style = {}, alt = "", priority = false }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => { setFailed(false); }, [src]);
   if (!src || failed) return <CoverArt seed={seed} size={size} radius={radius} style={style} />;
   return (
     <img
-      src={src} alt={alt} width={size} height={size} loading="lazy"
+      src={sizedThumb(src, size)} alt={alt} width={size} height={size} loading={priority ? "eager" : "lazy"} decoding="async"
       style={{ borderRadius: radius, objectFit: "cover", display: "block", background: "var(--bg-elev-2)", ...style }}
       onError={() => setFailed(true)}
     />

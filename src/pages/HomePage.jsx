@@ -4,9 +4,9 @@ import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { CardTrack, CardAlbum, CardArtist, filterExplicit, useTrackMenuItems, HoverRail, MarqueeText } from "../components.jsx";
-import { FeedTabs, useForYouRow } from "./FeedPages.jsx";
+import { FeedTabs } from "./FeedPages.jsx";
 import { ExploreFeed } from "./ExploreFeed.jsx";
-import { SmartCover } from "../lib/brand.jsx";
+import { SmartCover, sizedThumb } from "../lib/brand.jsx";
 
 import { formatDuration } from "../lib/utils.js";
 
@@ -33,6 +33,15 @@ function useDiscoverRow(seed, limit = 12, type = null, enabled = true) {
 
 // Jumlah item rekomendasi album & artist di Home dibuat tetap (tidak naik-turun).
 const RECO_COUNT = 9;
+// Lagu rekomendasi: selalu tepat 12. Minta lebih banyak dari server karena sebagian akan
+// terbuang (filter explicit, lagu tanpa artist/durasi, duplikat), lalu dipotong ke 12.
+const RECO_TRACK_COUNT = 12;
+const RECO_TRACK_FETCH = 30;
+
+// Lagu yang layak tampil di daftar: punya nama artist & durasi.
+function isCompleteTrack(tr) {
+  return !!(tr && tr.id && tr.title && tr.artist?.name && tr.duration > 0);
+}
 
 // Gabungkan daftar utama + cadangan, buang duplikat, potong tepat n item.
 function fillTo(primary, extra, n = RECO_COUNT) {
@@ -126,7 +135,7 @@ function mapHistoryRow(row) {
   };
 }
 
-function SongListRow({ track, list }) {
+function SongListRow({ track, list, eager = false }) {
   const { currentTrack, isPlaying, togglePlay, playList, liked, toggleLike } = usePlayer();
   const { openContextMenu, t } = useUI();
   const isCurrent = currentTrack && currentTrack.id === track.id;
@@ -144,7 +153,7 @@ function SongListRow({ track, list }) {
       onContextMenu={(e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); }}
     >
       <span className="cover">
-        <SmartCover src={track.cover} seed={track.id + track.title} size={80} radius={6} style={{ width: "100%", height: "100%" }} />
+        <SmartCover src={track.cover} seed={track.id + track.title} size={80} radius={6} priority={eager} style={{ width: "100%", height: "100%" }} />
       </span>
       <span className="meta">
         <MarqueeText as="span" className="t" text={track.title} />
@@ -180,18 +189,26 @@ export function HomePage() {
   const [albumSeed, setAlbumSeed] = useState("fresh-" + Math.floor(Date.now() / 3600000));
   const [recoNonce, setRecoNonce] = useState(0);
   const [albumNonce, setAlbumNonce] = useState(0);
-  const trending = useDiscoverRow(trendingSeed, 12, "track");
+  const trending = useDiscoverRow(trendingSeed, RECO_TRACK_FETCH, "track");
   const fresh = useDiscoverRow(albumSeed, 12, "album");
   const moodCalm = useDiscoverRow("mood-santai", 12, "artist");
-  const forYou = useForYouRow(24);
   const forYouAlbumsRaw = useForYouTyped("album", RECO_COUNT, `${recoNonce}-${albumNonce}`);
   const forYouArtistsRaw = useForYouTyped("artist", RECO_COUNT, recoNonce);
-  const forYouTracks = useMemo(
-    () => filterExplicit((forYou.items || []).filter((i) => i.type === "track"), settings).slice(0, 12),
-    [forYou.items, settings]
-  );
+  const forYouTracksRaw = useForYouTyped("track", RECO_TRACK_FETCH, recoNonce);
 
-  const trendingTracks = useMemo(() => filterExplicit(trending || [], settings).slice(0, 12), [trending, settings]);
+  // Lagu rekomendasi: prioritas personal, ditambal dari trending, dedupe, dipotong tepat 12.
+  // Lagu tanpa artist/durasi dibuang dulu; baru dipakai sebagai cadangan terakhir kalau stok habis.
+  const recoTracks = useMemo(() => {
+    if (forYouTracksRaw === null) return null;
+    const mine = filterExplicit(forYouTracksRaw, settings);
+    const mineOk = mine.filter(isCompleteTrack);
+    if (mineOk.length >= RECO_TRACK_COUNT) return fillTo(mineOk, null, RECO_TRACK_COUNT);
+    if (trending === null) return null;
+    const pop = filterExplicit(trending, settings);
+    const strict = fillTo(mineOk, pop.filter(isCompleteTrack), RECO_TRACK_COUNT);
+    if (strict.length >= RECO_TRACK_COUNT) return strict;
+    return fillTo(strict, [...mine, ...pop], RECO_TRACK_COUNT);
+  }, [forYouTracksRaw, trending, settings]);
 
   // Album & artist: selalu tepat RECO_COUNT (9). Kalau hasil personal kurang, ditambal dari discover.
   const recoAlbums = useMemo(() => {
@@ -211,18 +228,17 @@ export function HomePage() {
 
   const bgCover = currentTrack?.cover || (!nothingPlayed && playedHistory[0]?.cover) || null;
 
-  const recoTracks = forYouTracks.length ? forYouTracks : trendingTracks;
-  const recoLoading = forYou.items === null && trending === null;
+  const recoLoading = recoTracks === null;
 
   const startRadio = () => {
-    if (!recoTracks.length) return;
+    if (!recoTracks?.length) return;
     playRadio(recoTracks[0]);
     pushToast(t("toastPlayingFullSong"));
   };
 
   return (
     <div className="aivy-view-enter aivy-home">
-      {bgCover && <div className="aivy-home-bg" style={{ backgroundImage: `url(${bgCover})` }} aria-hidden="true" />}
+      {bgCover && <div className="aivy-home-bg" style={{ backgroundImage: `url(${sizedThumb(bgCover, 160)})` }} aria-hidden="true" />}
       <div className="aivy-home-inner">
         <FeedTabs active="home" />
 
@@ -238,7 +254,7 @@ export function HomePage() {
             <div className="aivy-section-head">
               <div className="aivy-home-head-left">
                 <h2 className="aivy-section-title">{t("recoSongs")}</h2>
-                {recoTracks.length > 0 && (
+                {recoTracks?.length > 0 && (
                   <button className="aivy-chip" onClick={startRadio}>
                     <Play size={11} /> {t("startInfiniteRadio")}
                   </button>
@@ -246,7 +262,7 @@ export function HomePage() {
               </div>
               <button
                 className="aivy-icon-btn bare"
-                onClick={() => { forYou.refresh(); setRecoNonce((n) => n + 1); setTrendingSeed("trending-" + Date.now()); }}
+                onClick={() => { setRecoNonce((n) => n + 1); setTrendingSeed("trending-" + Date.now()); }}
                 aria-label="Refresh"
                 title="Refresh"
               >
@@ -255,8 +271,8 @@ export function HomePage() {
             </div>
             <div className="aivy-songlist-grid">
               {recoLoading
-                ? <SkeletonSongGrid count={6} />
-                : recoTracks.map((tr) => <SongListRow key={tr.id} track={tr} list={recoTracks} />)}
+                ? <SkeletonSongGrid count={RECO_TRACK_COUNT} />
+                : recoTracks.map((tr, i) => <SongListRow key={tr.id} track={tr} list={recoTracks} eager={i < 6} />)}
             </div>
           </section>
         )}

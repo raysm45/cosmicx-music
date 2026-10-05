@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
-import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur, shareLink } from "../components.jsx";
+import { TrackRow, ViewNotFound, ViewLoading, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur, shareLink } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
 import { useArtworkTint, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 import { Api } from "../lib/api.js";
@@ -554,7 +554,24 @@ export function PlaylistPage() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const searchRef = React.useRef(null);
-  const pl = playlists.find((p) => String(p.id) === String(params.id));
+  // id numerik = playlist milik user (tabel `playlists`). Selain itu = playlist YouTube Music
+  // (mis. dari "Artist Playlists") yang tidak ada di daftar playlist user -> ambil dari endpoint sendiri.
+  const isRemote = !!params.id && !/^\d+$/.test(String(params.id));
+  const [remote, setRemote] = React.useState({ id: null, data: null, status: "idle" });
+  React.useEffect(() => {
+    if (!isRemote) return undefined;
+    let alive = true;
+    setRemote({ id: params.id, data: null, status: "loading" });
+    Api.ytPlaylist(params.id)
+      .then((data) => { if (alive) setRemote({ id: params.id, data, status: "ok" }); })
+      .catch(() => { if (alive) setRemote({ id: params.id, data: null, status: "error" }); });
+    return () => { alive = false; };
+  }, [params.id, isRemote]);
+  const remoteReady = isRemote && remote.id === params.id;
+  const remoteLoading = isRemote && (!remoteReady || remote.status === "loading");
+  const pl = isRemote
+    ? (remoteReady ? remote.data : null)
+    : playlists.find((p) => String(p.id) === String(params.id));
   const [displaySongs, setDisplaySongs] = React.useState(pl?.songs || []);
   const [localShuffle, setLocalShuffle] = React.useState(false);
 
@@ -563,7 +580,7 @@ export function PlaylistPage() {
   }, [pl?.songs, localShuffle]);
 
   React.useEffect(() => {
-    if (!params.id) return;
+    if (!params.id || isRemote) return;
     import("../lib/api.js").then(({ Api }) =>
       Api.playlist(params.id)
         .then((detail) => setPlaylistDetail(detail))
@@ -579,7 +596,10 @@ export function PlaylistPage() {
   const tint = useArtworkTint(cover);
   const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!pl, tint });
 
-  if (!pl) return <div className="aivy-am-fallback"><ViewNotFound label={t("playlistLabel")} /></div>;
+  if (!pl) {
+    if (remoteLoading) return <div className="aivy-am-fallback"><ViewLoading /></div>;
+    return <div className="aivy-am-fallback"><ViewNotFound label={t("playlistLabel")} /></div>;
+  }
   const q = query.trim().toLowerCase();
   const visibleSongs = q
     ? (displaySongs || []).filter((s) => s.title?.toLowerCase().includes(q) || s.artist?.name?.toLowerCase().includes(q))
