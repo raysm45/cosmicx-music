@@ -393,7 +393,7 @@ export function ServerDownPage() {
           Outage Terdeteksi
         </div>
 
-        <h1>Server Sedang Gangguan</h1>
+        <h1>Server Sedang Dalam Pengembangan</h1>
 
         <p className="description">
           Layanan kami saat ini sedang tidak bisa menghubungi server.
