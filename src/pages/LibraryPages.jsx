@@ -554,8 +554,6 @@ export function PlaylistPage() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const searchRef = React.useRef(null);
-  // id numerik = playlist milik user (tabel `playlists`). Selain itu = playlist YouTube Music
-  // (mis. dari "Artist Playlists") yang tidak ada di daftar playlist user -> ambil dari endpoint sendiri.
   const isRemote = !!params.id && !/^\d+$/.test(String(params.id));
   const [remote, setRemote] = React.useState({ id: null, data: null, status: "idle" });
   React.useEffect(() => {

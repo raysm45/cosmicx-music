@@ -1,5 +1,3 @@
-// SEO ala Spotify: judul + meta + canonical + JSON-LD yang berubah per halaman.
-// Googlebot menjalankan JavaScript, jadi tag ini ikut terbaca saat halaman dirender.
 import { useEffect } from "react";
 
 export const SITE_URL = "https://music.cosmicx.fun";
@@ -8,7 +6,6 @@ export const DEFAULT_TITLE = "cosmicx Music - Web Player: Musik untuk semua oran
 export const DEFAULT_DESC = "cosmicx Music adalah layanan musik digital yang memberi kamu akses ke lagu, album, dan playlist dari artis di seluruh dunia.";
 export const DEFAULT_IMAGE = SITE_URL + "/og-image.png";
 
-// playing = true saat ada lagu diputar (judul tab dipakai nama lagu oleh player)
 export const seoState = { playing: false, title: "" };
 
 function setMeta(attr, key, content) {

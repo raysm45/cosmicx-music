@@ -1,9 +1,3 @@
-// Liquid glass ala rdev/liquid-glass-react: backdrop di-blur tipis, lalu tepinya dibelokkan
-// (refraksi) lewat SVG feDisplacementMap dengan chromatic aberration. Peta pergeseran dibuat
-// per-ukuran elemen supaya bezel-nya selalu pas di tepi pil/lingkaran.
-
-// filter:url() pada backdrop hanya dirender Chromium (Chrome/Edge/Samsung/WebView Android).
-// Safari/iOS & Firefox otomatis pakai kaca bening biasa (blur + rim).
 export function supportsRefraction() {
   if (typeof navigator === "undefined" || typeof document === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -14,10 +8,6 @@ export function supportsRefraction() {
 
 const mapCache = new Map();
 
-// R = pergeseran X, B = pergeseran Y (128 = netral). Di bezel, piksel mengambil warna dari
-// arah DALAM (menjauhi tepi) -> isi latar tertarik/menekuk di sekeliling tepi seperti lensa.
-// PENTING: jangan dibalik ke arah luar. Filter hanya punya isi di dalam kotak elemen, jadi
-// sampling dari luar = piksel transparan -> tepi "hilang" dan kaca tampak cuma blur/transparan.
 export function makeDisplacementMap(w, h, bezel) {
   const key = `v2:${w}x${h}x${bezel}`;
   if (mapCache.has(key)) return mapCache.get(key);
@@ -33,7 +23,7 @@ export function makeDisplacementMap(w, h, bezel) {
         const px = i + 0.5 - w / 2, py = j + 0.5 - h / 2;
         const qx = Math.abs(px) - (w / 2 - r), qy = Math.abs(py) - (h / 2 - r);
         const ox = Math.max(qx, 0), oy = Math.max(qy, 0);
-        const d = -(Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - r); // jarak ke tepi (dalam)
+        const d = -(Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - r);
         let nx = 0, ny = 0;
         if (qx > 0 || qy > 0) { const L = Math.hypot(ox, oy) || 1; nx = Math.sign(px) * ox / L; ny = Math.sign(py) * oy / L; }
         else if (qx > qy) nx = Math.sign(px); else ny = Math.sign(py);

@@ -5,16 +5,13 @@ import { lyricAt } from "./presenceLyrics.js";
 
 const BRIDGE_URL = (import.meta.env.VITE_PRESENCE_BRIDGE_URL || "http://127.0.0.1:6464").replace(/\/+$/, "");
 
-// Discord membatasi update activity (kira-kira 5 update / 20 detik). Jarak minimum antar
-// push gara-gara pergantian baris lirik; baris yang kelewat dilompati, yang dikirim selalu terbaru.
 const MIN_GAP_MS = 5000;
-// Kirim sedikit lebih awal supaya pas sampai di Discord barisnya sudah ganti.
 const LOOKAHEAD_MS = 500;
 
 let active = false;
 let downUntil = 0;
 let lastSentAt = 0;
-let probe = null; // <am-lyrics> tersembunyi milik presence (dipakai kalau panel lirik web nggak kebuka)
+let probe = null;
 
 function post(path, body, keepalive = false) {
   if (Date.now() < downUntil) return;

@@ -297,7 +297,6 @@ export function UIProvider({ children }) {
         root.style.removeProperty("--font-body");
       }
     };
-    // Font kustom: file/terpasang di perangkat (prioritas) atau URL dari sumber gratis.
     const custom = applyCustomFont({ fontUrl: settings.fontUrl, localFont }, applyStack);
     const gq = custom.active ? null : GOOGLE_FONT_QUERY[settings.fontFamily];
     let link = document.getElementById("aivy-gfont");

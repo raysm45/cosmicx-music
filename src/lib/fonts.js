@@ -1,19 +1,12 @@
 import { useSyncExternalStore } from "react";
-
-/* ------------------------------------------------------------------ *
- *  Font kustom: URL (sumber gratis saja) + font lokal (file / terpasang)
- * ------------------------------------------------------------------ */
-
 export const CUSTOM_URL_FAMILY = "Cosmicx Custom";
 export const LOCAL_FILE_FAMILY = "Cosmicx Local";
-export const MAX_FONT_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_FONT_FILE_BYTES = 10 * 1024 * 1024;
 export const FONT_FILE_ACCEPT = ".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf";
 
-// Contoh sumber gratis yang ditampilkan di UI.
 export const FREE_FONT_SOURCES = "Google Fonts, Bunny Fonts, Fontsource (jsDelivr)";
 export const FONT_URL_PLACEHOLDER = "https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap";
 
-// Situs font berbayar / berlangganan -> ditolak.
 const PAID_FONT_HOSTS = [
   "myfonts.com", "fonts.com", "monotype.com", "linotype.com", "fontshop.com",
   "fontspring.com", "typography.com", "hoefler.com", "fonts.adobe.com",
@@ -51,7 +44,6 @@ const titleCase = (s) => s.replace(/[-_+]+/g, " ").replace(/\b\w/g, (c) => c.toU
 const safeFamily = (s) => String(s || "").replace(/[^\p{L}\p{N} _.\-]/gu, "").trim().slice(0, 80);
 const quoteFamily = (s) => `'${safeFamily(s)}'`;
 
-// Tebakan nama font dari URL stylesheet (Google Fonts / Bunny Fonts / Fontsource).
 function guessFamiliesFromCssUrl(href) {
   const u = new URL(href);
   const out = [];
@@ -72,7 +64,7 @@ function readFamiliesFromSheet(link) {
     if (!rules) return [];
     const set = new Set();
     for (const r of rules) {
-      if (r.type === 5 /* FONT_FACE_RULE */) {
+      if (r.type === 5) {
         const f = safeFamily(r.style.getPropertyValue("font-family").replace(/["']/g, ""));
         if (f) set.add(f);
       }
@@ -80,8 +72,6 @@ function readFamiliesFromSheet(link) {
     return [...set];
   } catch { return []; }
 }
-
-/* ------------------------------ Penyimpanan font lokal ------------------------------ */
 
 const LS_KEY = "aivy-local-font";
 const DB_NAME = "aivy-fonts";
@@ -119,7 +109,7 @@ function writeMeta(meta) {
   try {
     if (meta) localStorage.setItem(LS_KEY, JSON.stringify(meta));
     else localStorage.removeItem(LS_KEY);
-  } catch { /* abaikan */ }
+  } catch {}
   emit();
 }
 
@@ -158,7 +148,7 @@ async function idbDelete() {
       tx.oncomplete = () => { db.close(); resolve(); };
       tx.onerror = () => { db.close(); resolve(); };
     });
-  } catch { /* abaikan */ }
+  } catch {}
 }
 
 export function clearLocalFont() {
@@ -167,8 +157,6 @@ export function clearLocalFont() {
   writeMeta(null);
   if (wasFile) idbDelete();
 }
-
-/** Pakai font yang sudah terpasang di perangkat (berdasarkan nama). */
 export function setInstalledFont(name) {
   const clean = safeFamily(name);
   if (!clean) { clearLocalFont(); return null; }
@@ -177,12 +165,6 @@ export function setInstalledFont(name) {
   if (wasFile) idbDelete();
   return clean;
 }
-
-/**
- * Pakai file font dari perangkat. File disimpan di IndexedDB (bukan di settings
- * supaya tidak ikut tersinkron ke server).
- * @throws Error dengan message: "type" | "size" | "invalid" | "storage"
- */
 export async function setFontFile(file) {
   if (!file) throw new Error("invalid");
   if (!/\.(woff2|woff|ttf|otf)$/i.test(file.name)) throw new Error("type");
@@ -197,8 +179,6 @@ export async function setFontFile(file) {
   writeMeta({ kind: "file", name });
   return name;
 }
-
-/** Cek kasar apakah font dengan nama tertentu terpasang di perangkat. */
 export function isFontInstalled(name) {
   const clean = safeFamily(name);
   if (!clean) return false;
@@ -213,8 +193,6 @@ export function isFontInstalled(name) {
     });
   } catch { return true; }
 }
-
-/* ------------------------------ Penerapan ke DOM ------------------------------ */
 
 let activeLocalFace = null;
 
@@ -239,7 +217,6 @@ export function applyCustomFont({ fontUrl, localFont }, onStack) {
 
   removeEls();
 
-  // 1) Font lokal
   if (localFont) {
     if (localFont.kind === "installed") {
       removeLocalFace();
@@ -263,7 +240,6 @@ export function applyCustomFont({ fontUrl, localFont }, onStack) {
   }
   removeLocalFace();
 
-  // 2) Font dari URL (sumber gratis)
   const check = checkFontUrl(fontUrl);
   if (!check.ok) { onStack(null); return { active: false, cleanup }; }
 
@@ -277,7 +253,6 @@ export function applyCustomFont({ fontUrl, localFont }, onStack) {
     return { active: true, cleanup };
   }
 
-  // Stylesheet (Google Fonts / Bunny Fonts / Fontsource / CSS lain)
   const buildStack = (families) => `${families.map(quoteFamily).join(", ")}, sans-serif`;
   const guessed = guessFamiliesFromCssUrl(check.href);
   const addLink = (withCors) => {
@@ -287,18 +262,17 @@ export function applyCustomFont({ fontUrl, localFont }, onStack) {
     link.rel = "stylesheet";
     if (withCors) link.crossOrigin = "anonymous";
     link.onload = () => {
-      if (cancelled || !withCors) return; // tanpa CORS isi stylesheet tidak bisa dibaca
+      if (cancelled || !withCors) return;
       const detected = readFamiliesFromSheet(link);
       if (detected.length) onStack(buildStack(detected));
     };
     link.onerror = () => {
-      // Sebagian CDN tidak mengirim header CORS: coba lagi tanpa crossorigin.
       if (!cancelled && withCors) addLink(false);
     };
     link.href = check.href;
     document.head.appendChild(link);
   };
   addLink(true);
-  onStack(guessed.length ? buildStack(guessed) : null); // null = tunggu deteksi dari isi stylesheet
+  onStack(guessed.length ? buildStack(guessed) : null);
   return { active: true, cleanup };
 }

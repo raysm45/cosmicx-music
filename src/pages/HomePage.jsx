@@ -30,20 +30,15 @@ function useDiscoverRow(seed, limit = 12, type = null, enabled = true) {
   }, [seed, limit, type, enabled]);
   return items;
 }
-
-// Jumlah item rekomendasi album & artist di Home dibuat tetap (tidak naik-turun).
 const RECO_COUNT = 9;
-// Lagu rekomendasi: selalu tepat 12. Minta lebih banyak dari server karena sebagian akan
-// terbuang (filter explicit, lagu tanpa artist/durasi, duplikat), lalu dipotong ke 12.
+
 const RECO_TRACK_COUNT = 12;
 const RECO_TRACK_FETCH = 30;
 
-// Lagu yang layak tampil di daftar: punya nama artist & durasi.
 function isCompleteTrack(tr) {
   return !!(tr && tr.id && tr.title && tr.artist?.name && tr.duration > 0);
 }
 
-// Gabungkan daftar utama + cadangan, buang duplikat, potong tepat n item.
 function fillTo(primary, extra, n = RECO_COUNT) {
   const seen = new Set();
   const out = [];
@@ -55,8 +50,6 @@ function fillTo(primary, extra, n = RECO_COUNT) {
   }
   return out;
 }
-
-// Ambil rekomendasi "for you" khusus satu tipe (album / artist) supaya jumlahnya pasti.
 function useForYouTyped(type, count, nonce) {
   const { authUser } = useUI();
   const [items, setItems] = useState(null);
@@ -100,10 +93,6 @@ function SkeletonSongRow() {
 function SkeletonSongGrid({ count = 6 }) {
   return <>{Array.from({ length: count }).map((_, i) => <SkeletonSongRow key={i} />)}</>;
 }
-
-// PENTING: RowWrap harus didefinisikan di level modul (identitas komponen stabil).
-// Dulu `Wrap` dibuat di dalam Row, jadi tiap render React menganggapnya komponen baru
-// dan MEMBUANG + MEMASANG ULANG semua card di dalamnya (penyebab home ngadat).
 function RowWrap({ scroll, children }) {
   return scroll
     ? <HoverRail>{children}</HoverRail>
@@ -196,8 +185,6 @@ export function HomePage() {
   const forYouArtistsRaw = useForYouTyped("artist", RECO_COUNT, recoNonce);
   const forYouTracksRaw = useForYouTyped("track", RECO_TRACK_FETCH, recoNonce);
 
-  // Lagu rekomendasi: prioritas personal, ditambal dari trending, dedupe, dipotong tepat 12.
-  // Lagu tanpa artist/durasi dibuang dulu; baru dipakai sebagai cadangan terakhir kalau stok habis.
   const recoTracks = useMemo(() => {
     if (forYouTracksRaw === null) return null;
     const mine = filterExplicit(forYouTracksRaw, settings);
@@ -209,8 +196,6 @@ export function HomePage() {
     if (strict.length >= RECO_TRACK_COUNT) return strict;
     return fillTo(strict, [...mine, ...pop], RECO_TRACK_COUNT);
   }, [forYouTracksRaw, trending, settings]);
-
-  // Album & artist: selalu tepat RECO_COUNT (9). Kalau hasil personal kurang, ditambal dari discover.
   const recoAlbums = useMemo(() => {
     if (forYouAlbumsRaw === null) return null;
     const own = fillTo(forYouAlbumsRaw, null);

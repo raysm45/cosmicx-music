@@ -52,9 +52,6 @@ function useArtworkTint(src) {
         const [h, s] = rgbToHsl(r / w, g / w, b / w);
         if (alive) setTint(tintFromHsl(h, s * 100));
       } catch {
-        // Canvas ke-taint (gambar cross-origin tanpa header CORS) atau gagal decode.
-        // Daripada diem-diem gak pasang tint sama sekali (sidebar jadi item polos),
-        // pasang fallback glass netral biar panel tetep keliatan kaca, bukan hitam.
         if (alive) setTint(FALLBACK_TINT);
       }
     };
@@ -64,9 +61,6 @@ function useArtworkTint(src) {
   }, [src]);
   return tint;
 }
-
-// Lightness dinaikin dari 9% -> 15% dan saturation minimum dari 14 -> 22 biar tint-nya
-// kebaca sebagai kaca berwarna, bukan nyaris-hitam yang keliatan sama aja kayak panel polos.
 function tintFromHsl(h, satPct) {
   const hue = Math.round(h);
   const s = Math.round(Math.min(52, Math.max(22, satPct)));
@@ -76,8 +70,6 @@ function tintFromHsl(h, satPct) {
     accentInk: `hsl(${hue} ${Math.min(60, s + 10)}% 12%)`,
   };
 }
-// Dipakai kalau ekstraksi warna dari artwork gagal (misal canvas ke-taint karena CORS)
-// supaya panel tetep kelihatan kaca (frosted), bukan jatuh balik ke hitam polos.
 const FALLBACK_TINT = tintFromHsl(230, 30);
 function hexToRgb(hex) {
   const m = String(hex || "").trim().replace("#", "");
@@ -216,9 +208,6 @@ export function ArtistPage() {
   const heroRef = useRef(null);
   const heroVideoRef = useRef(null);
 
-  // Hero video cuma perlu decode selagi ada di viewport. Halaman artist bisa panjang
-  // (scroll ke bawah buat liat semua lagu/album), jadi kalau hero-nya udah lewat,
-  // video di-pause biar decoder ga jalan sia-sia di background.
   useEffect(() => {
     const el = heroVideoRef.current;
     if (!el) return undefined;
@@ -310,10 +299,7 @@ export function ArtistPage() {
     let raf = 0;
     let lastBlurStep = -1;
     let lastProgStep = -1;
-    // filter: blur() dan backdrop-filter: blur() itu paling mahal buat GPU low-end.
-    // shift/zoom (transform) aman di-update tiap frame, tapi kedua nilai blur cukup
-    // di-quantize ke step kasar — browser skip repaint blur kalau nilai CSS var-nya
-    // sama persis, dan mata ga bisa bedain step sehalus ini pas lagi scroll cepat.
+
     const BLUR_STEPS = 14;
     const apply = () => {
       raf = 0;
@@ -400,10 +386,7 @@ export function ArtistPage() {
   if (!artist) return <div className="aivy-am-fallback"><ViewNotFound label={t("artistLabel")} /></div>;
 
   const songs = showAllSongs ? topTracks : topTracks.slice(0, TOP_SONGS_PREVIEW);
-  // Video hero selalu ditampilkan (autoplay seperti semula) — deteksi "low-end device"
-  // pakai navigator.deviceMemory/hardwareConcurrency ternyata gak reliable (banyak HP
-  // normal ikut ke-flag gara-gara browser nge-cap nilai itu), jadi cuma dipakai IO
-  // buat pause pas di luar viewport, bukan buat matiin videonya sama sekali.
+ 
   const showHeroVideo = heroVideoUrl && !videoBroken;
   const heroLogoUrl = heroInfo?.customName?.url ? Api.appleMusicVideoUrl(heroInfo.customName.url) : null;
   const showLogo = heroLogoUrl && !logoBroken;

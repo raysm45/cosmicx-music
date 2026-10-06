@@ -39,9 +39,6 @@ function DiscordGlyph({ size = 18 }) {
     </svg>
   );
 }
-
-// Animated bars <-> sparkle logo mark, with a letter-by-letter wordmark reveal,
-// driven by a single shared "blend" clock (ported from the cosmicx design).
 function CosmicMark() {
   const barsRef = useRef(null);
   const starGroupRef = useRef(null);

@@ -1,9 +1,5 @@
-// Helper murni (tanpa dependency) buat nentuin baris lirik yang lagi aktif.
-// Logikanya sengaja meniru AmLyrics.getLineHighlightEndTime / findActiveLineIndices
-// supaya baris di Discord sama dengan baris yang menyala di halaman lirik web.
-
-const INSTRUMENTAL_THRESHOLD_MS = 7000; // sama dengan konstanta di AmLyrics.ts
-const MAX_LEN = 120; // batas Discord 128 karakter
+const INSTRUMENTAL_THRESHOLD_MS = 7000;
+const MAX_LEN = 120;
 
 function highlightEnd(lines, i) {
   const line = lines[i];
@@ -18,9 +14,6 @@ function highlightEnd(lines, i) {
   return next.timestamp;
 }
 
-// Catatan: di data am-lyrics, flag `background: true` artinya baris itu PUNYA vokal latar
-// (backgroundText terisi), bukan baris latar yang berdiri sendiri. Teks utamanya tetap di `text`.
-// Baris latar mandiri dikenali dari teks utamanya yang kosong.
 function hasMainText(line) {
   return (line.text || []).some((s) => (s.text || "").trim());
 }
@@ -28,12 +21,10 @@ function hasMainText(line) {
 function lineText(line) {
   const raw = (line.text || []).map((s) => s.text || "").join("");
   const t = raw.replace(/\s+/g, " ").trim();
-  if (t.length < 2) return null; // Discord nolak string < 2 karakter
+  if (t.length < 2) return null;
   return t.length > MAX_LEN ? `${t.slice(0, MAX_LEN - 1).trimEnd()}…` : t;
 }
 
-// lines: array LyricsLine milik <am-lyrics>; tMs: posisi lagu dalam milidetik.
-// Return teks baris aktif, atau null kalau lagi jeda/instrumental/belum mulai.
 export function lyricAt(lines, tMs) {
   if (!Array.isArray(lines) || !lines.length) return null;
   let idx = -1;

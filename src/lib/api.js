@@ -185,7 +185,6 @@ export const Api = {
   playlists: () => apiGet("/api/playlists"),
   createPlaylist: (body) => apiSend("/api/playlists", "POST", body),
   playlist: (id) => apiGet(`/api/playlists/${id}`),
-  // Playlist YouTube Music (mis. "Artist Playlists"); id-nya string, bukan id numerik tabel playlists.
   ytPlaylist: (id) => apiGet(`/api/playlists/ytm/${encodeURIComponent(id)}`),
   updatePlaylist: (id, body) => apiSend(`/api/playlists/${id}`, "PATCH", body),
   addSong: (id, videoId, meta) => apiSend(`/api/playlists/${id}/songs`, "POST", { videoId, ...meta }),

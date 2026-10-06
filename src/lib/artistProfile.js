@@ -1,10 +1,8 @@
-// Cache profil artis (foto dll) supaya menu lagu bisa langsung menampilkan
-// foto SEMUA artis (termasuk lagu kolaborasi) di klik pertama.
 import { Api } from "./api.js";
 import { isRelevantArtistMatch } from "./utils.js";
 
-const cache = new Map();     // key -> data | null
-const inflight = new Map();  // key -> Promise
+const cache = new Map();
+const inflight = new Map();
 const MAX_ARTISTS = 8;
 
 function keyOf(artist) {
@@ -12,8 +10,6 @@ function keyOf(artist) {
   const k = String(artist.id || artist.name || "").trim().toLowerCase();
   return k || null;
 }
-
-/** Semua artis sebuah lagu (kolaborasi = track.artists), tanpa duplikat. */
 export function menuArtists(track) {
   const raw = track?.artists?.length ? track.artists : (track?.artist ? [track.artist] : []);
   const seen = new Set();
@@ -37,8 +33,6 @@ function preloadImage(url) {
     img.src = url;
   });
 }
-
-/** undefined = belum dimuat, null = tidak ada / tidak relevan, object = profil artis */
 export function peekArtistProfile(artist) {
   const k = keyOf(artist);
   if (!k) return null;
@@ -59,17 +53,14 @@ export function loadArtistProfile(artist) {
       cache.set(k, data);
       return data;
     })
-    .catch(() => null) // gagal jaringan: jangan di-cache, boleh dicoba lagi
+    .catch(() => null)
     .finally(() => { inflight.delete(k); });
   inflight.set(k, p);
   return p;
 }
-
-/** Muat profil semua artis dari sebuah lagu. */
 export function loadTrackArtists(track) {
   return Promise.all(menuArtists(track).map(loadArtistProfile));
 }
-/** True kalau semua artis lagu sudah ada di cache. */
 export function trackArtistsReady(track) {
   return menuArtists(track).every((a) => peekArtistProfile(a) !== undefined);
 }
