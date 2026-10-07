@@ -23,6 +23,7 @@ const THEME_SWATCHES = {
   frappe: ["#303446", "#c6d0f5", "#c6d0f5"],
   latte: ["#eff1f5", "#4c4f69", "#4c4f69"],
   salmon: ["#fdebe7", "#e8736a", "#4a2b2b"],
+  halloween: ["#0d0714", "#ff7a18", "#9b5de5"],
 };
 
 const FONT_OPTIONS = [
@@ -486,6 +487,7 @@ export function SettingsPage() {
             ["macchiato", "Macchiato"],
             ["frappe", "Frappé"],
             ["latte", "Latte"],
+            ["halloween", "🎃 Halloween"],
             ["salmon", "Salmon"],
             ["custom", tt("Kustom", "Custom")],
           ].map(([value, label]) => (

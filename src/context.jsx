@@ -116,6 +116,16 @@ function clearPlaybackState() {
   try { localStorage.removeItem(PLAYBACK_STATE_KEY); } catch { }
 }
 
+// Musim Halloween: 1 Okt - 2 Nov, pengunjung yang belum pernah memilih tema otomatis dapat tema Halloween.
+function defaultThemeForSeason() {
+  try {
+    const d = new Date();
+    const m = d.getMonth(), day = d.getDate();
+    if ((m === 9) || (m === 10 && day <= 2)) return "halloween";
+  } catch {}
+  return "black";
+}
+
 const DEFAULT_SETTINGS = {
   audioQuality: "preview",
   audioFormat: "opus",
@@ -126,7 +136,7 @@ const DEFAULT_SETTINGS = {
   explicitContent: true,
   equalizer: DEFAULT_EQ,
 
-  theme: "black",
+  theme: defaultThemeForSeason(),
   customThemeCss: "",
   language: "id",
   fontFamily: "default",
@@ -255,6 +265,8 @@ export function UIProvider({ children }) {
   useEffect(() => {
     if (theme !== "system") {
       document.documentElement.dataset.theme = theme || "black";
+      const tc = document.querySelector('meta[name="theme-color"]');
+      if (tc) tc.setAttribute("content", theme === "halloween" ? "#0D0714" : ["white", "latte", "salmon"].includes(theme) ? "#FFFFFF" : "#000000");
       return undefined;
     }
     const mq = window.matchMedia("(prefers-color-scheme: light)");

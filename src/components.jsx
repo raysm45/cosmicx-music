@@ -3211,7 +3211,7 @@ export function Sidebar() {
         >
           <PanelLeft size={18} />
         </button>
-        <Link to="home" className="aivy-brand"><StarMark size={26} color="var(--accent-strong)" className="mark" /><div className="word font-display">cosmicx</div></Link>
+        <Link to="home" className="aivy-brand"><StarMark size={26} color="var(--accent-strong)" className="mark" logo /><div className="word font-display">cosmicx</div></Link>
       </div>
       <nav className="aivy-nav">
         {visibleNavItems.map(({ route, labelKey, icon: Icon }) => (
@@ -3452,7 +3452,7 @@ export function TopBar({ isMobile }) {
     <div className={`aivy-topbar ${scrolled ? "scrolled" : ""}`}>
       {isMobile ? (
         <>
-          {name !== "home" ? <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ArrowLeft size={16} /></button> : <StarMark size={20} color="var(--accent-strong)" />}
+          {name !== "home" ? <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ArrowLeft size={16} /></button> : <StarMark size={20} color="var(--accent-strong)" logo />}
           <span className="aivy-topbar-title font-display" style={{ fontSize: 15 }}>{titleMap[name] ?? ""}</span>
         </>
       ) : (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { hashStr } from "./utils.js";
 import { Api } from "./api.js";
 
@@ -19,10 +19,39 @@ export const TENDRIL_PATH =
   "C10.12,26.43 8.99,25.8 7.94,25.01 C6.95,24.13 6.08,23.13 5.34,22.01 " +
   "C4.69,20.81 4.21,19.55 3.9,18.2 C3.71,16.83 3.7,15.44 3.87,14.04";
 
+
+// ---- Halloween theme: pakai gambar PNG/JPG asli (bukan SVG) ----
+export const HALLOWEEN_BASE = "/halloween";
+export const HALLOWEEN_COVER_COUNT = 8;
+
+function subscribeTheme(cb) {
+  if (typeof MutationObserver === "undefined") return () => {};
+  const mo = new MutationObserver(cb);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => mo.disconnect();
+}
+const getTheme = () => (typeof document === "undefined" ? "" : document.documentElement.dataset.theme || "");
+export function useThemeName() {
+  return useSyncExternalStore(subscribeTheme, getTheme, () => "");
+}
+export function useIsHalloween() {
+  return useThemeName() === "halloween";
+}
+
 export const STAR_PATH =
   "M16 2 C16 10 10 16 2 16 C10 16 16 22 16 30 C16 22 22 16 30 16 C22 16 16 10 16 2 Z";
 
-export function StarMark({ size = 22, color = "currentColor", className = "" }) {
+export function StarMark({ size = 22, color = "currentColor", className = "", logo = false }) {
+  const halloween = useIsHalloween();
+  if (halloween) {
+    // logo=true -> labu logo utama; selain itu hantu kecil untuk empty state
+    const src = logo ? `${HALLOWEEN_BASE}/logo-mark-96.png` : `${HALLOWEEN_BASE}/decor/ghost.png`;
+    const px = logo ? Math.round(size * 1.25) : size;
+    return (
+      <img src={src} width={px} height={px} alt="" aria-hidden="true" draggable="false" className={className}
+        style={{ display: "block", objectFit: "contain", opacity: logo ? 1 : 0.7, flexShrink: 0 }} />
+    );
+  }
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true" focusable="false">
       <path d={STAR_PATH} fill={color} />
@@ -39,6 +68,14 @@ export function TendrilSpinner({ size = 28, color = "currentColor", spin = true 
 }
 
 export function StarLoader({ size = 48, color = "var(--accent-strong)", label }) {
+  const halloween = useIsHalloween();
+  if (halloween) {
+    return (
+      <div className="aivy-starloader aivy-pumpkin-loader" style={{ width: size, height: size }} role="status" aria-label={label || "Memuat"}>
+        <img src={`${HALLOWEEN_BASE}/decor/pumpkin.png`} width={size} height={size} alt="" draggable="false" style={{ display: "block", objectFit: "contain" }} />
+      </div>
+    );
+  }
   const stars = [
     { x: 3, y: 5, delay: "0s", scale: 0.36 },
     { x: 16, y: 2, delay: "-0.45s", scale: 0.52 },
@@ -64,7 +101,15 @@ const DUOTONES = [
 ];
 
 export function CoverArt({ seed, size = 160, radius = 14, style = {} }) {
+  const halloween = useIsHalloween();
   const h = hashStr(String(seed));
+  if (halloween) {
+    const n = (h % HALLOWEEN_COVER_COUNT) + 1;
+    return (
+      <img src={`${HALLOWEEN_BASE}/covers/cover-${n}.jpg`} width={size} height={size} alt="" aria-hidden="true" draggable="false"
+        loading="lazy" decoding="async" style={{ borderRadius: radius, objectFit: "cover", display: "block", ...style }} />
+    );
+  }
   const [bg, fg] = DUOTONES[h % DUOTONES.length];
   const variant = h % 4;
   const rot = (h % 7) * 11 - 33;

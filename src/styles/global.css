@@ -3268,3 +3268,112 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   .aivy-ck-foot{ flex-direction: column; }
   .aivy-ck-foot .aivy-ck-btn{ height: 44px; }
 }
+/* =====================================================================
+   TEMA HALLOWEEN 🎃
+   Semua gambar di sini adalah file PNG/JPG asli di /public/halloween
+   ===================================================================== */
+@font-face{
+  font-family: "Creepster";
+  src: url("/halloween/fonts/creepster.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+:root[data-theme="halloween"]{
+  --bg:#0D0714; --bg-elev:#140B1E; --bg-elev-2:#1D1129; --bg-elev-3:#2A1A3D;
+  --line:#3B2455; --line-soft:#2A1A3C; --ink:#F7ECDD; --ink-dim:#BDA8CC; --ink-faint:#8672A2;
+  --accent:#FF7A18; --accent-strong:#FF9A3D; --accent-ink:#1A0A00;
+  --accent-soft: rgba(255,122,24,.16);
+  --berry:#9B5DE5; --berry-strong:#C18BFF; --gold:#FFC857;
+  --font-creepy: "Creepster", "Plus Jakarta Sans", system-ui, sans-serif;
+  --card-veil: linear-gradient(180deg, rgba(13,7,20,.25), rgba(13,7,20,.78));
+  color-scheme: dark;
+}
+:root[data-theme="halloween"] body{
+  background-color: var(--bg);
+  background-image: url("/halloween/bg/pattern.png");
+  background-size: 420px 420px;
+}
+:root[data-theme="halloween"] ::selection{ background: #FF7A18; color: #1A0A00; }
+
+/* logo & judul pakai font Halloween */
+:root[data-theme="halloween"] .aivy-brand .word{
+  font-family: var(--font-creepy); font-weight: 400; font-size: 27px; letter-spacing: .04em; line-height: 1;
+  color: var(--accent-strong); text-shadow: 0 2px 0 #000, 0 0 14px rgba(255,122,24,.45);
+}
+:root[data-theme="halloween"] .aivy-hero-meta h1,
+:root[data-theme="halloween"] .aivy-landing-hero h1,
+:root[data-theme="halloween"] .cx-headline{
+  font-family: var(--font-creepy); font-weight: 400; letter-spacing: .03em; line-height: 1.1;
+  text-shadow: 0 2px 0 rgba(0,0,0,.6), 0 0 22px rgba(255,122,24,.28);
+}
+
+/* panel samping: sarang laba-laba di pojok */
+:root[data-theme="halloween"] .aivy-sidebar{
+  background: linear-gradient(180deg, rgba(20,11,30,.96), rgba(13,7,20,.98));
+  border-right-color: var(--line);
+}
+:root[data-theme="halloween"] .aivy-sidebar::after{
+  content: ""; position: absolute; top: 0; right: 0; width: 96px; height: 96px; pointer-events: none;
+  background: url("/halloween/decor/web.png") top right / contain no-repeat; opacity: .28; transform: scaleX(-1);
+  mix-blend-mode: screen;
+}
+:root[data-theme="halloween"] .aivy-sidebar::before{
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; pointer-events: none;
+  background: url("/halloween/decor/tombstone.png") 14px 100% / 56px no-repeat, url("/halloween/decor/pumpkin.png") 78px 100% / 44px no-repeat;
+  opacity: .13; z-index: 0;
+}
+
+/* tombol utama menyala seperti lilin */
+:root[data-theme="halloween"] .aivy-btn-primary{
+  background: linear-gradient(180deg, #FFA24A, #FF7A18); color: #1A0A00;
+  box-shadow: 0 0 0 1px rgba(255,170,80,.4), 0 6px 22px rgba(255,122,24,.32);
+}
+:root[data-theme="halloween"] .aivy-btn-primary:hover{ filter: brightness(1.08); }
+:root[data-theme="halloween"] .aivy-nav-item.active{ box-shadow: inset 2px 0 0 var(--accent); }
+
+/* loader labu */
+:root[data-theme="halloween"] .aivy-pumpkin-loader img{ animation: aivy-pumpkin-bob 1.2s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(255,122,24,.55)); }
+@keyframes aivy-pumpkin-bob{ 0%,100%{ transform: translateY(0) rotate(-5deg) scale(.96); } 50%{ transform: translateY(-6px) rotate(5deg) scale(1.04); } }
+
+/* kelelawar terbang melintas */
+:root[data-theme="halloween"] body::after{
+  content: ""; position: fixed; top: 9vh; left: -90px; width: 56px; height: 56px; pointer-events: none; z-index: 3;
+  background: url("/halloween/decor/bat.png") center / contain no-repeat; opacity: .55;
+  filter: brightness(.35) drop-shadow(0 0 6px rgba(155,93,229,.6));
+  animation: aivy-bat-fly 26s linear infinite;
+}
+@keyframes aivy-bat-fly{
+  0%{ transform: translate(0,0) rotate(8deg); }
+  25%{ transform: translate(30vw,-3vh) rotate(-6deg); }
+  50%{ transform: translate(62vw,5vh) rotate(8deg); }
+  75%{ transform: translate(90vw,-2vh) rotate(-6deg); }
+  100%{ transform: translate(calc(100vw + 160px),4vh) rotate(8deg); }
+}
+@media (max-width: 640px){ :root[data-theme="halloween"] body::after{ width: 40px; height: 40px; } }
+:root[data-reduced-motion="true"][data-theme="halloween"] body::after{ display: none; }
+@media (prefers-reduced-motion: reduce){ :root[data-theme="halloween"] body::after{ display: none; } }
+
+/* halaman login / landing */
+:root[data-theme="halloween"] .cx-stage{
+  --cx-bg: #0A0510; --cx-ink: #FBEFE0; --cx-ink-dim: rgba(251,239,224,.62);
+  --cx-line: rgba(255,170,90,.28); --cx-line-soft: rgba(255,170,90,.14);
+  background: #0A0510 url("/halloween/bg/hero-sm.jpg") center bottom / cover no-repeat;
+}
+@media (min-width: 1100px){
+  :root[data-theme="halloween"] .cx-stage{ background-image: url("/halloween/bg/hero.jpg"); }
+}
+:root[data-theme="halloween"] .cx-frame{ background: transparent; }
+:root[data-theme="halloween"] .cx-stage::before{ content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(10,5,16,.10), rgba(10,5,16,.55)); }
+:root[data-theme="halloween"] .cx-stage{ position: relative; }
+:root[data-theme="halloween"] .cx-frame{ z-index: 1; }
+:root[data-theme="halloween"] .cx-glyph{
+  background: url("/halloween/logo-mark.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 28px rgba(255,122,24,.45));
+  animation: aivy-pumpkin-bob 3.6s ease-in-out infinite;
+}
+:root[data-theme="halloween"] .cx-glyph *{ display: none; }
+:root[data-theme="halloween"] .cx-wordmark{
+  font-family: var(--font-creepy); font-weight: 400; font-size: 52px; letter-spacing: .05em; color: #FF9A3D;
+  text-shadow: 0 3px 0 #000, 0 0 22px rgba(255,122,24,.5);
+}
+@media (min-width: 1100px){ :root[data-theme="halloween"] .cx-wordmark{ font-size: 46px; } }
+:root[data-theme="halloween"] .cx-eq i{ background: linear-gradient(to top, rgba(255,122,24,.28), rgba(255,122,24,.02)); }
