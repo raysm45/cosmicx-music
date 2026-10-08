@@ -1226,7 +1226,7 @@ body.aivy-artist-immersive .aivy-topbar.scrolled{
 body.aivy-artist-immersive .aivy-sidebar{
   background:
     linear-gradient(180deg, color-mix(in srgb, #fff 7%, transparent) 0%, transparent 22%),
-    color-mix(in srgb, var(--artist-bg, hsl(230 30% 15%)) 72%, transparent);
+    color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 72%, transparent);
 
   border-right: 1px solid color-mix(in srgb, #fff 10%, transparent);
 
@@ -1236,14 +1236,14 @@ body.aivy-artist-immersive .aivy-rightpanel,
 body.aivy-artist-immersive .aivy-rightpanel-rail{
   background:
     linear-gradient(180deg, color-mix(in srgb, #fff 7%, transparent) 0%, transparent 22%),
-    color-mix(in srgb, var(--artist-bg, hsl(230 30% 15%)) 72%, transparent);
+    color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 72%, transparent);
 
   border-left: 1px solid color-mix(in srgb, #fff 10%, transparent);
 
   z-index: 3;
 }
 body.aivy-artist-immersive .aivy-player{
-  background: color-mix(in srgb, var(--artist-bg, hsl(230 30% 15%)) 78%, transparent);
+  background: color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 78%, transparent);
 }
 .aivy-am-page.is-cover-page{ --am-hero-h: min(54vh, 460px); }
 .aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center 30%; }
@@ -3110,7 +3110,7 @@ body.aivy-artist-immersive .aivy-rightpanel,
 body.aivy-artist-immersive .aivy-rightpanel-rail{
   background:
     linear-gradient(180deg, color-mix(in srgb, #fff 7%, transparent) 0%, transparent 22%),
-    color-mix(in srgb, var(--artist-bg, hsl(230 30% 15%)) 90%, transparent);
+    color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 90%, transparent);
 }
 .aivy-hoverrail-btn{ background: color-mix(in srgb, var(--bg-elev) 88%, transparent); }
 .aivy-am-page .aivy-hoverrail-btn{ background: color-mix(in srgb, var(--am-bg) 85%, transparent); }
@@ -3484,3 +3484,19 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 
 /* Logo normal di sidebar: wordmark pakai font desain baru (event tetap font Halloween) */
 .aivy-brand .word{ font-family:'Outfit',var(--font-display),sans-serif; font-weight:600; letter-spacing:-.02em; }
+
+/* Album & playlist: warna mengikuti tema (tidak dari thumbnail); tema terang butuh teks gelap */
+:root[data-theme="white"] .aivy-am-page, :root[data-theme="latte"] .aivy-am-page, :root[data-theme="salmon"] .aivy-am-page, :root[data-theme="premium"] .aivy-am-page{
+  --am-dim: color-mix(in srgb, var(--ink) 62%, transparent);
+  --am-line: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+:root[data-theme="white"] .aivy-am-page .aivy-am-name, :root[data-theme="latte"] .aivy-am-page .aivy-am-name, :root[data-theme="salmon"] .aivy-am-page .aivy-am-name, :root[data-theme="premium"] .aivy-am-page .aivy-am-name, :root[data-theme="white"] .aivy-am-page .aivy-am-sub .is-link, :root[data-theme="latte"] .aivy-am-page .aivy-am-sub .is-link, :root[data-theme="salmon"] .aivy-am-page .aivy-am-sub .is-link, :root[data-theme="premium"] .aivy-am-page .aivy-am-sub .is-link{ color: var(--ink); text-shadow: none; }
+:root[data-theme="white"] .aivy-am-page .aivy-am-kicker, :root[data-theme="latte"] .aivy-am-page .aivy-am-kicker, :root[data-theme="salmon"] .aivy-am-page .aivy-am-kicker, :root[data-theme="premium"] .aivy-am-page .aivy-am-kicker{ color: color-mix(in srgb, var(--ink) 72%, transparent); }
+:root[data-theme="white"] .aivy-am-page .aivy-am-sub, :root[data-theme="latte"] .aivy-am-page .aivy-am-sub, :root[data-theme="salmon"] .aivy-am-page .aivy-am-sub, :root[data-theme="premium"] .aivy-am-page .aivy-am-sub{ color: color-mix(in srgb, var(--ink) 70%, transparent); }
+:root[data-theme="white"] .aivy-am-page .aivy-am-ghost, :root[data-theme="latte"] .aivy-am-page .aivy-am-ghost, :root[data-theme="salmon"] .aivy-am-page .aivy-am-ghost, :root[data-theme="premium"] .aivy-am-page .aivy-am-ghost{ color: var(--ink); background: rgba(0,0,0,.07); border-color: rgba(0,0,0,.10); }
+:root[data-theme="white"] .aivy-am-page .aivy-am-ghost:hover, :root[data-theme="latte"] .aivy-am-page .aivy-am-ghost:hover, :root[data-theme="salmon"] .aivy-am-page .aivy-am-ghost:hover, :root[data-theme="premium"] .aivy-am-page .aivy-am-ghost:hover{ background: rgba(0,0,0,.14); }
+:root[data-theme="white"] .aivy-am-page .aivy-am-ghost.active, :root[data-theme="latte"] .aivy-am-page .aivy-am-ghost.active, :root[data-theme="salmon"] .aivy-am-page .aivy-am-ghost.active, :root[data-theme="premium"] .aivy-am-page .aivy-am-ghost.active{ background: var(--am-accent); color: var(--am-accent-ink); border-color: transparent; }
+:root[data-theme="white"] .aivy-am-body.is-tracklist, :root[data-theme="latte"] .aivy-am-body.is-tracklist, :root[data-theme="salmon"] .aivy-am-body.is-tracklist, :root[data-theme="premium"] .aivy-am-body.is-tracklist{
+  --ink: unset; --ink-dim: unset; --ink-faint: unset; --line: unset; --line-soft: unset;
+  --bg-elev: unset; --bg-elev-2: unset; --bg-elev-3: unset;
+}

@@ -4,7 +4,7 @@ import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
 import { TrackRow, ViewNotFound, ViewLoading, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur, shareLink } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
-import { NEUTRAL_TINT, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
+import { useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 import { Api } from "../lib/api.js";
 
 function normalizeLikedRows(rows) {
@@ -591,7 +591,7 @@ export function PlaylistPage() {
 
   const isOwner = !!authUser && String(authUser.id) === String(pl?.user_id);
   const cover = pl?.cover_thumbnail ?? pl?.songs?.[0]?.cover ?? null;
-  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!pl, tint: NEUTRAL_TINT });
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!pl, tint: null });
 
   if (!pl) {
     if (remoteLoading) return <div className="aivy-am-fallback"><ViewLoading /></div>;

@@ -61,11 +61,6 @@ export function tintFromHsl(h, satPct) {
   };
 }
 const FALLBACK_TINT = tintFromHsl(230, 30);
-export const NEUTRAL_TINT = {
-  bg: "hsl(0 0% 9%)",
-  accent: "hsl(0 0% 100%)",
-  accentInk: "hsl(0 0% 6%)",
-};
 function hexToRgb(hex) {
   const m = String(hex || "").trim().replace("#", "");
   if (!/^[0-9a-fA-F]{6}$/.test(m)) return null;
