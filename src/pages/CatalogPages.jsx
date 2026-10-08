@@ -6,7 +6,7 @@ import { useRouter } from "../router.jsx";
 import { TrackRow, ViewNotFound, SkeletonHeroPage, filterExplicit, FlipList, shuffleArray, useTrackMenuItems, HoverRail, MusicVideoView, MarqueeText } from "../components.jsx";
 import { SmartCover, AnimatedCover } from "../lib/brand.jsx";
 import { setSeo, SITE_URL } from "../lib/seo.js";
-import { useArtworkTint, tintFromHex, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
+import { useArtworkTint, tintFromHex, NEUTRAL_TINT, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 
 const TOP_SONGS_PREVIEW = 15;
 
@@ -513,8 +513,7 @@ export function AlbumPage() {
     setDisplayTracks(localShuffle ? shuffleArray(albumTracks) : albumTracks);
   }, [albumTracks, localShuffle]);
 
-  const tint = useArtworkTint(album?.cover || null);
-  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!album, tint });
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!album, tint: NEUTRAL_TINT });
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   if (loading) return <div className="aivy-am-fallback"><SkeletonHeroPage rows={7} /></div>;
