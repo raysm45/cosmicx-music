@@ -22,7 +22,6 @@ import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
 import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
-import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
 export function resolveAvatarUrl(user) {
   if (!user) return null;
   const raw = user.avatarUrl || user.avatar_url || user.picture || user.photo || user.photoUrl
@@ -102,7 +101,7 @@ function usePanelResize({ width, setWidth, min, max, side }) {
   return { onDragStart, isDragging };
 }
 
-function useVerticalSwipe({ active, direction = "down", onTrigger, dragRef, scrollRef, threshold = 90, velocityThreshold = 0.45, moveSelf = true, onDragStart, onDragMove, onDragEnd }) {
+function useVerticalSwipe({ active, direction = "down", onTrigger, dragRef, scrollRef, threshold = 90, velocityThreshold = 0.45 }) {
   const stRef = useRef({ pointerId: null, dragging: false, startY: 0, startTime: 0, dragStartTime: 0, delta: 0, blocked: false });
 
   const reset = () => { stRef.current = { pointerId: null, dragging: false, startY: 0, startTime: 0, dragStartTime: 0, delta: 0, blocked: false }; };
@@ -124,29 +123,25 @@ function useVerticalSwipe({ active, direction = "down", onTrigger, dragRef, scro
       if (signed < 0) { reset(); return; }
       st.dragging = true;
       st.dragStartTime = Date.now();
-      if (moveSelf && dragRef?.current) {
+      if (dragRef?.current) {
         dragRef.current.style.transition = "none";
         dragRef.current.style.willChange = "transform";
       }
-      onDragStart?.();
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
     }
     if (st.dragging) { try { e.preventDefault(); } catch {} }
     st.delta = Math.max(0, signed);
-    if (moveSelf && dragRef?.current) {
+    if (dragRef?.current) {
       const px = direction === "down" ? st.delta : -st.delta;
-      dragRef.current.style.transform = `translate3d(0, ${px}px, 0)`;
+      dragRef.current.style.transform = `translateY(${px}px)`;
     }
-    onDragMove?.(st.delta);
-  }, [direction, dragRef, moveSelf, onDragStart, onDragMove]);
+  }, [direction, dragRef]);
 
   const finish = useCallback((commit) => {
-    const wasDragging = stRef.current.dragging;
-    if (moveSelf && dragRef?.current) { dragRef.current.style.transition = ""; dragRef.current.style.transform = ""; dragRef.current.style.willChange = ""; }
-    if (wasDragging) onDragEnd?.(commit);
+    if (dragRef?.current) { dragRef.current.style.transition = ""; dragRef.current.style.transform = ""; dragRef.current.style.willChange = ""; }
     if (commit) onTrigger();
     reset();
-  }, [dragRef, onTrigger, moveSelf, onDragEnd]);
+  }, [dragRef, onTrigger]);
 
   const onPointerUp = useCallback((e) => {
     const st = stRef.current;
@@ -886,24 +881,13 @@ export function MarqueeText({ text, className = "", as: Tag = "span", prefix = n
       if (over) setDuration(Math.max(6, (seg.scrollWidth + gap) / pxPerSecond));
     };
     measure();
-    let raf = 0;
-    let lastW = -1;
-    const schedule = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; measure(); });
-    };
     let ro;
     if (typeof ResizeObserver !== "undefined" && wrapRef.current) {
-      ro = new ResizeObserver((entries) => {
-        const w = Math.round(entries[0]?.contentRect?.width ?? -1);
-        if (w === lastW) return;
-        lastW = w;
-        schedule();
-      });
+      ro = new ResizeObserver(measure);
       ro.observe(wrapRef.current);
     }
-    window.addEventListener("resize", schedule);
-    return () => { if (raf) cancelAnimationFrame(raf); ro && ro.disconnect(); window.removeEventListener("resize", schedule); };
+    window.addEventListener("resize", measure);
+    return () => { ro && ro.disconnect(); window.removeEventListener("resize", measure); };
   }, [text, gap, pxPerSecond]);
 
   const animate = isMobile && overflow;
@@ -1265,34 +1249,21 @@ export function MiniPlayer({ onExpand }) {
     ringCleanupRef.current?.();
     ringCleanupRef.current = el ? registerProgressEl(el, "ring") : null;
   }, [registerProgressEl]);
-  const justDragged = useRef(false);
   const handleExpand = () => onExpand?.();
-  const handleClick = () => { if (justDragged.current) return; handleExpand(); };
-  const handleDragEnd = useCallback(() => {
-    justDragged.current = true;
-    setTimeout(() => { justDragged.current = false; }, 120);
-    sheetPeekEnd();
-  }, []);
-  const swipe = useVerticalSwipe({
-    active: !!currentTrack, direction: "up", onTrigger: handleExpand, dragRef: miniRef,
-    threshold: 64, velocityThreshold: 0.35, moveSelf: false,
-    onDragStart: sheetPeekStart, onDragMove: sheetPeekMove, onDragEnd: handleDragEnd,
-  });
+  const swipe = useVerticalSwipe({ active: !!currentTrack, direction: "up", onTrigger: handleExpand, dragRef: miniRef, threshold: 36, velocityThreshold: 0.35 });
   if (!currentTrack) return null;
   return (
     <div
-      className={`aivy-mini-player ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleClick} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
+      className={`aivy-mini-player ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleExpand} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
       onPointerDown={swipe.onPointerDown} onPointerMove={swipe.onPointerMove} onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
     >
       <GlassLayers />
-      <span key={`c-${currentTrack.id}`} className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
+      <span className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
         <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={40} radius={settings.noRoundCover ? 0 : 6} />
       </span>
-      <div key={`m-${currentTrack.id}`} className="meta"><MarqueeText as="span" className="t" text={currentTrack.title} /><span className="a">{currentTrack.artist?.name}</span></div>
+      <div className="meta"><MarqueeText as="span" className="t" text={currentTrack.title} /><span className="a">{currentTrack.artist?.name}</span></div>
       <button className="aivy-icon-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? t("pause") : t("play")}>
-        <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
-          {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" />}
-        </span>
+        {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" />}
       </button>
       <button
         className={`aivy-icon-btn skip-next ${pulsing ? "is-pulsing" : ""}`}
@@ -1748,8 +1719,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const metaRef = useRef(null);
   const controlsRef = useRef(null);
   const sheetRef = useRef(null);
-  const backdropRef = useRef(null);
-  useEffect(() => registerNowPlayingSheet(sheetRef.current, backdropRef.current), []);
   const flipTargets = useRef([
     { ref: coverRef },
     { ref: metaRef, uniform: true },
@@ -1843,7 +1812,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
 
   return (
     <>
-      <div ref={backdropRef} className={`aivy-sheet-backdrop ${open ? "open" : ""}`} onClick={handleGrabberTap} />
+      <div className={`aivy-sheet-backdrop ${open ? "open" : ""}`} onClick={handleGrabberTap} />
       <div ref={sheetRef} className={`aivy-sheet ${open ? "open" : ""} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""}`} aria-hidden={!open}>
         {currentTrack && settings.coverBackground !== false && (
           <div
@@ -3335,8 +3304,6 @@ const LiquidGlassDefs = React.memo(function LiquidGlassDefs() {
     </svg>
   );
 });
-// harus >= transisi terlama dock (durasi 520ms + delay terbesar 90ms) + sedikit margin
-const DOCK_MORPH_MS = 680;
 function useDockCollapse(routeName, enabled) {
   const [collapsed, setCollapsed] = useState(false);
   const stateRef = useRef(false);
@@ -3414,22 +3381,17 @@ export function MobileDock({ onExpandPlayer }) {
   }, [regen]);
   const [morphing, setMorphing] = useState(false);
   const firstRun = useRef(true);
-  const regenRef = useRef(regen);
-  regenRef.current = regen;
-  // useLayoutEffect: kelas is-morphing (filter SVG mati + will-change) terpasang SEBELUM frame pertama transisi,
-  // bukan 1 frame sesudahnya, jadi tidak ada lonjakan raster di awal animasi.
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return undefined; }
     setMorphing(true);
     let raf = 0;
-    const id = setTimeout(() => { regenRef.current(); raf = requestAnimationFrame(() => setMorphing(false)); }, DOCK_MORPH_MS);
+    const id = setTimeout(() => { regen(); raf = requestAnimationFrame(() => setMorphing(false)); }, 470);
     return () => { clearTimeout(id); if (raf) cancelAnimationFrame(raf); };
-  }, [collapsed]);
+  }, [collapsed, regen]);
 
   const items = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
   const searchItem = items.find((i) => i.route === "search");
   const tabItems = items.filter((i) => i.route !== "search");
-  const activeTabIdx = tabItems.findIndex((i) => i.route === name);
   const shownRoute = tabItems.some((i) => i.route === name) ? name : tabItems[0]?.route;
   const SearchIcon = searchItem?.icon;
   const onNavClickCapture = (e) => {
@@ -3450,13 +3412,8 @@ export function MobileDock({ onExpandPlayer }) {
         <div className="aivy-dock-slot slot-mini"><MiniPlayer onExpand={onExpandPlayer} /></div>
       )}
       <div className="aivy-dock-slot slot-tabs">
-        <nav
-          className="aivy-tabbar" onClickCapture={onNavClickCapture}
-          data-lens={activeTabIdx >= 0 ? "on" : "off"}
-          style={{ "--n": Math.max(1, tabItems.length), "--i": Math.max(0, activeTabIdx) }}
-        >
+        <nav className="aivy-tabbar" onClickCapture={onNavClickCapture}>
           <GlassLayers />
-          <span className="aivy-tab-lens" aria-hidden="true" />
           {tabItems.map(({ route, labelKey, icon: Icon }) => (
             <Link
               key={route} to={route}

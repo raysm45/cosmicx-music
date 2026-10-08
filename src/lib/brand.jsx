@@ -44,12 +44,12 @@ export const STAR_PATH =
 export function StarMark({ size = 22, color = "currentColor", className = "", logo = false }) {
   const halloween = useIsHalloween();
   if (halloween) {
-    // logo=true -> labu logo utama; selain itu hantu kecil untuk empty state
-    const src = logo ? `${HALLOWEEN_BASE}/logo-mark-96.png` : `${HALLOWEEN_BASE}/decor/ghost.png`;
-    const px = logo ? Math.round(size * 1.25) : size;
+    // bintang Halloween (bentuk logo asli, bergaya labu); logo=true -> penuh, selain itu redup untuk empty state
+    const src = logo ? `${HALLOWEEN_BASE}/logo-mark-96.png` : `${HALLOWEEN_BASE}/decor/star.png`;
+    const px = logo ? Math.round(size * 1.2) : size;
     return (
       <img src={src} width={px} height={px} alt="" aria-hidden="true" draggable="false" className={className}
-        style={{ display: "block", objectFit: "contain", opacity: logo ? 1 : 0.7, flexShrink: 0 }} />
+        style={{ display: "block", objectFit: "contain", opacity: logo ? 1 : 0.55, flexShrink: 0 }} />
     );
   }
   return (
@@ -72,7 +72,7 @@ export function StarLoader({ size = 48, color = "var(--accent-strong)", label })
   if (halloween) {
     return (
       <div className="aivy-starloader aivy-pumpkin-loader" style={{ width: size, height: size }} role="status" aria-label={label || "Memuat"}>
-        <img src={`${HALLOWEEN_BASE}/decor/pumpkin.png`} width={size} height={size} alt="" draggable="false" style={{ display: "block", objectFit: "contain" }} />
+        <img src={`${HALLOWEEN_BASE}/decor/star.png`} width={size} height={size} alt="" draggable="false" style={{ display: "block", objectFit: "contain" }} />
       </div>
     );
   }
