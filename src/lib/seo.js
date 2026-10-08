@@ -5,6 +5,7 @@ export const SITE_NAME = "cosmicx Music";
 export const DEFAULT_TITLE = "cosmicx Music - Web Player: Musik untuk semua orang";
 export const DEFAULT_DESC = "cosmicx Music adalah layanan musik digital yang memberi kamu akses ke lagu, album, dan playlist dari artis di seluruh dunia.";
 export const DEFAULT_IMAGE = SITE_URL + "/og-image.png";
+export const DONATION_IMAGE = SITE_URL + "/og-donation.png";
 
 export const seoState = { playing: false, title: "" };
 
@@ -59,6 +60,7 @@ const ROUTE_SEO = {
   newTrending:    { title: "Lagu Terbaru & Trending | cosmicx Music", description: "Dengarkan lagu-lagu terbaru dan yang sedang trending di cosmicx Music.", path: "/beranda/terbaru" },
   editorsPicks:   { title: "Pilihan Editor | cosmicx Music", description: "Kurasi lagu dan album pilihan editor cosmicx Music.", path: "/beranda/kurasi" },
   bestAlbums:     { title: "Album Terbaik | cosmicx Music", description: "Daftar album terbaik yang wajib kamu dengarkan di cosmicx Music.", path: "/beranda/album-terbaik" },
+  donate:         { title: "Donasi | cosmicx Music", description: "Dukung cosmicx Music agar musiknya tetap hidup: kualitas lebih baik, server tetap jalan, fitur terus bertambah.", path: "/donasi", image: DONATION_IMAGE },
   login:          { title: "Masuk | cosmicx Music", ...PRIVATE },
   search:         { title: "Cari | cosmicx Music", ...PRIVATE },
   library:        { title: "Koleksi Kamu | cosmicx Music", ...PRIVATE },

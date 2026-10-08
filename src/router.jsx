@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 const ROUTES = [
   ["landing", "/"],
   ["login", "/login"],
+  ["donate", "/donasi"],
   ["home", "/beranda"],
   ["newTrending", "/beranda/terbaru"],
   ["editorsPicks", "/beranda/kurasi"],

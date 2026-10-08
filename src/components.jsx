@@ -3265,13 +3265,12 @@ export function Sidebar() {
           {playlists.map((pl) => <Link key={pl.id} to="playlist" params={{ id: pl.id }} className="aivy-playlist-row"><Library size={15} /><span>{pl.name}</span></Link>)}
         </div>
       </div>
-      {showAnySideLinks && (
-        <div className="aivy-side-links">
+      <div className="aivy-side-links">
+          <Link to="donate" className="aivy-side-link"><Heart size={13} /> {settings.language === "en" ? "Donate" : "Donasi"}</Link>
           {settings.showSideAbout && <a href="/about" className="aivy-side-link"><Info size={13} /> {t("language") === "en" ? "About" : "Tentang"}</a>}
           {settings.showSideDiscord && <a href="https://discord.gg/" target="_blank" rel="noreferrer" className="aivy-side-link"><Users size={13} /> Discord</a>}
           {settings.showSideGithub && <a href="https://github.com/" target="_blank" rel="noreferrer" className="aivy-side-link"><Github size={13} /> GitHub</a>}
-        </div>
-      )}
+      </div>
       <div className="aivy-side-footer">
         {}
         <Link to="settings" className="aivy-theme-btn"><SettingsIcon size={15} />{t("navSettings")}</Link>

@@ -7,6 +7,7 @@ import { CardTrack, CardAlbum, CardArtist, filterExplicit, useTrackMenuItems, Ho
 import { FeedTabs } from "./FeedPages.jsx";
 import { ExploreFeed } from "./ExploreFeed.jsx";
 import { SmartCover, sizedThumb } from "../lib/brand.jsx";
+import { DonationBanner } from "../DonationBanner.jsx";
 
 import { formatDuration } from "../lib/utils.js";
 
@@ -293,6 +294,10 @@ export function HomePage() {
               <button className="aivy-btn-ghost" onClick={() => navigate("roomLobby")}>{t("joinRoom")}</button>
             </div>
           </div>
+        </section>
+
+        <section className="aivy-section">
+          <DonationBanner />
         </section>
 
         <ExploreFeed />

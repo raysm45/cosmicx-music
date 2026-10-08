@@ -43,6 +43,7 @@ const RoomPage = lazyPage("rooms", "RoomPage");
 const SettingsPage = lazyPage("settings", "SettingsPage");
 const ShortsPage = lazyPage("shorts", "ShortsPage");
 const MaintenancePage = lazyPage("maintenance", "MaintenancePage");
+const DonatePage = lazy(() => import("./pages/DonatePage.jsx").then((m) => ({ default: m.DonatePage })));
 
 function useIsMobile(breakpoint = 860) {
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.matchMedia(`(max-width:${breakpoint}px)`).matches);
@@ -122,6 +123,8 @@ function AppInner() {
     return () => window.removeEventListener("popstate", onPop);
   }, [settings.interceptBackToCloseModals]);
 
+  // Halaman donasi bersifat publik (tanpa login) dan tampil di luar shell aplikasi.
+  if (name === "donate") return <Suspense fallback={<div className="aivy-boot"><ViewLoading /></div>}><DonatePage /></Suspense>;
   if (!authChecked) return <div className="aivy-boot"><ViewLoading /></div>;
   if (name === "landing") return <LandingPage />;
   if (name === "login")
