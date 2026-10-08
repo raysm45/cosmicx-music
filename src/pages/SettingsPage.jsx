@@ -109,7 +109,7 @@ function SliderRow({ label, hint, value, min, max, step, onChange, format }) {
       <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="aivy-range" />
-        <span className="font-mono" style={{ fontSize: 12, width: 52, textAlign: "right", color: "var(--ink-faint)" }}>{format ? format(value) : value}</span>
+        <span className="font-mono" style={{ fontSize: 12, minWidth: 52, textAlign: "right", color: "var(--ink-faint)" }}>{format ? format(value) : value}</span>
       </div>
     </div>
   );
@@ -591,6 +591,10 @@ export function SettingsPage() {
         <SliderRow label={tt("Jarak tilt", "Tilt Distance")} hint={tt("Maksimum kemiringan (default 10)", "Max tilt distance (default: 10)")} value={Number(settings.tiltDistance) || 10} min={1} max={30} step={1} onChange={set("tiltDistance")} />
         <SliderRow label={tt("Kecepatan tilt", "Tilt Speed")} hint="ms" value={Number(settings.tiltSpeed) || 240} min={50} max={600} step={10} onChange={set("tiltSpeed")} format={(v) => `${v}`} />
         <ToggleRow label={tt("Sampul CD berputar", "CD Album Cover")} hint={tt("Sampul berputar seperti CD saat lagu diputar", "Spin the cover like a CD while a song is playing")} checked={!!settings.cdCoverSpin} onChange={set("cdCoverSpin")} />
+        <SliderRow label={tt("Ukuran teks lirik", "Lyrics Text Size")} hint={tt("Dari terkecil sampai terbesar (hanya muat sekitar 3 baris lirik di layar)", "From smallest to largest (only about 3 lyric lines fit on screen)")}
+          value={Math.max(0, ["sm", "md", "lg", "xl", "max"].indexOf(settings.lyricsFontSize || "md"))} min={0} max={4} step={1}
+          onChange={(v) => set("lyricsFontSize")(["sm", "md", "lg", "xl", "max"][v] || "md")}
+          format={(v) => [tt("Kecil", "Small"), tt("Sedang", "Medium"), tt("Besar", "Large"), tt("XL", "XL"), tt("3 baris", "3 lines")][v]} />
         <ToggleRow label={tt("Sampul animasi (Now Playing & Lirik)", "Animated Artwork")} hint={tt("Cari video sampul album animasi (kalau tersedia) di layar Now Playing dan tampilan lirik desktop; sampul statis tetap tampil dulu sampai animasinya siap diputar. Pakai data ekstra.", "Looks up an animated album cover video when available on the Now Playing screen and the desktop lyrics view; the static cover always shows first until the animation is ready to play. Uses extra data.")} checked={!!settings.animatedArtwork} onChange={set("animatedArtwork")} />
       </SettingSection>
 

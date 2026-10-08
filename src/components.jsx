@@ -1908,7 +1908,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                     currentTime={sheetLyricsTime}
                     onSeek={seekTo}
                     highlightColor="#f5f5f5"
-                    fontSize="md"
+                    fontSize={normLyricsFontSize(settings.lyricsFontSize)}
                     suppressBlur={suppressLyricsBlur}
                   />
                   {lyricsUnsynced && (
@@ -3525,16 +3525,24 @@ export function ViewNotFound({ label }) {
   return <div className="aivy-empty" style={{ paddingTop: 90 }}><StarMark size={40} color="var(--ink-faint)" /><div className="title">{label} {t("notFoundLabel")}</div></div>;
 }
 
+export const LYRICS_FONT_ORDER = ["sm", "md", "lg", "xl", "max"];
+export const normLyricsFontSize = (v) => (LYRICS_FONT_ORDER.includes(v) ? v : "md");
+
 const LYRICS_FONT_SIZES = {
   sm: "clamp(15px, 2.8vw, 19px)",
   md: "clamp(19px, 3.6vw, 26px)",
   lg: "clamp(23px, 4.4vw, 32px)",
+  xl: "clamp(27px, 5.2vw, 40px)",
+  max: "clamp(32px, 9vh, 96px)",
 };
 
 const AM_LYRICS_FONT_SIZES = {
   sm: { "--am-lyrics-compact-font-size": "22px", "--lyplus-font-size-base": "26px", "--am-lyrics-wide-font-size": "34px" },
   md: { "--am-lyrics-compact-font-size": "28px", "--lyplus-font-size-base": "34px", "--am-lyrics-wide-font-size": "48px" },
   lg: { "--am-lyrics-compact-font-size": "34px", "--lyplus-font-size-base": "42px", "--am-lyrics-wide-font-size": "58px" },
+  xl: { "--am-lyrics-compact-font-size": "40px", "--lyplus-font-size-base": "52px", "--am-lyrics-wide-font-size": "72px" },
+  // Terbesar: ukuran mengikuti tinggi layar sehingga hanya sekitar 3 baris lirik yang muat
+  max: { "--am-lyrics-compact-font-size": "max(36px, 5.5vh)", "--lyplus-font-size-base": "max(44px, 7.5vh)", "--am-lyrics-wide-font-size": "max(48px, 9vh)" },
 };
 function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur }) {
   const elRef = useRef(null);
@@ -3646,7 +3654,7 @@ function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize,
   }, [onSeek]);
 
   const style = useMemo(() => {
-    const base = AM_LYRICS_FONT_SIZES[fontSize] || AM_LYRICS_FONT_SIZES.md;
+    const base = AM_LYRICS_FONT_SIZES[normLyricsFontSize(fontSize)];
     if (!suppressBlur) return base;
     return { ...base, "--lyplus-blur-amount": "0em", "--lyplus-blur-amount-near": "0em" };
   }, [fontSize, suppressBlur]);
@@ -3766,13 +3774,13 @@ function useIsMobile(breakpoint = 860) {
 }
 
 export function LyricsOverlay() {
-  const { lyricsOpen, closeLyrics, pushToast, t, openMobileQueue, openContextMenu, settings } = useUI();
+  const { lyricsOpen, closeLyrics, pushToast, t, openMobileQueue, openContextMenu, settings, updateSettings } = useUI();
   const {
     currentTrack, seekTo, isPreviewClip, liked, toggleLike, upNext, duration,
   } = usePlayer();
   const currentTime = usePlayerTime();
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const [fontSize, setFontSize] = useState("md");
+  const fontSize = normLyricsFontSize(settings.lyricsFontSize);
   const [shareOpen, setShareOpen] = useState(false);
   const [singMode, setSingMode] = useState(false);
   const [lyricsUnsynced, setLyricsUnsynced] = useState(false);
@@ -3870,7 +3878,7 @@ export function LyricsOverlay() {
   }, [currentTrack, activeLineText, pushToast, t]);
 
   const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime: scrubTime, duration: scrubDuration } = useScrubberBinding();
-  const cycleFontSize = () => setFontSize((s) => (s === "sm" ? "md" : s === "md" ? "lg" : "sm"));
+  const cycleFontSize = () => updateSettings({ lyricsFontSize: LYRICS_FONT_ORDER[(LYRICS_FONT_ORDER.indexOf(fontSize) + 1) % LYRICS_FONT_ORDER.length] });
   const highlightColor = isMobile || !isLightResolved ? "#f5f5f5" : "#141414";
   const lyricsMenuItems = useTrackMenuItems(currentTrack || {});
   const handleLyricsMore = (e) => { if (!currentTrack) return; openContextMenu(e.clientX, e.clientY, lyricsMenuItems); };

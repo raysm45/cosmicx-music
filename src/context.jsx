@@ -191,6 +191,7 @@ const DEFAULT_SETTINGS = {
   interceptBackToCloseModals: false,
   nowPlayingView: "album",
   fullscreenCoverClick: "exit",
+  lyricsFontSize: "md",
 
   notifyRoomInvite: true,
   autoJoinRoomAudio: true,
