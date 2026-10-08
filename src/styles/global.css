@@ -2749,9 +2749,10 @@ body.aivy-artist-immersive .aivy-player{
   --dock-spring: cubic-bezier(.34,1.32,.64,1);
   --dock-dur: 520ms;
   --dock-y-dur: 520ms;
-  --dock-x-dur: 520ms;
-  --dock-x-delay: 0ms;
-  --dock-y-delay: 90ms;
+  --dock-y-ease: cubic-bezier(.4,0,.1,1);
+  --dock-sq-dur: 200ms;
+  --dock-grow-dur: 380ms;
+  --dock-grow-delay: 140ms;
   --sheet-ease: cubic-bezier(.32,.72,0,1);
   --sheet-dur: 480ms;
   --sheet-dur-out: 380ms;
@@ -2800,20 +2801,22 @@ body.aivy-artist-immersive .aivy-player{
   transform: translate3d(0, 0, 0);
   will-change: transform, translate;
   backface-visibility: hidden;
+  /* expand: naik lurus ke atas dulu, melebar belakangan */
   transition:
-    transform var(--dock-x-dur) var(--dock-ease) 0ms,
-    width var(--dock-x-dur) var(--dock-ease) 0ms,
-    translate var(--dock-y-dur) var(--dock-ease) 0ms;
+    transform var(--dock-grow-dur) var(--dock-ease) var(--dock-grow-delay),
+    width var(--dock-grow-dur) var(--dock-ease) var(--dock-grow-delay),
+    translate var(--dock-y-dur) var(--dock-y-ease) 0ms;
 }
 .aivy-dock.is-collapsed .slot-tabs{ width: var(--dock-h); }
 .aivy-dock.is-collapsed .slot-mini{
   width: calc(100% - (1 + var(--dock-search)) * (var(--dock-h) + var(--dock-gap)));
   translate: 0 0;
   transform: translate3d(calc(var(--dock-h) + var(--dock-gap)), 0, 0);
+  /* collapse: langsung turun lurus; menyempit sangat cepat di awal (selesai sebelum turunnya berarti) */
   transition:
-    translate var(--dock-y-dur) var(--dock-ease) var(--dock-y-delay),
-    transform var(--dock-x-dur) var(--dock-ease) var(--dock-x-delay),
-    width var(--dock-x-dur) var(--dock-ease) var(--dock-x-delay);
+    translate var(--dock-y-dur) var(--dock-y-ease) 0ms,
+    transform var(--dock-sq-dur) var(--dock-ease) 0ms,
+    width var(--dock-sq-dur) var(--dock-ease) 0ms;
 }
 .aivy-dock .aivy-tabbar,
 .aivy-dock .aivy-mini-player,
@@ -2928,17 +2931,17 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-dock .aivy-mini-player .meta{ justify-content: center; }
 .aivy-dock .aivy-mini-player .meta .a{
   color: color-mix(in srgb, var(--ink) 60%, transparent);
-  max-height: 16px; transition: max-height var(--dock-dur) var(--dock-ease), opacity 220ms var(--ease);
+  max-height: 16px; transition: max-height var(--dock-grow-dur) var(--dock-ease) var(--dock-grow-delay), opacity 220ms var(--ease) var(--dock-grow-delay);
 }
 .aivy-dock .aivy-mini-player .aivy-icon-btn{ border-radius: 50%; color: var(--ink); }
 .aivy-dock .aivy-mini-player .aivy-icon-btn:active{ background: rgba(255,255,255,.16); }
 .aivy-dock .aivy-mini-player .skip-next{
   overflow: hidden;
-  transition: width var(--dock-dur) var(--dock-ease), margin var(--dock-dur) var(--dock-ease), opacity 240ms var(--ease), transform var(--dock-dur) var(--dock-ease);
+  transition: width var(--dock-grow-dur) var(--dock-ease) var(--dock-grow-delay), margin var(--dock-grow-dur) var(--dock-ease) var(--dock-grow-delay), opacity 240ms var(--ease) var(--dock-grow-delay), transform var(--dock-grow-dur) var(--dock-ease) var(--dock-grow-delay);
 }
 .aivy-dock.is-collapsed .aivy-mini-player .meta .a{ max-height: 0; opacity: 0; }
 .aivy-dock.is-collapsed .aivy-mini-player .meta .a,
-.aivy-dock.is-collapsed .aivy-mini-player .skip-next{ transition-delay: var(--dock-x-delay); }
+.aivy-dock.is-collapsed .aivy-mini-player .skip-next{ transition-duration: var(--dock-sq-dur); transition-delay: 0ms; }
 .aivy-dock.is-collapsed .aivy-mini-player .skip-next{ width: 0; margin-left: -10px; opacity: 0; transform: scale(.5); pointer-events: none; }
 .aivy-mini-player .mini-ring{ position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 0; }
 .aivy-mini-player .mini-ring rect{ fill: none; stroke-width: 4; }
