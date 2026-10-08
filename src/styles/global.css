@@ -154,8 +154,8 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-avatar{ overflow: hidden; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-elev-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--ink-dim); border: 1px solid var(--line); }
 
 .aivy-main{ grid-area: main; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; }
-.aivy-topbar{ display: flex; align-items: center; gap: 10px; padding: 12px 28px; flex-shrink: 0; border-bottom: 1px solid transparent; }
-.aivy-topbar.scrolled{ border-bottom-color: var(--line); background: color-mix(in srgb, var(--bg) 92%, transparent); }
+.aivy-topbar{ display: flex; align-items: center; gap: 10px; padding: 12px 28px; flex-shrink: 0; border-bottom: 1px solid transparent; background-color: color-mix(in srgb, var(--bg) 0%, transparent); transition: border-color 260ms var(--ease), background-color 260ms var(--ease); }
+.aivy-topbar.scrolled{ border-bottom-color: var(--line); background-color: color-mix(in srgb, var(--bg) 92%, transparent); }
 .aivy-topbar .navbtns{ display: flex; gap: 6px; }
 .aivy-navbtn{ width: 30px; height: 30px; border-radius: 50%; background: var(--bg-elev); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink-dim); }
 .aivy-navbtn:hover{ color: var(--ink); }
@@ -645,11 +645,11 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-tab{ flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--ink-faint); font-size: 10.5px; font-weight: 600; min-width: 0; }
 .aivy-tab.active{ color: var(--accent-strong); }
 
-.aivy-sheet-backdrop{ position: fixed; inset: 0; background: rgba(0,0,0,.44); z-index: 60; opacity: 0; transition: opacity var(--dur-base) var(--ease); pointer-events: none; will-change: opacity; }
-.aivy-sheet-backdrop.open{ opacity: 1; pointer-events: auto; }
+.aivy-sheet-backdrop{ position: fixed; inset: 0; background: rgba(0,0,0,.44); z-index: 60; opacity: 0; transition: opacity var(--sheet-dur-out) var(--sheet-ease); pointer-events: none; will-change: opacity; }
+.aivy-sheet-backdrop.open{ opacity: 1; pointer-events: auto; transition-duration: var(--sheet-dur); }
 .aivy-sheet-backdrop.over-sheet{ z-index: 62; }
-.aivy-sheet{ position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; height: 100dvh; background: #0b0b0b; display: flex; flex-direction: column; transform: translateY(100%) translateZ(0); backface-visibility: hidden; contain: layout paint; transition: transform var(--dur-slow) var(--ease); box-shadow: var(--shadow-sheet); overflow: hidden; will-change: transform; --sheet-ink: #f5f5f5; --sheet-ink-dim: rgba(245,245,245,.66); --sheet-ink-faint: rgba(245,245,245,.42); --sheet-line: rgba(255,255,255,.14); --sheet-elev: rgba(255,255,255,.08); }
-.aivy-sheet.open{ transform: translateY(0) translateZ(0); }
+.aivy-sheet{ position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; height: 100dvh; background: #0b0b0b; display: flex; flex-direction: column; transform: translateY(100%) translateZ(0); backface-visibility: hidden; contain: layout paint; transition: transform var(--sheet-dur-out) var(--sheet-ease); box-shadow: var(--shadow-sheet); overflow: hidden; will-change: transform; --sheet-ink: #f5f5f5; --sheet-ink-dim: rgba(245,245,245,.66); --sheet-ink-faint: rgba(245,245,245,.42); --sheet-line: rgba(255,255,255,.14); --sheet-elev: rgba(255,255,255,.08); }
+.aivy-sheet.open{ transform: translateY(0) translateZ(0); transition-duration: var(--sheet-dur); }
 .aivy-sheet.aivy-queue-sheet{ background: var(--bg); --sheet-ink: var(--ink); --sheet-ink-dim: var(--ink-dim); --sheet-ink-faint: var(--ink-faint); --sheet-line: var(--line); --sheet-elev: var(--bg-elev-2); }
 .aivy-sheet-bg{
   position: absolute; inset: 35%; z-index: 0; background-size: cover; background-position: center;
@@ -2745,12 +2745,16 @@ body.aivy-artist-immersive .aivy-player{
   --dock-h: 58px;
   --dock-gap: 8px;
   --dock-bottom: 10px;
-  --dock-ease: cubic-bezier(.32,.72,0,1);
-  --dock-dur: 420ms;
-  --dock-y-dur: 230ms;
-  --dock-x-dur: 250ms;
-  --dock-x-delay: 170ms;
-  --dock-y-delay: 170ms;
+  --dock-ease: cubic-bezier(.22,1,.36,1);
+  --dock-spring: cubic-bezier(.34,1.32,.64,1);
+  --dock-dur: 520ms;
+  --dock-y-dur: 520ms;
+  --dock-x-dur: 520ms;
+  --dock-x-delay: 0ms;
+  --dock-y-delay: 90ms;
+  --sheet-ease: cubic-bezier(.32,.72,0,1);
+  --sheet-dur: 480ms;
+  --sheet-dur-out: 380ms;
   --lg-blur: 6px;
   --lg-sat: 140%;
   --lg-tint: rgba(14,14,14,.16);
@@ -2794,20 +2798,20 @@ body.aivy-artist-immersive .aivy-player{
   left: 0; width: 100%;
   translate: 0 calc(-1 * (var(--dock-h) + var(--dock-gap)));
   transform: translate3d(0, 0, 0);
+  will-change: transform, translate;
+  backface-visibility: hidden;
   transition:
     transform var(--dock-x-dur) var(--dock-ease) 0ms,
     width var(--dock-x-dur) var(--dock-ease) 0ms,
-    translate var(--dock-y-dur) var(--dock-ease) var(--dock-y-delay);
-  animation: aivy-dock-in 320ms var(--ease) backwards;
+    translate var(--dock-y-dur) var(--dock-ease) 0ms;
 }
-@keyframes aivy-dock-in{ from{ opacity: 0; } to{ opacity: 1; } }
 .aivy-dock.is-collapsed .slot-tabs{ width: var(--dock-h); }
 .aivy-dock.is-collapsed .slot-mini{
   width: calc(100% - (1 + var(--dock-search)) * (var(--dock-h) + var(--dock-gap)));
   translate: 0 0;
   transform: translate3d(calc(var(--dock-h) + var(--dock-gap)), 0, 0);
   transition:
-    translate var(--dock-y-dur) var(--dock-ease) 0ms,
+    translate var(--dock-y-dur) var(--dock-ease) var(--dock-y-delay),
     transform var(--dock-x-dur) var(--dock-ease) var(--dock-x-delay),
     width var(--dock-x-dur) var(--dock-ease) var(--dock-x-delay);
 }
@@ -2870,21 +2874,25 @@ body.aivy-artist-immersive .aivy-player{
   transition: opacity 200ms var(--ease);
 }
 .aivy-dock .aivy-tab:active svg{ transform: translateY(-7px) scale(.92); }
-.aivy-dock .aivy-tab::before{
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
+.aivy-dock .aivy-tab{ z-index: 1; }
+.aivy-dock .aivy-tab-lens{
+  position: absolute; top: 5px; bottom: 5px; left: 5px; z-index: 0;
+  width: calc((100% - 10px) / var(--n, 1));
+  border-radius: 999px; pointer-events: none;
   background: var(--lg-lens);
   box-shadow: inset 0 0 0 1px var(--lg-lens-ring), inset 0 1px 0 rgba(255,255,255,.22);
-  opacity: 0; transform: scale(.9);
-  transition: opacity var(--dur-base) var(--ease), transform var(--dur-slow) var(--dock-ease);
+  transform: translate3d(calc(var(--i, 0) * 100%), 0, 0);
+  will-change: transform;
+  transition: transform 560ms var(--dock-spring), opacity var(--dur-base) var(--ease) 90ms;
 }
+.aivy-dock .aivy-tabbar[data-lens="off"] .aivy-tab-lens{ opacity: 0; transition-delay: 0ms, 0ms; }
+.aivy-dock.is-collapsed .aivy-tab-lens{ opacity: 0; transition: transform 560ms var(--dock-spring), opacity 140ms var(--ease) 0ms; }
 .aivy-dock .aivy-tab.active{ color: var(--accent-strong); }
-.aivy-dock .aivy-tab.active::before{ opacity: 1; transform: scale(1); }
 :root[data-theme="white"] .aivy-dock .aivy-tab.active,
 :root[data-theme="latte"] .aivy-dock .aivy-tab.active, :root[data-theme="salmon"] .aivy-dock .aivy-tab.active{ color: #000; }
 .aivy-dock.is-collapsed .aivy-tab:not(.is-shown){ flex-grow: 0; opacity: 0; pointer-events: none; }
 .aivy-dock.is-collapsed .aivy-tab span{ opacity: 0; }
 .aivy-dock.is-collapsed .aivy-tab svg{ transform: translateY(0); }
-.aivy-dock.is-collapsed .aivy-tab::before{ opacity: 0; }
 .aivy-dock.is-collapsed .aivy-tab.is-shown{ color: var(--accent-strong); }
 .aivy-dock .aivy-dock-search{
   display: flex; align-items: center; justify-content: center;
@@ -2897,9 +2905,24 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-dock .aivy-mini-player{
   display: flex; align-items: center; gap: 10px;
   padding: 0 8px 0 9px; cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease);
+  touch-action: none; -webkit-tap-highlight-color: transparent;
+  transform-origin: 50% 50%;
+  transition: transform 420ms var(--dock-spring);
+  animation: aivy-mini-in 560ms var(--dock-ease) backwards;
 }
-.aivy-dock .aivy-mini-player:active{ transform: scale(.985); }
+.aivy-dock .aivy-mini-player:active{ transform: scale(.975); transition-duration: 140ms; transition-timing-function: var(--ease); }
+@keyframes aivy-mini-in{
+  from{ opacity: 0; transform: translate3d(0, 18px, 0) scale(.94); }
+  to{ opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes aivy-fade-in{ from{ opacity: 0; } to{ opacity: 1; } }
+@keyframes aivy-icon-pop{
+  from{ opacity: 0; transform: scale(.55) rotate(-12deg); }
+  to{ opacity: 1; transform: scale(1) rotate(0); }
+}
+.aivy-mini-player .aivy-mini-cover,
+.aivy-mini-player .meta{ animation: aivy-fade-in 300ms var(--ease) backwards; }
+.aivy-mini-player .aivy-swap-icon{ display: inline-flex; animation: aivy-icon-pop 260ms var(--dock-spring) backwards; }
 .aivy-mini-cover{ border-radius: 14px; box-shadow: 0 0 0 1px rgba(255,255,255,.14); }
 .aivy-mini-cover.no-round{ border-radius: 6px; }
 .aivy-dock .aivy-mini-player .meta{ justify-content: center; }
@@ -2911,12 +2934,12 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-dock .aivy-mini-player .aivy-icon-btn:active{ background: rgba(255,255,255,.16); }
 .aivy-dock .aivy-mini-player .skip-next{
   overflow: hidden;
-  transition: width var(--dock-dur) var(--dock-ease), margin var(--dock-dur) var(--dock-ease), opacity 200ms var(--ease);
+  transition: width var(--dock-dur) var(--dock-ease), margin var(--dock-dur) var(--dock-ease), opacity 240ms var(--ease), transform var(--dock-dur) var(--dock-ease);
 }
 .aivy-dock.is-collapsed .aivy-mini-player .meta .a{ max-height: 0; opacity: 0; }
 .aivy-dock.is-collapsed .aivy-mini-player .meta .a,
 .aivy-dock.is-collapsed .aivy-mini-player .skip-next{ transition-delay: var(--dock-x-delay); }
-.aivy-dock.is-collapsed .aivy-mini-player .skip-next{ width: 0; margin-left: -10px; opacity: 0; pointer-events: none; }
+.aivy-dock.is-collapsed .aivy-mini-player .skip-next{ width: 0; margin-left: -10px; opacity: 0; transform: scale(.5); pointer-events: none; }
 .aivy-mini-player .mini-ring{ position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 0; }
 .aivy-mini-player .mini-ring rect{ fill: none; stroke-width: 4; }
 .aivy-mini-player .mini-ring .track{ stroke: rgba(255,255,255,.12); }
@@ -2944,6 +2967,7 @@ body.aivy-artist-immersive .aivy-player{
 @media (prefers-reduced-motion: reduce){
   .aivy-dock, .aivy-dock *{ transition-duration: 1ms !important; animation-duration: 1ms !important; }
   .aivy-mini-player .mini-ring .run{ animation: none; }
+  .aivy-dock .aivy-mini-player, .aivy-mini-player .aivy-mini-cover, .aivy-mini-player .meta, .aivy-mini-player .aivy-swap-icon{ animation: none; }
 }
 .aivy-explore{ min-width: 0; }
 .aivy-explore-cycle{ display: flex; flex-direction: column; gap: 40px; margin-bottom: 40px; min-width: 0; }
