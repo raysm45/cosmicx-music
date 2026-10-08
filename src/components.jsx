@@ -3900,7 +3900,7 @@ export function LyricsOverlay() {
         <button className="aivy-lyrics-fbtn aivy-lyrics-fbtn-dup" onClick={() => setShareOpen((v) => !v)} disabled={!currentTrack} aria-label={t("share")}>
           <Share2 size={16} />
         </button>
-        <button className="aivy-lyrics-fbtn aivy-lyrics-fbtn-dup aivy-fontsize-btn" onClick={cycleFontSize} disabled={!currentTrack} aria-label={t("fontSize")} title={`${t("fontSize")}: ${fontSize.toUpperCase()}`}>
+        <button className="aivy-lyrics-fbtn aivy-fontsize-btn" onClick={cycleFontSize} disabled={!currentTrack} aria-label={t("fontSize")} title={`${t("fontSize")}: ${fontSize.toUpperCase()}`}>
           <Type size={16} />
           <span className="aivy-fontsize-tag">{fontSize}</span>
         </button>
