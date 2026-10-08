@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useSyncExternalStore } from "react";
+import { useState, useEffect, useRef, useId, useSyncExternalStore } from "react";
 import { hashStr } from "./utils.js";
 import { Api } from "./api.js";
 
@@ -41,17 +41,43 @@ export function useIsHalloween() {
 export const STAR_PATH =
   "M16 2 C16 10 10 16 2 16 C10 16 16 22 16 30 C16 22 22 16 30 16 C22 16 16 10 16 2 Z";
 
+// ---- Logo NORMAL: bintang 4 sudut sisi cekung + lubang bintang (sesuai desain cosmicx music) ----
+export const LOGO_STAR_PATH = "M50 2 C53.5 29 71 46.5 98 50 C71 53.5 53.5 71 50 98 C46.5 71 29 53.5 2 50 C29 46.5 46.5 29 50 2 Z";
+export const LOGO_CUT_PATH = "M50 34 C51.4 43.4 56.6 48.6 66 50 C56.6 51.4 51.4 56.6 50 66 C48.6 56.6 43.4 51.4 34 50 C43.4 48.6 48.6 43.4 50 34 Z";
+
+// gradient=true -> versi metalik gelap (halaman terang); selain itu flat mengikuti `color` (sidebar/tema gelap)
+export function CosmicLogoMark({ size = 40, color = "currentColor", gradient = false, className = "" }) {
+  const uid = useId().replace(/:/g, "");
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} aria-hidden="true" focusable="false" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
+      {gradient && (
+        <defs>
+          <linearGradient id={`${uid}g`} x1="12%" y1="8%" x2="88%" y2="94%">
+            <stop offset="0" stopColor="#6b5d4c" /><stop offset=".38" stopColor="#1f1a15" /><stop offset="1" stopColor="#0d0b09" />
+          </linearGradient>
+          <radialGradient id={`${uid}s`} cx="30%" cy="42%" r="34%">
+            <stop offset="0" stopColor="#f3dfb8" stopOpacity=".85" /><stop offset="1" stopColor="#f3dfb8" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+      )}
+      <path d={`${LOGO_STAR_PATH} ${LOGO_CUT_PATH}`} fillRule="evenodd" fill={gradient ? `url(#${uid}g)` : color} />
+      {gradient && <path d={`${LOGO_STAR_PATH} ${LOGO_CUT_PATH}`} fillRule="evenodd" fill={`url(#${uid}s)`} />}
+    </svg>
+  );
+}
+
 export function StarMark({ size = 22, color = "currentColor", className = "", logo = false }) {
   const halloween = useIsHalloween();
   if (halloween) {
-    // bintang Halloween (bentuk logo asli, bergaya labu); logo=true -> penuh, selain itu redup untuk empty state
-    const src = logo ? `${HALLOWEEN_BASE}/logo-mark-96.png` : `${HALLOWEEN_BASE}/decor/star.png`;
-    const px = logo ? Math.round(size * 1.2) : size;
+    // logo=true -> labu logo utama; selain itu hantu kecil untuk empty state
+    const src = logo ? `${HALLOWEEN_BASE}/logo-mark-96.png` : `${HALLOWEEN_BASE}/decor/ghost.png`;
+    const px = logo ? Math.round(size * 1.25) : size;
     return (
       <img src={src} width={px} height={px} alt="" aria-hidden="true" draggable="false" className={className}
-        style={{ display: "block", objectFit: "contain", opacity: logo ? 1 : 0.55, flexShrink: 0 }} />
+        style={{ display: "block", objectFit: "contain", opacity: logo ? 1 : 0.7, flexShrink: 0 }} />
     );
   }
+  if (logo) return <CosmicLogoMark size={Math.round(size * 1.15)} color={color} className={className} />;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true" focusable="false">
       <path d={STAR_PATH} fill={color} />
@@ -72,7 +98,7 @@ export function StarLoader({ size = 48, color = "var(--accent-strong)", label })
   if (halloween) {
     return (
       <div className="aivy-starloader aivy-pumpkin-loader" style={{ width: size, height: size }} role="status" aria-label={label || "Memuat"}>
-        <img src={`${HALLOWEEN_BASE}/decor/star.png`} width={size} height={size} alt="" draggable="false" style={{ display: "block", objectFit: "contain" }} />
+        <img src={`${HALLOWEEN_BASE}/decor/pumpkin.png`} width={size} height={size} alt="" draggable="false" style={{ display: "block", objectFit: "contain" }} />
       </div>
     );
   }
