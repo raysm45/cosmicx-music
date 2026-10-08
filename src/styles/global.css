@@ -288,7 +288,7 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .has-blur .title{ color: var(--ink); }
 .has-blur .sub, .has-blur .row-meta .sub{ color: var(--ink-dim); }
 :root{ --card-veil: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.66)); }
-:root[data-theme="white"], :root[data-theme="latte"], :root[data-theme="salmon"]{ --card-veil: linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.72)); }
+:root[data-theme="white"], :root[data-theme="latte"], :root[data-theme="salmon"], :root[data-theme="premium"]{ --card-veil: linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.72)); }
 
 .aivy-row{ display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: var(--radius-sm); min-width: 0; transition: background var(--dur-fast) var(--ease); }
 .aivy-row:hover{ background: var(--bg-elev-2); }
@@ -557,13 +557,13 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-banner{ position: relative; z-index: 1; background: transparent; }
 .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body{ position: relative; z-index: 1; background: rgba(255,255,255,.03); }
 :root[data-theme="white"] .aivy-nowplaying-about.is-glass,
-:root[data-theme="latte"] .aivy-nowplaying-about.is-glass, :root[data-theme="salmon"] .aivy-nowplaying-about.is-glass{
+:root[data-theme="latte"] .aivy-nowplaying-about.is-glass, :root[data-theme="salmon"] .aivy-nowplaying-about.is-glass, :root[data-theme="premium"] .aivy-nowplaying-about.is-glass{
   background: rgba(255,255,255,.5);
   border-color: rgba(0,0,0,.08);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
 }
 :root[data-theme="white"] .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body,
-:root[data-theme="latte"] .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body, :root[data-theme="salmon"] .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body{ background: rgba(255,255,255,.28); }
+:root[data-theme="latte"] .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body, :root[data-theme="salmon"] .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body, :root[data-theme="premium"] .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body{ background: rgba(255,255,255,.28); }
 
 .aivy-credits-card{ width: 100%; margin-top: 14px; border-radius: var(--radius-lg); background: var(--bg-elev); border: 1px solid var(--line-soft); padding: 16px 18px 6px; }
 .aivy-credits-card.is-glass{
@@ -574,7 +574,7 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 
 }
 :root[data-theme="white"] .aivy-credits-card.is-glass,
-:root[data-theme="latte"] .aivy-credits-card.is-glass, :root[data-theme="salmon"] .aivy-credits-card.is-glass{
+:root[data-theme="latte"] .aivy-credits-card.is-glass, :root[data-theme="salmon"] .aivy-credits-card.is-glass, :root[data-theme="premium"] .aivy-credits-card.is-glass{
   background: rgba(255,255,255,.5);
   border-color: rgba(0,0,0,.08);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
@@ -1683,7 +1683,7 @@ body.aivy-artist-immersive .aivy-player{
 :root[data-contrast="high"]{ --line: var(--ink-faint); --line-soft: var(--ink-faint); }
 :root[data-contrast="high"]{ --ink: #ffffff; --ink-faint: #d8d8d8; --bg: #000000; }
 :root[data-contrast="high"][data-theme="white"],
-:root[data-contrast="high"][data-theme="latte"], :root[data-contrast="high"][data-theme="salmon"]{ --ink: #000000; --ink-faint: #2b2b2b; --bg: #ffffff; }
+:root[data-contrast="high"][data-theme="latte"], :root[data-contrast="high"][data-theme="salmon"], :root[data-contrast="high"][data-theme="premium"]{ --ink: #000000; --ink-faint: #2b2b2b; --bg: #ffffff; }
 :root[data-contrast="high"] .aivy-row.is-current{ outline: 1px solid var(--accent-strong); }
 
 @media (max-width: 1240px){ :root{ --rightpanel-w: 0px; } .aivy-shell{ grid-template-columns: var(--sidebar-w) 1fr; grid-template-areas: "side main"; } .aivy-rightpanel{ display: none; } }
@@ -1749,13 +1749,13 @@ body.aivy-artist-immersive .aivy-player{
 }
 
 :root[data-theme="white"] .aivy-lyrics-overlay,
-:root[data-theme="latte"] .aivy-lyrics-overlay, :root[data-theme="salmon"] .aivy-lyrics-overlay{
+:root[data-theme="latte"] .aivy-lyrics-overlay, :root[data-theme="salmon"] .aivy-lyrics-overlay, :root[data-theme="premium"] .aivy-lyrics-overlay{
   background: #fff;
   --lyr-ink: #121212; --lyr-ink-dim: rgba(18,18,18,.64); --lyr-ink-faint: rgba(18,18,18,.42);
   --lyr-line: rgba(0,0,0,.12); --lyr-elev: rgba(0,0,0,.05); --lyr-elev-2: rgba(0,0,0,.09);
 }
 :root[data-theme="white"] .aivy-lyrics-scrim,
-:root[data-theme="latte"] .aivy-lyrics-scrim, :root[data-theme="salmon"] .aivy-lyrics-scrim{
+:root[data-theme="latte"] .aivy-lyrics-scrim, :root[data-theme="salmon"] .aivy-lyrics-scrim, :root[data-theme="premium"] .aivy-lyrics-scrim{
   background:
     radial-gradient(42% 34% at 10% 8%, rgba(16,16,16,.28) 0%, rgba(16,16,16,.10) 42%, transparent 72%),
     radial-gradient(50% 40% at 92% 4%, rgba(16,16,16,.20) 0%, rgba(16,16,16,.07) 45%, transparent 74%),
@@ -1766,28 +1766,28 @@ body.aivy-artist-immersive .aivy-player{
     #fff;
 }
 :root[data-theme="white"] .aivy-lyrics-fbtn,
-:root[data-theme="latte"] .aivy-lyrics-fbtn, :root[data-theme="salmon"] .aivy-lyrics-fbtn{ background: rgba(0,0,0,.06); }
+:root[data-theme="latte"] .aivy-lyrics-fbtn, :root[data-theme="salmon"] .aivy-lyrics-fbtn, :root[data-theme="premium"] .aivy-lyrics-fbtn{ background: rgba(0,0,0,.06); }
 :root[data-theme="white"] .aivy-lyrics-fbtn:hover,
-:root[data-theme="latte"] .aivy-lyrics-fbtn:hover, :root[data-theme="salmon"] .aivy-lyrics-fbtn:hover{ background: rgba(0,0,0,.1); }
+:root[data-theme="latte"] .aivy-lyrics-fbtn:hover, :root[data-theme="salmon"] .aivy-lyrics-fbtn:hover, :root[data-theme="premium"] .aivy-lyrics-fbtn:hover{ background: rgba(0,0,0,.1); }
 :root[data-theme="white"] .aivy-lyrics-fbtn.active,
-:root[data-theme="latte"] .aivy-lyrics-fbtn.active, :root[data-theme="salmon"] .aivy-lyrics-fbtn.active{ color: #000; background: rgba(0,0,0,.14); }
+:root[data-theme="latte"] .aivy-lyrics-fbtn.active, :root[data-theme="salmon"] .aivy-lyrics-fbtn.active, :root[data-theme="premium"] .aivy-lyrics-fbtn.active{ color: #000; background: rgba(0,0,0,.14); }
 :root[data-theme="white"] .aivy-lyrics-fbtn.primary,
-:root[data-theme="latte"] .aivy-lyrics-fbtn.primary, :root[data-theme="salmon"] .aivy-lyrics-fbtn.primary{ background: rgba(0,0,0,.08); }
+:root[data-theme="latte"] .aivy-lyrics-fbtn.primary, :root[data-theme="salmon"] .aivy-lyrics-fbtn.primary, :root[data-theme="premium"] .aivy-lyrics-fbtn.primary{ background: rgba(0,0,0,.08); }
 :root[data-theme="white"] .aivy-lyrics-actions .aivy-icon-btn.active,
-:root[data-theme="latte"] .aivy-lyrics-actions .aivy-icon-btn.active, :root[data-theme="salmon"] .aivy-lyrics-actions .aivy-icon-btn.active{ color: #000; }
+:root[data-theme="latte"] .aivy-lyrics-actions .aivy-icon-btn.active, :root[data-theme="salmon"] .aivy-lyrics-actions .aivy-icon-btn.active, :root[data-theme="premium"] .aivy-lyrics-actions .aivy-icon-btn.active{ color: #000; }
 :root[data-theme="white"] .aivy-lyrics-track .cover,
 :root[data-theme="white"] .aivy-lyrics-share .cover-mini,
-:root[data-theme="latte"] .aivy-lyrics-share .cover-mini, :root[data-theme="salmon"] .aivy-lyrics-share .cover-mini{ background: #eee; }
+:root[data-theme="latte"] .aivy-lyrics-share .cover-mini, :root[data-theme="salmon"] .aivy-lyrics-share .cover-mini, :root[data-theme="premium"] .aivy-lyrics-share .cover-mini{ background: #eee; }
 :root[data-theme="white"] .aivy-lyrics-side .aivy-transport-btns .aivy-icon-btn.active,
-:root[data-theme="latte"] .aivy-lyrics-side .aivy-transport-btns .aivy-icon-btn.active, :root[data-theme="salmon"] .aivy-lyrics-side .aivy-transport-btns .aivy-icon-btn.active{ color: #000; }
+:root[data-theme="latte"] .aivy-lyrics-side .aivy-transport-btns .aivy-icon-btn.active, :root[data-theme="salmon"] .aivy-lyrics-side .aivy-transport-btns .aivy-icon-btn.active, :root[data-theme="premium"] .aivy-lyrics-side .aivy-transport-btns .aivy-icon-btn.active{ color: #000; }
 :root[data-theme="white"] .aivy-lyrics-side .aivy-play-btn,
-:root[data-theme="latte"] .aivy-lyrics-side .aivy-play-btn, :root[data-theme="salmon"] .aivy-lyrics-side .aivy-play-btn{ background: none; color: #000; }
+:root[data-theme="latte"] .aivy-lyrics-side .aivy-play-btn, :root[data-theme="salmon"] .aivy-lyrics-side .aivy-play-btn, :root[data-theme="premium"] .aivy-lyrics-side .aivy-play-btn{ background: none; color: #000; }
 :root[data-theme="white"] .aivy-lyrics-side .aivy-play-btn:hover,
-:root[data-theme="latte"] .aivy-lyrics-side .aivy-play-btn:hover, :root[data-theme="salmon"] .aivy-lyrics-side .aivy-play-btn:hover{ background: none; }
+:root[data-theme="latte"] .aivy-lyrics-side .aivy-play-btn:hover, :root[data-theme="salmon"] .aivy-lyrics-side .aivy-play-btn:hover, :root[data-theme="premium"] .aivy-lyrics-side .aivy-play-btn:hover{ background: none; }
 :root[data-theme="white"] .aivy-lyric-word .base,
-:root[data-theme="latte"] .aivy-lyric-word .base, :root[data-theme="salmon"] .aivy-lyric-word .base{ color: rgba(18,18,18,.34); }
+:root[data-theme="latte"] .aivy-lyric-word .base, :root[data-theme="salmon"] .aivy-lyric-word .base, :root[data-theme="premium"] .aivy-lyric-word .base{ color: rgba(18,18,18,.34); }
 :root[data-theme="white"] .aivy-lyric-word .fill,
-:root[data-theme="latte"] .aivy-lyric-word .fill, :root[data-theme="salmon"] .aivy-lyric-word .fill{ color: #000; text-shadow: none; }
+:root[data-theme="latte"] .aivy-lyric-word .fill, :root[data-theme="salmon"] .aivy-lyric-word .fill, :root[data-theme="premium"] .aivy-lyric-word .fill{ color: #000; text-shadow: none; }
 
 .aivy-lyrics-float{ position: absolute; z-index: 3; top: calc(16px + env(safe-area-inset-top,0px)); left: 16px; display: flex; gap: 8px; }
 .aivy-lyrics-fbtn{
@@ -1808,7 +1808,7 @@ body.aivy-artist-immersive .aivy-player{
   display: flex; align-items: center; justify-content: center; line-height: 1; pointer-events: none;
 }
 :root[data-theme="white"] .aivy-fontsize-tag,
-:root[data-theme="latte"] .aivy-fontsize-tag, :root[data-theme="salmon"] .aivy-fontsize-tag{ color: #fff; }
+:root[data-theme="latte"] .aivy-fontsize-tag, :root[data-theme="salmon"] .aivy-fontsize-tag, :root[data-theme="premium"] .aivy-fontsize-tag{ color: #fff; }
 
 .aivy-lyrics-main{ position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding-top: 64px; }
 
@@ -2043,6 +2043,22 @@ body.aivy-artist-immersive .aivy-player{
   --accent-soft: rgba(201,69,61,.12);
   color-scheme: light;
 }
+
+:root[data-theme="premium"]{
+  --bg:#F6F2EC; --bg-elev:#FCFAF6; --bg-elev-2:#EFE8DD; --bg-elev-3:#E5DBCB;
+  --line:#DCCFBC; --line-soft:#EBE3D6; --ink:#1C1814; --ink-dim:#6D645A; --ink-faint:#A0968A;
+  --accent:#2A231C; --accent-strong:#1C1814; --accent-ink:#FCFAF6;
+  --accent-soft: rgba(150,125,85,.14);
+  --berry:#8F2F44; --berry-strong:#6F2335; --gold:#B79D6E;
+  color-scheme: light;
+}
+:root[data-theme="premium"] body{
+  background-image: radial-gradient(60% 50% at 8% 0%, #FFFDF9, transparent 70%), radial-gradient(55% 60% at 100% 100%, rgba(226,213,193,.7), transparent 70%);
+  background-attachment: fixed;
+}
+:root[data-theme="premium"] .aivy-nav-item.active{ box-shadow: inset 2px 0 0 var(--gold); }
+:root[data-theme="premium"] .aivy-btn-primary{ background: linear-gradient(180deg,#2C2620,#17130F); color:#FCFAF6; box-shadow: 0 12px 24px -14px rgba(28,24,20,.7), inset 0 1px 0 rgba(255,255,255,.14); }
+:root[data-theme="premium"] ::selection{ background:#E3D3B3; color:#1C1814; }
 
 .aivy-settings-page{ max-width: 980px; padding-bottom: 56px; }
 .aivy-settings-layout{ display: grid; grid-template-columns: 212px minmax(0,1fr); gap: 30px; align-items: start; }
@@ -2316,7 +2332,7 @@ body.aivy-artist-immersive .aivy-player{
 
 .aivy-hrow > .aivy-card{ width: 160px; }
 :root{ --cover-filter: blur(50px) brightness(.4); }
-:root[data-theme="white"], :root[data-theme="latte"], :root[data-theme="salmon"]{ --cover-filter: blur(50px) brightness(1.6) opacity(.35); }
+:root[data-theme="white"], :root[data-theme="latte"], :root[data-theme="salmon"], :root[data-theme="premium"]{ --cover-filter: blur(50px) brightness(1.6) opacity(.35); }
 
 .aivy-home{ position: relative; }
 .aivy-home-bg{
@@ -2767,7 +2783,7 @@ body.aivy-artist-immersive .aivy-player{
   --lg-shadow: 0 0 0 0 transparent;
   --lg-top: inset 0 1px 0 rgba(255,255,255,.20);
 }
-:root[data-theme="white"], :root[data-theme="latte"], :root[data-theme="salmon"]{
+:root[data-theme="white"], :root[data-theme="latte"], :root[data-theme="salmon"], :root[data-theme="premium"]{
   --lg-tint: rgba(255,255,255,.34);
   --lg-rim-a: rgba(255,255,255,1);
   --lg-rim-b: rgba(0,0,0,.05);
@@ -2778,7 +2794,7 @@ body.aivy-artist-immersive .aivy-player{
   --lg-top: inset 0 1px 0 rgba(255,255,255,.9);
 }
 :root[data-glass="blur"]{ --lg-blur: 12px; --lg-tint: rgba(14,14,14,.40); }
-:root[data-glass="blur"][data-theme="white"], :root[data-glass="blur"][data-theme="latte"], :root[data-glass="blur"][data-theme="salmon"]{ --lg-tint: rgba(255,255,255,.55); }
+:root[data-glass="blur"][data-theme="white"], :root[data-glass="blur"][data-theme="latte"], :root[data-glass="blur"][data-theme="salmon"], :root[data-glass="blur"][data-theme="premium"]{ --lg-tint: rgba(255,255,255,.55); }
 .aivy-dock{
   position: fixed; left: 12px; right: 12px; z-index: 40;
   bottom: calc(var(--safe-b) + var(--dock-bottom));
@@ -2892,7 +2908,7 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-dock.is-collapsed .aivy-tab-lens{ opacity: 0; transition: transform 560ms var(--dock-spring), opacity 140ms var(--ease) 0ms; }
 .aivy-dock .aivy-tab.active{ color: var(--accent-strong); }
 :root[data-theme="white"] .aivy-dock .aivy-tab.active,
-:root[data-theme="latte"] .aivy-dock .aivy-tab.active, :root[data-theme="salmon"] .aivy-dock .aivy-tab.active{ color: #000; }
+:root[data-theme="latte"] .aivy-dock .aivy-tab.active, :root[data-theme="salmon"] .aivy-dock .aivy-tab.active, :root[data-theme="premium"] .aivy-dock .aivy-tab.active{ color: #000; }
 .aivy-dock.is-collapsed .aivy-tab:not(.is-shown){ flex-grow: 0; opacity: 0; pointer-events: none; }
 .aivy-dock.is-collapsed .aivy-tab span{ opacity: 0; }
 .aivy-dock.is-collapsed .aivy-tab svg{ transform: translateY(0); }
@@ -2958,7 +2974,7 @@ body.aivy-artist-immersive .aivy-player{
 }
 @keyframes aivy-ring-run{ to{ stroke-dashoffset: -1; } }
 :root[data-theme="white"] .aivy-mini-player .mini-ring .track,
-:root[data-theme="latte"] .aivy-mini-player .mini-ring .track, :root[data-theme="salmon"] .aivy-mini-player .mini-ring .track{ stroke: rgba(0,0,0,.10); }
+:root[data-theme="latte"] .aivy-mini-player .mini-ring .track, :root[data-theme="salmon"] .aivy-mini-player .mini-ring .track, :root[data-theme="premium"] .aivy-mini-player .mini-ring .track{ stroke: rgba(0,0,0,.10); }
 :root{ --dock-total: calc(var(--dock-h) * 2 + var(--dock-gap) + var(--dock-bottom) + var(--safe-b)); }
 .aivy-toast-host.is-mobile{ bottom: calc(var(--dock-total) + 18px); }
 .is-mobile ~ .aivy-ai-fab, .aivy-shell.is-mobile .aivy-ai-fab,
@@ -3427,7 +3443,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 .lx-tag{ margin:18px 0 0; max-width:30ch; font-weight:300; font-size:16px; line-height:1.65; letter-spacing:.05em; color:var(--lx-dim); text-wrap:balance; }
 .lx-url{ margin:22px 0 0; display:flex; align-items:center; gap:14px; font-size:13px; letter-spacing:.1em; color:var(--lx-dim); }
 .lx-url i{ width:44px; height:1px; background:var(--lx-dim); opacity:.55; }
-.lx-feats{ display:none; list-style:none; margin:0; padding:0; }
 .lx-card{
   position:relative; width:100%; max-width:400px; padding:34px 30px 26px; border-radius:28px; isolation:isolate;
   background:rgba(255,253,249,.74); border:1px solid rgba(255,255,255,.92);
@@ -3463,15 +3478,8 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   .lx-mark{ width:92px; height:92px; }
   .lx-name{ font-size:clamp(46px,5vw,64px); }
   .lx-tag{ font-size:18px; max-width:none; }
-  .lx-feats{ display:grid; grid-template-columns:1fr 1fr; gap:22px 32px; margin-top:48px; max-width:560px; }
-  .lx-feats li{ display:flex; gap:12px; align-items:flex-start; }
-  .lx-feats li > span:last-child{ display:flex; flex-direction:column; gap:3px; font-size:13px; line-height:1.5; font-weight:300; color:var(--lx-dim); }
-  .lx-feats b{ font-weight:500; font-size:14.5px; color:var(--lx-ink); }
-  .lx-feat-ic{ flex-shrink:0; width:36px; height:36px; border-radius:50%; display:grid; place-items:center; color:#5b4f40;
-    background:rgba(255,255,255,.6); border:1px solid var(--lx-line); box-shadow:inset 0 1px 0 #fff; }
   .lx-card{ max-width:none; padding:44px 38px 32px; }
 }
-@media (min-width:960px) and (max-width:1179px){ .lx-feats{ grid-template-columns:1fr; } }
 @media (prefers-reduced-motion:reduce){ .lx-grid{ animation:none; } .lx-btn{ transition:none; } }
 
 /* Logo normal di sidebar: wordmark pakai font desain baru (event tetap font Halloween) */

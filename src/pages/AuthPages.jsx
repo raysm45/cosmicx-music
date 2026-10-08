@@ -199,14 +199,6 @@ function SoftLogin({ errorCode, pending, authChecked, onGoogle, onDiscord }) {
           </div>
           <p className="lx-tag">A clean space for music, made to feel cosmic.</p>
           <p className="lx-url"><i aria-hidden="true" />music.cosmicx.fun</p>
-          <ul className="lx-feats">
-            {SHOWCASE.map(({ icon: Icon, title, desc }) => (
-              <li key={title}>
-                <span className="lx-feat-ic"><Icon size={17} strokeWidth={1.6} /></span>
-                <span><b>{title}</b>{desc}</span>
-              </li>
-            ))}
-          </ul>
         </section>
 
         <section className="lx-card" aria-labelledby="lx-welcome">

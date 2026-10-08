@@ -266,7 +266,7 @@ export function UIProvider({ children }) {
     if (theme !== "system") {
       document.documentElement.dataset.theme = theme || "black";
       const tc = document.querySelector('meta[name="theme-color"]');
-      if (tc) tc.setAttribute("content", theme === "halloween" ? "#0D0714" : ["white", "latte", "salmon"].includes(theme) ? "#FFFFFF" : "#000000");
+      if (tc) tc.setAttribute("content", theme === "halloween" ? "#0D0714" : theme === "premium" ? "#F6F2EC" : ["white", "latte", "salmon"].includes(theme) ? "#FFFFFF" : "#000000");
       return undefined;
     }
     const mq = window.matchMedia("(prefers-color-scheme: light)");

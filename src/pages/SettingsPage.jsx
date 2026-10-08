@@ -23,6 +23,7 @@ const THEME_SWATCHES = {
   frappe: ["#303446", "#c6d0f5", "#c6d0f5"],
   latte: ["#eff1f5", "#4c4f69", "#4c4f69"],
   salmon: ["#fdebe7", "#e8736a", "#4a2b2b"],
+  premium: ["#f6f2ec", "#1c1814", "#c9b48f"],
   halloween: ["#0d0714", "#ff7a18", "#9b5de5"],
 };
 
@@ -481,13 +482,14 @@ export function SettingsPage() {
             ["system", tt("Sistem", "System")],
             ["black", "Black"],
             ["white", "White"],
+            ["ivory", "✦ ivory"],
             ["ocean", "Ocean"],
             ["purple", "Purple"],
             ["mocha", "Mocha"],
             ["macchiato", "Macchiato"],
             ["frappe", "Frappé"],
             ["latte", "Latte"],
-            ["halloween", "🎃 Halloween"],
+            ["halloween", "Halloween (event)"],
             ["salmon", "Salmon"],
             ["custom", tt("Kustom", "Custom")],
           ].map(([value, label]) => (

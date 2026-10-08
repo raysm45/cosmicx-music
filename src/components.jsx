@@ -3777,7 +3777,7 @@ export function LyricsOverlay() {
   const [singMode, setSingMode] = useState(false);
   const [lyricsUnsynced, setLyricsUnsynced] = useState(false);
   const resolvedTheme = (typeof document !== "undefined" && document.documentElement?.dataset?.theme) || "black";
-  const isLightResolved = ["white", "latte", "salmon"].includes(resolvedTheme);
+  const isLightResolved = ["white", "latte", "salmon", "premium"].includes(resolvedTheme);
   const trackKey = currentTrack?.id;
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const nextTrack = upNext?.[0];
