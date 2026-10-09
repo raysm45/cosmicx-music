@@ -845,13 +845,22 @@ export function ImportPage() {
   const [result, setResult] = React.useState(null);
   const progressTimer = React.useRef(null);
 
+  const switchSource = (tab) => {
+    if (tab === sourceTab) return;
+    setSourceTab(tab);
+    setUrl("");
+    setResolveError(null);
+  };
+
   const handleResolve = async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
     setResolving(true);
     setResolveError(null);
     try {
-      const data = await Api.resolveYoutubeImport(trimmed);
+      const data = sourceTab === "spotify"
+        ? await Api.resolveSpotifyImport(trimmed)
+        : await Api.resolveYoutubeImport(trimmed);
       setResolved(data);
       setNewName(data.title || "Playlist Impor");
       setStep(2);
@@ -881,7 +890,7 @@ export function ImportPage() {
     setCommitError(null);
     startFakeProgress();
     try {
-      const body = { songs: resolved.songs, sourceTitle: resolved.title };
+      const body = { songs: resolved.songs, sourceTitle: resolved.title, source: sourceTab };
       if (targetMode === "existing") body.playlistId = selectedPlaylistId;
       else body.newPlaylistName = (newName || resolved.title || "Playlist Impor").trim();
 
@@ -909,44 +918,55 @@ export function ImportPage() {
       {step === 1 && (
         <div>
           <div className="aivy-import-tabs">
-            <button className={`aivy-import-tab ${sourceTab === "youtube" ? "active" : ""}`} onClick={() => setSourceTab("youtube")}>
+            <button className={`aivy-import-tab ${sourceTab === "youtube" ? "active" : ""}`} onClick={() => switchSource("youtube")}>
               <Youtube size={20} color="var(--berry-strong)" />
               <span className="name">YouTube</span>
             </button>
-            <button className="aivy-import-tab locked" disabled>
-              <Music2 size={20} color="var(--ink-faint)" />
+            <button className={`aivy-import-tab ${sourceTab === "spotify" ? "active" : ""}`} onClick={() => switchSource("spotify")}>
+              <Music2 size={20} color="var(--accent-strong)" />
               <span className="name">Spotify</span>
-              <span className="badge">Coming soon</span>
             </button>
           </div>
 
-          {sourceTab === "youtube" && (
-            <>
-              <input
-                className="aivy-input"
-                placeholder="Tempel link playlist YouTube di sini..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && url.trim()) handleResolve(); }}
-              />
-              {resolveError && <div className="aivy-import-error">{resolveError}</div>}
+          <input
+            className="aivy-input"
+            placeholder={sourceTab === "spotify" ? "Tempel link playlist Spotify di sini..." : "Tempel link playlist YouTube di sini..."}
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && url.trim() && !resolving) handleResolve(); }}
+          />
+          {resolveError && <div className="aivy-import-error">{resolveError}</div>}
 
-              <div className="aivy-import-tutorial">
-                <div className="head"><ClipboardList size={15} color="var(--accent-strong)" /> Cara salin link playlist YouTube</div>
-                <ol>
-                  <li>Buka aplikasi atau situs YouTube, lalu buka playlist yang mau diimpor.</li>
-                  <li>Ketuk tombol "Bagikan" (ikon panah / titik tiga di atas playlist).</li>
-                  <li>Pilih "Salin link", lalu tempel link-nya di kotak di atas.</li>
-                </ol>
+          {sourceTab === "youtube" ? (
+            <div className="aivy-import-tutorial">
+              <div className="head"><ClipboardList size={15} color="var(--accent-strong)" /> Cara salin link playlist YouTube</div>
+              <ol>
+                <li>Buka aplikasi atau situs YouTube, lalu buka playlist yang mau diimpor.</li>
+                <li>Ketuk tombol "Bagikan" (ikon panah / titik tiga di atas playlist).</li>
+                <li>Pilih "Salin link", lalu tempel link-nya di kotak di atas.</li>
+              </ol>
+            </div>
+          ) : (
+            <div className="aivy-import-tutorial">
+              <div className="head"><ClipboardList size={15} color="var(--accent-strong)" /> Cara salin link playlist Spotify</div>
+              <ol>
+                <li>Buka playlist di aplikasi atau situs Spotify. Pastikan playlist-nya publik.</li>
+                <li>Ketuk titik tiga, pilih "Bagikan", lalu "Salin link playlist".</li>
+                <li>Tempel link-nya di kotak di atas.</li>
+              </ol>
+              <div className="sub" style={{ fontSize: 12.5, marginTop: 8, color: "var(--ink-faint)" }}>
+                Yang terbaca maksimal sekitar 100 lagu pertama. Tiap lagu dicocokkan ke YouTube Music, jadi proses ini bisa makan waktu setengah menit. Playlist buatan Spotify (Daily Mix, dll) belum didukung.
               </div>
-
-              <div className="aivy-import-actions">
-                <button className="aivy-btn-primary" disabled={!url.trim() || resolving} onClick={handleResolve}>
-                  {resolving ? <><Loader2 size={15} className="aivy-spin" /> Memuat...</> : <>Lanjutkan <ArrowRight size={15} /></>}
-                </button>
-              </div>
-            </>
+            </div>
           )}
+
+          <div className="aivy-import-actions">
+            <button className="aivy-btn-primary" disabled={!url.trim() || resolving} onClick={handleResolve}>
+              {resolving
+                ? <><Loader2 size={15} className="aivy-spin" /> {sourceTab === "spotify" ? "Mencocokkan lagu..." : "Memuat..."}</>
+                : <>Lanjutkan <ArrowRight size={15} /></>}
+            </button>
+          </div>
         </div>
       )}
 
@@ -963,6 +983,19 @@ export function ImportPage() {
               <div className="sub">{resolved.author ? `oleh ${resolved.author} · ` : ""}{formatSongCount(resolved.count)}</div>
             </div>
           </div>
+
+          {resolved.unmatched?.length > 0 && (
+            <details className="aivy-import-tutorial" style={{ marginBottom: 12 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13.5 }}>
+                {resolved.unmatched.length} lagu nggak ketemu di YouTube Music dan akan dilewati
+              </summary>
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 12.5, color: "var(--ink-faint)" }}>
+                {resolved.unmatched.map((u, i) => (
+                  <li key={i}>{u.title}{u.artist ? ` — ${u.artist}` : ""}</li>
+                ))}
+              </ul>
+            </details>
+          )}
 
           <div
             className={`aivy-import-option ${targetMode === "existing" ? "active" : ""} ${playlists.length === 0 ? "" : ""}`}

@@ -193,6 +193,7 @@ export const Api = {
 
   resolveYoutubeImport: (url) => apiSend("/api/import/youtube/resolve", "POST", { url }),
   commitYoutubeImport: (body) => apiSend("/api/import/youtube/commit", "POST", body),
+  resolveSpotifyImport: (url) => apiSend("/api/import/spotify/resolve", "POST", { url }),
 
   publicRooms: () => apiGet("/api/rooms"),
 };
