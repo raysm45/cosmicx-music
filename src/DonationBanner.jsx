@@ -20,7 +20,7 @@ export function DonationBanner({ className = "" }) {
       <div className="dnb-frame">
         <img
           className="dnb-img"
-          src="/brand/donation-banner.webp"
+          src="/brand/donation-banner.png"
           width="1600"
           height="640"
           alt={en
