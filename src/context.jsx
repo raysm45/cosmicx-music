@@ -556,6 +556,9 @@ export function PlayerProvider({ children }) {
   const [roomError, setRoomError] = useState(null);
   const [roomSyncTick, setRoomSyncTick] = useState(0);
   const roomSyncRef = useRef(null);
+  const roomRef = useRef(null);
+  const roomTrackEndedRef = useRef(null);
+  const roomAdvanceKeyRef = useRef(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [suggestedQueue, setSuggestedQueue] = useState([]);
   const suggestedQueueRef = useRef([]);
@@ -995,7 +998,7 @@ export function PlayerProvider({ children }) {
       }
     };
     const onEnded = () => {
-      if (inRoom) return;
+      if (inRoom) { roomTrackEndedRef.current?.(); return; }
       if (repeat === "one") { audio.currentTime = 0; audio.play().catch(() => {}); return; }
       if (settings.autoplay === false) { setIsPlaying(false); pushToast(t("toastAutoplayOff")); return; }
       nextRef.current(true);
@@ -1807,6 +1810,79 @@ export function PlayerProvider({ children }) {
     if (!room || !authUser) { resolve(null); return; }
     socketRef.current?.emit("skip-vote", { roomId: room.id }, (res) => resolve(res || null));
   }), [room, authUser]);
+
+  useEffect(() => { roomRef.current = room; }, [room]);
+  useEffect(() => { roomAdvanceKeyRef.current = null; }, [room?.id, room?.currentIndex]);
+
+  const fetchRoomRecommendation = useCallback(async (seeds, queue) => {
+    const known = new Set();
+    queue.forEach((q) => { known.add(String(q.id)); if (q.videoId) known.add(String(q.videoId)); });
+    for (const seed of seeds) {
+      if (!seed) continue;
+      try {
+        const args = seed.source === "deezer"
+          ? { trackId: seed.id }
+          : { title: seed.title, artist: seed.artist?.name || (typeof seed.artist === "string" ? seed.artist : "") };
+        const res = await Api.similar(args);
+        const pick = (res?.items || [])
+          .map(normalizeTrack)
+          .filter(Boolean)
+          .find((x) => x.source !== "local" && !known.has(String(x.id)) && !(x.videoId && known.has(String(x.videoId))));
+        if (pick) return pick;
+      } catch { }
+    }
+    return null;
+  }, []);
+
+  // Dipanggil saat audio room selesai. Hanya satu klien (host, atau member pertama
+  // jika host sudah keluar) yang memajukan lagu supaya tidak terjadi skip ganda.
+  const handleRoomTrackEnded = useCallback(async () => {
+    const me = authUserRef.current;
+    const sock = socketRef.current;
+    if (!room || !me || !sock) return;
+    const members = room.members || [];
+    const hostPresent = members.some((m) => m.id === room.hostId);
+    const leaderId = hostPresent ? room.hostId : members[0]?.id;
+    if (leaderId !== me.id) return;
+
+    const queue = room.queue || [];
+    const idx = room.currentIndex ?? -1;
+    const key = `${room.id}:${idx}`;
+    if (roomAdvanceKeyRef.current === key) return;
+    roomAdvanceKeyRef.current = key;
+    setTimeout(() => { if (roomAdvanceKeyRef.current === key) roomAdvanceKeyRef.current = null; }, 8000);
+
+    if (idx >= 0 && idx < queue.length - 1) {
+      sock.emit("playback-control", { roomId: room.id, action: "next" });
+      return;
+    }
+
+    if (settingsRef.current.autoplay === false) {
+      sock.emit("playback-control", { roomId: room.id, action: "pause" });
+      pushToast(tRef.current("toastAutoplayOff"));
+      return;
+    }
+
+    const seeds = [queue[idx], queue[idx - 1]].filter(Boolean).map(normalizeTrack);
+    const pick = await fetchRoomRecommendation(seeds, queue);
+
+    const latest = roomRef.current;
+    if (!latest || latest.id !== room.id || latest.currentIndex !== idx) return;
+    const latestQueue = latest.queue || [];
+    if (latestQueue.length > idx + 1) {
+      sock.emit("playback-control", { roomId: room.id, action: "next" });
+      return;
+    }
+    if (!pick) {
+      sock.emit("playback-control", { roomId: room.id, action: "pause" });
+      pushToast(tRef.current("toastRoomNoRecommend"));
+      return;
+    }
+    sock.emit("queue-add", { roomId: room.id, song: pick });
+    sock.emit("playback-control", { roomId: room.id, action: "select", payload: { index: latestQueue.length } });
+    pushToast(`${tRef.current("toastRoomAutoRecommend")} — ${pick.title}`);
+  }, [room, pushToast, fetchRoomRecommendation]);
+  useEffect(() => { roomTrackEndedRef.current = handleRoomTrackEnded; }, [handleRoomTrackEnded]);
 
   useEffect(() => () => { socketRef.current?.disconnect(); }, []);
 
