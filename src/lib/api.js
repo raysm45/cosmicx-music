@@ -80,7 +80,7 @@ export const Api = {
   artist: (q) => apiGet(`/api/artist?q=${encodeURIComponent(q)}`),
   artistQuick: (q) => apiGet(`/api/artist/quick?q=${encodeURIComponent(q)}`),
   appleMusicHero: (name, country = "us") =>
-    apiGetPublic(`/api/apple-music/artist-hero?q=${encodeURIComponent(name)}&country=${encodeURIComponent(country)}`),
+    apiGetPublic(`/api/apple-music/artist-hero?q=${encodeURIComponent(name)}&country=${encodeURIComponent(country)}&key=motionArtistSquare1x1`),
   appleMusicSearch: (q, limit = 5) =>
     apiGetPublic(`/api/apple-music/search?q=${encodeURIComponent(q)}&country=us&limit=${limit}`),
   appleMusicVideoUrl: (url) => `${API_BASE}/api/apple-music/video?u=${encodeURIComponent(url)}`,

@@ -35,7 +35,8 @@ function pickHeroRenditions(hero) {
     const m = Math.max(w, h);
     return (Math.abs(w - h) > 8 ? 100000 : 0) + Math.abs(m - 1080) + (m > 1080 ? 500 : 0);
   };
-  const ranked = [...(hero.renditions || [])].filter(playable).sort((a, b) => rank(a) - rank(b) || bw(b) - bw(a));
+  const isPick = (r) => (/_gr280_/.test(r.url || "") && rank(r) === 0 ? 1 : 0);
+  const ranked = [...(hero.renditions || [])].filter(playable).sort((a, b) => isPick(b) - isPick(a) || rank(a) - rank(b) || bw(a) - bw(b));
   const list = [...ranked, hero.video, hero.fastVideo].filter(playable);
   const seen = new Set();
   return list.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
