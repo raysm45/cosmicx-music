@@ -28,8 +28,9 @@ function pickHeroRenditions(hero) {
   const playable = (r) => r && r.url && (nativeHls || !/\.m3u8(\?|$)/i.test(r.url));
   const bw = (r) => r.bandwidth || 0;
   const rank = (r) => {
-    const w = r.width || 0;
-    const h = r.height || 0;
+    const [pw, ph] = String(r.resolution || "").split("x").map(Number);
+    const w = r.width || pw || 0;
+    const h = r.height || ph || 0;
     if (!w || !h) return 1e9;
     const m = Math.max(w, h);
     return (Math.abs(w - h) > 8 ? 100000 : 0) + Math.abs(m - 1080) + (m > 1080 ? 500 : 0);
