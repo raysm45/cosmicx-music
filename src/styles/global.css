@@ -3657,3 +3657,8 @@ body.aivy-artist-tinted .aivy-credits-card{ color: var(--ink); }
 @media (max-width: 860px){
   .aivy-am-page.is-cover-page{ --am-hero-h: min(64vh, 560px); }
 }
+
+.aivy-am-media.is-cover{ display: flex; justify-content: center; }
+.aivy-am-media.is-cover .aivy-animated-cover{ position: relative; flex: 0 0 auto; height: 100% !important; width: auto !important; aspect-ratio: 1 / 1; }
+.aivy-am-cover-bg{ position: absolute; inset: 0; overflow: hidden; }
+.aivy-am-media .aivy-am-cover-bg img{ filter: blur(48px) saturate(1.3) brightness(.72) !important; transform: scale(1.35) !important; }

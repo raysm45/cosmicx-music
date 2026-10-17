@@ -133,6 +133,29 @@ export function ArtistPage() {
   const [videoBroken, setVideoBroken] = useState(false);
   const heroVideoRef = useRef(null);
   const heroQueueRef = useRef([]);
+  const heroTriedRef = useRef([]);
+  const heroSettledRef = useRef(false);
+  const handleHeroMeta = useCallback((e) => {
+    const v = e.currentTarget;
+    const ratio = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 0;
+    const q = heroQueueRef.current;
+    const cur = q[0];
+    if (!ratio || !cur || heroSettledRef.current) return;
+    heroTriedRef.current.push({ url: cur, ratio });
+    console.info("[artistHero]", { url: cur, ratio: Number(ratio.toFixed(3)), size: `${v.videoWidth}x${v.videoHeight}` });
+    if (ratio >= 1.6) { heroSettledRef.current = true; return; }
+    if (q.length > 1 && heroTriedRef.current.length < 4) {
+      q.shift();
+      setHeroVideoUrl(Api.appleMusicVideoUrl(q[0]));
+      return;
+    }
+    heroSettledRef.current = true;
+    const best = [...heroTriedRef.current].sort((x, y) => y.ratio - x.ratio)[0];
+    if (best && best.url !== cur) {
+      heroQueueRef.current = [best.url];
+      setHeroVideoUrl(Api.appleMusicVideoUrl(best.url));
+    }
+  }, []);
   const handleHeroVideoError = useCallback(() => {
     const q = heroQueueRef.current;
     if (q.length > 1) {
@@ -164,6 +187,8 @@ export function ArtistPage() {
     setAboutOpen(false);
     setVideoBroken(false);
     heroQueueRef.current = [];
+    heroTriedRef.current = [];
+    heroSettledRef.current = false;
     setHeroVideoUrl(null);
     setHeroArtwork(null);
     setHeroInfo(null);
@@ -280,6 +305,7 @@ export function ArtistPage() {
             preload="auto"
             disablePictureInPicture
             onError={handleHeroVideoError}
+            onLoadedMetadata={handleHeroMeta}
             onCanPlay={(e) => { e.currentTarget.dataset.ready = "1"; }}
           />
         ) : (
@@ -534,12 +560,16 @@ export function AlbumPage() {
         heroRef={heroRef}
         coverStyle
         media={(
-          <AnimatedCover
-            src={album.cover} seed={"album-bg" + album.id + album.title} size={800} radius={0}
-            style={{ width: "100%", height: "100%" }}
-            song={album.title} artist={album.artist?.name}
-            animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
-          />
+          <>
+            <div className="aivy-am-cover-bg" aria-hidden="true">
+              <SmartCover src={album.cover} seed={"album-bg" + album.id + album.title} size={800} radius={0} style={{ width: "100%", height: "100%" }} />
+            </div>
+            <AnimatedCover
+              src={album.cover} seed={"album-bg" + album.id + album.title} size={800} radius={0}
+              song={album.title} artist={album.artist?.name}
+              animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+            />
+          </>
         )}
       >
         <div className="aivy-am-kicker">{t("albumLabel")}</div>
