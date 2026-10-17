@@ -10,15 +10,16 @@ import { useArtworkTint, tintFromHex, useImmersiveHero, ImmersiveHero } from "..
 
 const TOP_SONGS_LIMIT = 12;
 
-function pickHeroRendition(hero) {
-  if (!hero) return null;
-  const conn = typeof navigator !== "undefined" ? navigator.connection : null;
-  const slow = conn && (conn.saveData || /2g/.test(conn.effectiveType || ""));
-  if (slow) {
-    const list = [...(hero.renditions || [])].sort((a, b) => (a.bandwidth || 0) - (b.bandwidth || 0));
-    return list[0] || hero.fastVideo || hero.video || null;
-  }
-  return hero.fastVideo || hero.video || null;
+function pickHeroRenditions(hero) {
+  if (!hero) return [];
+  let nativeHls = false;
+  try { nativeHls = document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== ""; } catch {}
+  const playable = (r) => r && r.url && (nativeHls || !/\.m3u8(\?|$)/i.test(r.url));
+  const score = (r) => r.bandwidth || (r.width || 0) * (r.height || 0) || 0;
+  const ranked = [...(hero.renditions || [])].filter(playable).sort((a, b) => score(b) - score(a));
+  const list = [...ranked, hero.video, hero.fastVideo].filter(playable);
+  const seen = new Set();
+  return list.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
 }
 
 function releaseYear(value) {
@@ -131,6 +132,16 @@ export function ArtistPage() {
   const [logoBroken, setLogoBroken] = useState(false);
   const [videoBroken, setVideoBroken] = useState(false);
   const heroVideoRef = useRef(null);
+  const heroQueueRef = useRef([]);
+  const handleHeroVideoError = useCallback(() => {
+    const q = heroQueueRef.current;
+    if (q.length > 1) {
+      q.shift();
+      setHeroVideoUrl(Api.appleMusicVideoUrl(q[0]));
+    } else {
+      setVideoBroken(true);
+    }
+  }, []);
   useEffect(() => {
     const el = heroVideoRef.current;
     if (!el) return undefined;
@@ -152,6 +163,7 @@ export function ArtistPage() {
     setLoading(true);
     setAboutOpen(false);
     setVideoBroken(false);
+    heroQueueRef.current = [];
     setHeroVideoUrl(null);
     setHeroArtwork(null);
     setHeroInfo(null);
@@ -166,8 +178,8 @@ export function ArtistPage() {
           .then((h) => {
             if (!alive) return;
             setHeroInfo(h);
-            const chosen = pickHeroRendition(h);
-            if (chosen?.url) setHeroVideoUrl(Api.appleMusicVideoUrl(chosen.url));
+            heroQueueRef.current = pickHeroRenditions(h).map((r) => r.url);
+            if (heroQueueRef.current[0]) setHeroVideoUrl(Api.appleMusicVideoUrl(heroQueueRef.current[0]));
             const poster = h?.previewFrame?.url || h?.artwork?.url;
             if (poster) setHeroArtwork(poster);
             if (h?.artwork?.bgColor) setHeroBgColor(h.artwork.bgColor);
@@ -267,7 +279,7 @@ export function ArtistPage() {
             autoPlay muted loop playsInline
             preload="auto"
             disablePictureInPicture
-            onError={() => setVideoBroken(true)}
+            onError={handleHeroVideoError}
             onCanPlay={(e) => { e.currentTarget.dataset.ready = "1"; }}
           />
         ) : (

@@ -19,8 +19,6 @@ export const TENDRIL_PATH =
   "C10.12,26.43 8.99,25.8 7.94,25.01 C6.95,24.13 6.08,23.13 5.34,22.01 " +
   "C4.69,20.81 4.21,19.55 3.9,18.2 C3.71,16.83 3.7,15.44 3.87,14.04";
 
-
-// ---- Halloween theme: pakai gambar PNG/JPG asli (bukan SVG) ----
 export const HALLOWEEN_BASE = "/halloween";
 export const HALLOWEEN_COVER_COUNT = 8;
 
@@ -41,11 +39,9 @@ export function useIsHalloween() {
 export const STAR_PATH =
   "M16 2 C16 10 10 16 2 16 C10 16 16 22 16 30 C16 22 22 16 30 16 C22 16 16 10 16 2 Z";
 
-// ---- Logo NORMAL: bintang 4 sudut sisi cekung + lubang bintang (sesuai desain cosmicx music) ----
 export const LOGO_STAR_PATH = "M50 2 C53.5 29 71 46.5 98 50 C71 53.5 53.5 71 50 98 C46.5 71 29 53.5 2 50 C29 46.5 46.5 29 50 2 Z";
 export const LOGO_CUT_PATH = "M50 34 C51.4 43.4 56.6 48.6 66 50 C56.6 51.4 51.4 56.6 50 66 C48.6 56.6 43.4 51.4 34 50 C43.4 48.6 48.6 43.4 50 34 Z";
 
-// gradient=true -> versi metalik gelap (halaman terang); selain itu flat mengikuti `color` (sidebar/tema gelap)
 export function CosmicLogoMark({ size = 40, color = "currentColor", gradient = false, className = "" }) {
   const uid = useId().replace(/:/g, "");
   return (
@@ -69,7 +65,6 @@ export function CosmicLogoMark({ size = 40, color = "currentColor", gradient = f
 export function StarMark({ size = 22, color = "currentColor", className = "", logo = false }) {
   const halloween = useIsHalloween();
   if (halloween) {
-    // logo=true -> labu logo utama; selain itu hantu kecil untuk empty state
     const src = logo ? `${HALLOWEEN_BASE}/logo-mark-96.png` : `${HALLOWEEN_BASE}/decor/ghost.png`;
     const px = logo ? Math.round(size * 1.25) : size;
     return (
@@ -332,6 +327,16 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
         backBufferLength: 30,
         lowLatencyMode: false,
         startFragPrefetch: true,
+        capLevelToPlayerSize: false,
+        abrEwmaDefaultEstimate: 100000000,
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        const levels = hls.levels || [];
+        if (!levels.length) return;
+        let top = 0;
+        levels.forEach((l, i) => { if ((l.bitrate || 0) > (levels[top].bitrate || 0)) top = i; });
+        hls.startLevel = top;
+        hls.currentLevel = top;
       });
       hls.on(Hls.Events.ERROR, (_event, data) => {
         console.error("[animatedArtwork] hls.js error", { src, fatal: data?.fatal, type: data?.type, details: data?.details });
