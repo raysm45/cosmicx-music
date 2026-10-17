@@ -15,10 +15,11 @@ import {
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
   useTrackAudioInfo, useTrackMenuItems,
 } from "./components.jsx";
+import { AudioOutputSheet, AudioPipelineCard, LyricsProviderSheet, NPD_LYRICS_ID } from "./NpdSheets.jsx";
 import "./styles/nowplaying-desktop.css";
 
 const COVER_STYLE = { width: "100%", height: "100%" };
-const LYRICS_ID = "aivy-am-lyrics-npd";
+const LYRICS_ID = NPD_LYRICS_ID;
 const LYRICS_SHADOW_CSS = ".lyrics-header{display:none!important}.lyrics-footer .footer-content{display:none!important}";
 const FALLBACK_LANGS = [
   { code: "en", label: "English" },
@@ -100,7 +101,7 @@ export function NowPlayingDesktop({ open, onClose }) {
   return createPortal(<FullPlayer shown={shown} onClose={onClose} />, document.body);
 }
 
-const NO_DRAG_SELECTOR = "button, a, input, select, textarea, label, [role='slider'], .aivy-scrubber, .aivy-vol, am-lyrics, .npd-lyrics, .npd-queue-scroll, .npd-artist-pane";
+const NO_DRAG_SELECTOR = "button, a, input, select, textarea, label, [role='slider'], .aivy-scrubber, .aivy-vol, am-lyrics, .npd-lyrics, .npd-queue-scroll, .npd-artist-pane, .npd-sheet-layer";
 const DRAG_CLOSE_DISTANCE = 120;
 const DRAG_CLOSE_VELOCITY = 0.55;
 
@@ -198,14 +199,113 @@ function useDragToClose(rootRef, onClose) {
   return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture, onDragStart };
 }
 
+const SWIPE_COMMIT_RATIO = 0.22;
+const SWIPE_COMMIT_VELOCITY = 0.5;
+
+// Geser cover ke kiri = lagu berikutnya, ke kanan = sebelumnya
+function useCoverSwipe({ onNext, onPrev, disabled }) {
+  const ref = useRef(null);
+  const st = useRef(null);
+  const timers = useRef([]);
+  const cb = useRef({ onNext, onPrev, disabled });
+  cb.current = { onNext, onPrev, disabled };
+
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  const onPointerDown = useCallback((e) => {
+    if (cb.current.disabled) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const el = ref.current;
+    if (!el) return;
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    el.style.transition = "";
+    st.current = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, vx: 0, lastX: e.clientX, lastT: performance.now(), active: false };
+  }, []);
+
+  const onPointerMove = useCallback((e) => {
+    const s = st.current;
+    const el = ref.current;
+    if (!s || s.id !== e.pointerId || !el) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    if (!s.active) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { st.current = null; return; }
+      if (Math.abs(dx) < 8) return;
+      s.active = true;
+      el.style.transition = "none";
+      el.classList.add("is-swiping");
+      try { el.setPointerCapture(e.pointerId); } catch {}
+    }
+    const now = performance.now();
+    const dt = Math.max(1, now - s.lastT);
+    s.vx = s.vx * 0.6 + ((e.clientX - s.lastX) / dt) * 0.4;
+    s.lastX = e.clientX;
+    s.lastT = now;
+    s.dx = dx;
+    const w = el.offsetWidth || 400;
+    const p = Math.min(1, Math.abs(dx) / w);
+    el.style.transform = `translate3d(${dx}px, 0, 0) rotate(${(dx / w) * 6}deg) scale(${1 - p * 0.06})`;
+    el.style.opacity = String(1 - p * 0.5);
+  }, []);
+
+  const finish = useCallback((e, cancelled) => {
+    const s = st.current;
+    const el = ref.current;
+    if (!s || s.id !== e.pointerId) return;
+    st.current = null;
+    if (!el || !s.active) return;
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    el.classList.remove("is-swiping");
+
+    const w = el.offsetWidth || 400;
+    const commit = !cancelled && cb.current.disabled !== true &&
+      (Math.abs(s.dx) > w * SWIPE_COMMIT_RATIO || (Math.abs(s.vx) > SWIPE_COMMIT_VELOCITY && Math.abs(s.dx) > 30));
+
+    if (!commit) {
+      el.style.transition = "transform .45s cubic-bezier(.22,1,.36,1), opacity .3s ease";
+      el.style.transform = "";
+      el.style.opacity = "";
+      return;
+    }
+
+    const dir = s.dx < 0 ? -1 : 1;
+    el.style.transition = "transform .2s ease-in, opacity .2s ease-in";
+    el.style.transform = `translate3d(${dir * w * 0.9}px, 0, 0) rotate(${dir * 8}deg) scale(.9)`;
+    el.style.opacity = "0";
+    timers.current.push(setTimeout(() => {
+      if (dir < 0) cb.current.onNext(); else cb.current.onPrev();
+      if (!ref.current) return;
+      el.style.transition = "none";
+      el.style.transform = `translate3d(${-dir * w * 0.5}px, 0, 0) scale(.92)`;
+      el.style.opacity = "0";
+      void el.offsetWidth;
+      el.style.transition = "transform .5s cubic-bezier(.22,.9,.32,1), opacity .4s ease";
+      el.style.transform = "";
+      el.style.opacity = "";
+    }, 200));
+  }, []);
+
+  return {
+    ref,
+    onPointerDown, onPointerMove,
+    onPointerUp: (e) => finish(e, false),
+    onPointerCancel: (e) => finish(e, true),
+  };
+}
+
 function FullPlayer({ shown, onClose }) {
-  const { currentTrack, currentTrackHasLyrics, shuffle, toggleShuffle, repeat, cycleRepeat, room, isPlaying } = usePlayer();
-  const { settings, updateSettings, t } = useUI();
+  const { currentTrack, currentTrackHasLyrics, shuffle, toggleShuffle, repeat, cycleRepeat, room, isPlaying, next, prev } = usePlayer();
+  const { settings, updateSettings, t, authUser } = useUI();
   const [view, setView] = useState("controls");
-  const [showQuality, setShowQuality] = useState(true);
+  const [outputOpen, setOutputOpen] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [providersOpen, setProvidersOpen] = useState(false);
   const [lyricsReady, setLyricsReady] = useState(true);
   const rootRef = useRef(null);
   const drag = useDragToClose(rootRef, onClose);
+  const swipeLocked = !!(room && room.hostOnlyControl && authUser && room.hostId !== authUser.id);
+  const swipe = useCoverSwipe({ onNext: () => next(false), onPrev: prev, disabled: swipeLocked });
 
   useEffect(() => {
     if (!shown || !rootRef.current) return;
@@ -271,9 +371,15 @@ function FullPlayer({ shown, onClose }) {
 
       <div className="npd-stage">
         <div className="npd-left">
-          <div className={`npd-cover ${isPlaying ? "" : "is-paused"}`}>
-            {cover}
-            <QualityLine track={currentTrack} visible={view === "controls" && showQuality} />
+          <div
+            ref={swipe.ref} className={`npd-cover-swipe ${swipeLocked ? "is-locked" : ""}`}
+            onPointerDown={swipe.onPointerDown} onPointerMove={swipe.onPointerMove}
+            onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
+          >
+            <div className={`npd-cover ${isPlaying ? "" : "is-paused"}`}>
+              {cover}
+              <QualityLine track={currentTrack} visible={view === "controls"} />
+            </div>
           </div>
 
           <div className="npd-dock">
@@ -301,8 +407,8 @@ function FullPlayer({ shown, onClose }) {
               ) : (
                 <>
                   <button
-                    type="button" className={showQuality ? "active" : ""} onClick={() => setShowQuality((v) => !v)} aria-pressed={showQuality}
-                    aria-label={tx("Info kualitas audio", "Audio quality info")} title={tx("Info kualitas audio", "Audio quality info")}
+                    type="button" className={outputOpen ? "active" : ""} onClick={() => setOutputOpen(true)} aria-pressed={outputOpen} aria-haspopup="dialog"
+                    aria-label={tx("Output audio", "Audio output")} title={tx("Output audio", "Audio output")}
                   >
                     <IconHeadphones />
                   </button>
@@ -328,11 +434,17 @@ function FullPlayer({ shown, onClose }) {
 
         <div className="npd-right">
           {view === "controls" && <ControlsPanel key="controls" track={currentTrack} tx={tx} onClose={onClose} onOpenLyrics={openLyricsAtLine} />}
-          {lyricsReady && <LyricsPanel track={currentTrack} active={view === "lyrics"} tx={tx} />}
+          {lyricsReady && <LyricsPanel track={currentTrack} active={view === "lyrics"} tx={tx} onOpenProviders={() => setProvidersOpen(true)} />}
           {view === "queue" && <QueuePanel key="queue" track={currentTrack} tx={tx} />}
           {view === "artist" && <ArtistPanel key="artist" track={currentTrack} onClose={onClose} />}
         </div>
       </div>
+
+      {outputOpen && (
+        <AudioOutputSheet tx={tx} onClose={() => { setOutputOpen(false); setPipelineOpen(false); }} onOpenPipeline={() => setPipelineOpen(true)} />
+      )}
+      {outputOpen && pipelineOpen && <AudioPipelineCard track={currentTrack} tx={tx} onClose={() => setPipelineOpen(false)} />}
+      {providersOpen && <LyricsProviderSheet tx={tx} onClose={() => setProvidersOpen(false)} />}
     </div>
   );
 }
@@ -357,20 +469,6 @@ const WAIT_PHRASES = [
   "Clearing the throat", "Count me in", "Feel the beat first", "The calm before the lyrics", "Listen closely",
   "Almost there", "Picking the first note", "The story begins soon", "Let the intro breathe", "Loading the feels",
   "Sit back and relax", "A little drumroll", "Shh, it\u2019s starting", "Get comfy", "Lyrics loading in your heart",
-  "Softly now", "The first beat is near", "Let the melody find you", "Strike a chord", "Waiting on the downbeat",
-  "Hear that silence?", "The rhythm is waking", "One more moment", "Catch the groove", "The vocals are warming up",
-  "Let the bassline settle", "Ready for the first line", "The track is loading", "A hush before the sound", "Feel the room shift",
-  "The beat is on its way", "Steady now", "Here comes the hook", "Give it a second", "The intro is unfolding",
-  "Let the speakers breathe", "The tempo is rising", "Cue the melody", "Almost song time", "Wait for the drop",
-  "The music is stretching", "Listen for the cue", "The first chord is close", "Let the silence speak", "Ready when you are",
-  "The beat is warming up", "A moment before the magic", "Here’s the count-in", "Let the harmony arrive", "The song is loading",
-  "Ease into the rhythm", "Hold that thought", "The first note is coming", "Feel the pulse begin", "The lyrics are on deck",
-  "A breath before the verse", "The mix is settling", "Cue the bass", "Wait for the groove", "The melody is near",
-  "Let the drums speak", "The tune is waking up", "One beat to go", "The sound is coming alive", "Here comes the intro",
-  "Let the rhythm roll", "The vocals are ready", "A small pause", "The track is about to play", "Listen to the quiet",
-  "The first line is close", "Feel the intro build", "Cue the first beat", "The song is at the door", "Almost listening time",
-  "Let the notes gather", "The beat is in the room", "Hold for the harmony", "The melody takes shape", "Here’s the moment",
-  "The rhythm is ready", "A second of calm", "The first sound is near", "Let the music begin", "Ready, set, play"
 ];
 
 function LyricLine({ track, onAlbum, onOpenLyrics }) {
@@ -384,6 +482,7 @@ function LyricLine({ track, onAlbum, onOpenLyrics }) {
   const hasLines = !!lines;
 
   const phase = lines ? lyricPhase(lines, time * 1000 + 250) : { kind: "none", text: null };
+  // Saat audio masih loading, selalu tampilkan kalimat "menunggu" (bukan Instrumental)
   const kind = loadingAudio && time < 1.5 ? "intro" : phase.kind;
   const waiting = kind === "intro" || (loadingAudio && !lines && time < 1.5);
   const showNote = waiting || kind === "instrumental";
@@ -393,6 +492,8 @@ function LyricLine({ track, onAlbum, onOpenLyrics }) {
     const id = setInterval(() => force((n) => n + 1), 500);
     return () => clearInterval(id);
   }, [hasLines, track.id]);
+
+  // Ganti kalimat menunggu tiap beberapa detik kalau intro-nya panjang
   useEffect(() => {
     if (!waiting) return undefined;
     const id = setInterval(() => setTick((n) => n + 1), 3600);
@@ -517,7 +618,7 @@ function ControlsPanel({ track, tx, onClose, onOpenLyrics }) {
   );
 }
 
-function LyricsPanel({ track, active, tx }) {
+function LyricsPanel({ track, active, tx, onOpenProviders }) {
   const { seekTo } = usePlayer();
   const { settings, t } = useUI();
   const time = usePlayerTime();
@@ -592,11 +693,6 @@ function LyricsPanel({ track, active, tx }) {
     el.changeTranslationLang(e.target.value);
     setTimeout(read, 40);
   };
-  const switchSource = () => {
-    const el = getEl();
-    if (el && typeof el.switchSource === "function") el.switchSource();
-    setTimeout(read, 200);
-  };
   const resumeSync = () => {
     const el = getEl();
     if (el && typeof el.resumeAutoScroll === "function") el.resumeAutoScroll();
@@ -643,9 +739,9 @@ function LyricsPanel({ track, active, tx }) {
 
         <div className="npd-source-info">
           {sourceLabel && (
-            ui.multi
-              ? <button type="button" className="npd-source-btn" onClick={switchSource} title={tx("Ganti sumber lirik", "Switch lyrics source")}>{tx("Lirik dari", "Lyrics by")} {sourceLabel}</button>
-              : <span className="npd-source-text">{tx("Lirik dari", "Lyrics by")} {sourceLabel}</span>
+            <button type="button" className="npd-source-btn" onClick={onOpenProviders} title={tx("Pilih provider lirik", "Choose lyrics provider")}>
+              {tx("Lirik dari", "Lyrics by")} {sourceLabel}
+            </button>
           )}
         </div>
 

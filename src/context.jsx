@@ -123,6 +123,15 @@ function defaultThemeForSeason() {
   return "black";
 }
 
+const OUTPUT_DEVICE_KEY = "aivy_output_device";
+function readSavedOutputDevice() {
+  try {
+    const raw = localStorage.getItem(OUTPUT_DEVICE_KEY);
+    const v = raw ? JSON.parse(raw) : null;
+    return v && typeof v.id === "string" && v.id ? { id: v.id, label: String(v.label || "") } : null;
+  } catch { return null; }
+}
+
 const DEFAULT_SETTINGS = {
   audioQuality: "preview",
   audioFormat: "opus",
@@ -541,6 +550,7 @@ export function PlayerProvider({ children }) {
   const [followedArtists, setFollowedArtists] = useState([]);
   const [savedAlbums, setSavedAlbums] = useState([]);
   const [loadingAudio, setLoadingAudio] = useState(false);
+  const [outputDevice, setOutputDeviceState] = useState(readSavedOutputDevice);
   const [playSource, setPlaySource] = useState(null);
 
   const [localTracks, setLocalTracks] = useState([]);
@@ -661,6 +671,8 @@ export function PlayerProvider({ children }) {
     if (!Ctx) return null;
     try {
       const ctx = new Ctx();
+      const savedOut = readSavedOutputDevice();
+      if (savedOut && typeof ctx.setSinkId === "function") ctx.setSinkId(savedOut.id).catch(() => {});
       const source = ctx.createMediaElementSource(audio);
       const preamp = ctx.createGain();
       const bands = EQ_BANDS_HZ.map((freq) => {
@@ -721,6 +733,26 @@ export function PlayerProvider({ children }) {
   const getAnalyser = useCallback(() => {
     const graph = ensureAudioGraph();
     return graph?.analyser || null;
+  }, [ensureAudioGraph]);
+
+  const getAudioContext = useCallback(() => ensureAudioGraph()?.ctx || null, [ensureAudioGraph]);
+
+  // Pilih perangkat output (null = default sistem). Web Audio dirutekan lewat AudioContext, jadi pakai ctx.setSinkId.
+  const setOutputDevice = useCallback(async (dev) => {
+    const ctx = ensureAudioGraph()?.ctx;
+    const id = dev?.id || "";
+    if (ctx && typeof ctx.setSinkId === "function") {
+      try { await ctx.setSinkId(id); } catch { return false; }
+    } else if (id) {
+      return false;
+    }
+    const next = id ? { id, label: String(dev.label || "") } : null;
+    setOutputDeviceState(next);
+    try {
+      if (next) localStorage.setItem(OUTPUT_DEVICE_KEY, JSON.stringify(next));
+      else localStorage.removeItem(OUTPUT_DEVICE_KEY);
+    } catch {}
+    return true;
   }, [ensureAudioGraph]);
 
   const currentTrack = queueList.length && order.length ? queueList[order[posInOrder]] : null;
@@ -1907,7 +1939,7 @@ export function PlayerProvider({ children }) {
     chatMessages, sendChatMessage, voteSkip,
     promptCast, getAudioSrc,
     localTracks, localScan, scanLocalFiles, clearLocalLibrary,
-    getAnalyser,
+    getAnalyser, getAudioContext, outputDevice, setOutputDevice,
   };
   return <PlayerCtx.Provider value={value}>{children}</PlayerCtx.Provider>;
 }

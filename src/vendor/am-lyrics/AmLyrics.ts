@@ -2198,6 +2198,8 @@ export class AmLyrics extends LitElement {
 
   private hasFetchedAllProviders = false;
 
+  private missingProviders: Set<string> = new Set();
+
   private _updateFooter() {
     const footer = this.shadowRoot?.querySelector('.lyrics-footer');
     if (!footer) return;
@@ -2394,6 +2396,7 @@ export class AmLyrics extends LitElement {
     this.currentSourceIndex = 0;
     this.isFetchingAlternatives = false;
     this.hasFetchedAllProviders = false;
+    this.missingProviders = new Set();
     this._updateFooter();
     try {
       if (this.ttml) {
@@ -2807,6 +2810,191 @@ export class AmLyrics extends LitElement {
         await this.applySourceAtIndex(nextIndex);
       }
     }
+  }
+
+  private static readonly PROVIDER_CATALOG: {
+    key: string;
+    label: string;
+    match: string[];
+    group: 'bini' | 'unison' | 'kpoe' | 'lrclib' | 'genius';
+  }[] = [
+    { key: 'cosmicx', label: 'Cosmicx-Lyrics', match: ['bini', 'cosmicx'], group: 'bini' },
+    { key: 'apple', label: 'Apple Music', match: ['apple'], group: 'kpoe' },
+    { key: 'qq', label: 'QQ', match: ['qq', 'lyricsplus'], group: 'kpoe' },
+    { key: 'musixmatch', label: 'Musixmatch', match: ['musixmatch'], group: 'kpoe' },
+    { key: 'unison', label: 'Unison', match: ['unison'], group: 'unison' },
+    { key: 'lrclib', label: 'LRCLIB', match: ['lrclib'], group: 'lrclib' },
+    { key: 'genius', label: 'Genius', match: ['genius'], group: 'genius' },
+  ];
+
+  private static providerMatches(
+    sourceLabel: string,
+    entry: { match: string[] },
+  ): boolean {
+    const lower = (sourceLabel || '').toLowerCase();
+    return entry.match.some(m => lower.includes(m));
+  }
+
+  /**
+   * Daftar provider untuk UI "Choose lyrics provider".
+   * status: current = sedang dipakai, ready = sudah di-fetch (tinggal pindah),
+   * fetch = belum diambil, missing = sudah dicoba tapi tidak ada hasil.
+   */
+  public getProviderList(): {
+    key: string;
+    label: string;
+    status: 'current' | 'ready' | 'fetch' | 'missing';
+  }[] {
+    const currentIdx = this.findCurrentSourceIndex();
+    const list: {
+      key: string;
+      label: string;
+      status: 'current' | 'ready' | 'fetch' | 'missing';
+    }[] = [];
+    const used = new Set<number>();
+
+    for (const entry of AmLyrics.PROVIDER_CATALOG) {
+      const idx = this.availableSources.findIndex(s =>
+        AmLyrics.providerMatches(s.source, entry),
+      );
+      if (idx !== -1) {
+        used.add(idx);
+        list.push({
+          key: entry.key,
+          label: entry.label,
+          status: idx === currentIdx ? 'current' : 'ready',
+        });
+      } else {
+        list.push({
+          key: entry.key,
+          label: entry.label,
+          status: this.missingProviders.has(entry.key) ? 'missing' : 'fetch',
+        });
+      }
+    }
+
+    this.availableSources.forEach((s, idx) => {
+      if (used.has(idx)) return;
+      list.push({
+        key: `raw:${s.source}`,
+        label: AmLyrics.getDisplaySourceLabel(s.source),
+        status: idx === currentIdx ? 'current' : 'ready',
+      });
+    });
+
+    return list;
+  }
+
+  /** Pilih provider tertentu; kalau belum di-fetch, ambil dulu. */
+  public async selectProvider(key: string): Promise<boolean> {
+    if (this.isFetchingAlternatives) return false;
+
+    const findIdx = () => {
+      if (key.startsWith('raw:')) {
+        const label = key.slice(4);
+        return this.availableSources.findIndex(s => s.source === label);
+      }
+      const entry = AmLyrics.PROVIDER_CATALOG.find(e => e.key === key);
+      if (!entry) return -1;
+      return this.availableSources.findIndex(s =>
+        AmLyrics.providerMatches(s.source, entry),
+      );
+    };
+
+    let idx = findIdx();
+    if (idx === -1) {
+      const entry = AmLyrics.PROVIDER_CATALOG.find(e => e.key === key);
+      if (!entry) return false;
+
+      const controller = this.fetchAbortController;
+      this.isFetchingAlternatives = true;
+      this._updateFooter();
+      try {
+        const resolved = await this.resolveSongMetadata();
+        const metadata = resolved?.metadata;
+        if (!metadata || controller !== this.fetchAbortController) return false;
+
+        const title = metadata.title?.trim() || '';
+        const artist = metadata.artist?.trim() || '';
+        let found: YouLyPlusLyricsResult[] = [];
+
+        if (entry.group === 'bini') {
+          const r = await AmLyrics.fetchLyricsFromBiniLyrics(
+            title,
+            artist,
+            resolved.catalogIsrc,
+            metadata,
+          );
+          if (r && r.lines.length > 0) found = [r];
+        } else if (entry.group === 'unison') {
+          const r = await AmLyrics.fetchLyricsFromUnison(metadata);
+          if (r && r.lines.length > 0) found = [r];
+        } else if (entry.group === 'kpoe') {
+          found = await AmLyrics.fetchLyricsFromYouLyPlus(
+            title,
+            artist,
+            resolved.catalogIsrc,
+            metadata,
+            true,
+          );
+        } else if (entry.group === 'lrclib') {
+          const r = await AmLyrics.fetchLyricsFromLrclib(metadata);
+          if (r && r.lines.length > 0) {
+            found = [{ lines: r.lines, source: 'LRCLIB' }];
+          }
+        } else if (entry.group === 'genius') {
+          const r = await AmLyrics.fetchLyricsFromGenius(metadata);
+          if (r && r.lines.length > 0) {
+            found = [{ lines: r.lines, source: 'Genius' }];
+          }
+        }
+
+        if (controller !== this.fetchAbortController) return false;
+
+        if (found.length > 0) {
+          const currentLabel = this.lyricsSource;
+          const currentLines = this.lyrics;
+          this.availableSources = AmLyrics.mergeAndSortSources([
+            ...this.availableSources,
+            ...found,
+          ]);
+          this.currentSourceIndex = this.findCurrentSourceIndex(
+            this.availableSources,
+            currentLabel,
+            currentLines,
+          );
+        }
+
+        if (entry.group === 'kpoe') {
+          for (const sib of AmLyrics.PROVIDER_CATALOG) {
+            if (sib.group !== 'kpoe') continue;
+            if (
+              !this.availableSources.some(s =>
+                AmLyrics.providerMatches(s.source, sib),
+              )
+            ) {
+              this.missingProviders.add(sib.key);
+            }
+          }
+        }
+      } catch {
+        // abaikan; ditandai missing di bawah
+      } finally {
+        if (controller === this.fetchAbortController) {
+          this.isFetchingAlternatives = false;
+          this._updateFooter();
+        }
+      }
+
+      idx = findIdx();
+      if (idx === -1) {
+        this.missingProviders.add(key);
+        return false;
+      }
+    }
+
+    await this.applySourceAtIndex(idx);
+    return true;
   }
 
   private async resolveSongMetadata(): Promise<ResolvedMetadata> {
