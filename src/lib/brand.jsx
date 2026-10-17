@@ -333,8 +333,23 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         const levels = hls.levels || [];
         if (!levels.length) return;
+        const rank = (l) => {
+          const w = l.width || 0;
+          const h = l.height || 0;
+          if (!w || !h) return Infinity;
+          const m = Math.max(w, h);
+          return (Math.abs(w - h) > 8 ? 100000 : 0) + Math.abs(m - 1080) + (m > 1080 ? 500 : 0);
+        };
         let top = 0;
-        levels.forEach((l, i) => { if ((l.bitrate || 0) > (levels[top].bitrate || 0)) top = i; });
+        if (levels.some((l) => l.width && l.height)) {
+          levels.forEach((l, i) => {
+            const a = rank(l);
+            const b = rank(levels[top]);
+            if (a < b || (a === b && (l.bitrate || 0) > (levels[top].bitrate || 0))) top = i;
+          });
+        } else {
+          levels.forEach((l, i) => { if ((l.bitrate || 0) > (levels[top].bitrate || 0)) top = i; });
+        }
         hls.startLevel = top;
         hls.currentLevel = top;
       });

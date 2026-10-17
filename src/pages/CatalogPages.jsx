@@ -10,9 +10,9 @@ import { useArtworkTint, tintFromHex, useImmersiveHero, ImmersiveHero } from "..
 
 const TOP_SONGS_LIMIT = 12;
 
-function appleWide(url, w = 1920) {
+function appleWide(url, w = 1080) {
   if (!url || typeof url !== "string") return url;
-  const h = Math.round((w * 9) / 16);
+  const h = w;
   if (/\{w\}x\{h\}/.test(url)) {
     return url.replace(/\{w\}x\{h\}(?:\{c\})?\.\{f\}/, `${w}x${h}sr.webp`).replace(/\{w\}x\{h\}/, `${w}x${h}`);
   }
@@ -26,8 +26,15 @@ function pickHeroRenditions(hero) {
   let nativeHls = false;
   try { nativeHls = document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== ""; } catch {}
   const playable = (r) => r && r.url && (nativeHls || !/\.m3u8(\?|$)/i.test(r.url));
-  const score = (r) => r.bandwidth || (r.width || 0) * (r.height || 0) || 0;
-  const ranked = [...(hero.renditions || [])].filter(playable).sort((a, b) => score(b) - score(a));
+  const bw = (r) => r.bandwidth || 0;
+  const rank = (r) => {
+    const w = r.width || 0;
+    const h = r.height || 0;
+    if (!w || !h) return 1e9;
+    const m = Math.max(w, h);
+    return (Math.abs(w - h) > 8 ? 100000 : 0) + Math.abs(m - 1080) + (m > 1080 ? 500 : 0);
+  };
+  const ranked = [...(hero.renditions || [])].filter(playable).sort((a, b) => rank(a) - rank(b) || bw(b) - bw(a));
   const list = [...ranked, hero.video, hero.fastVideo].filter(playable);
   const seen = new Set();
   return list.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
@@ -146,26 +153,8 @@ export function ArtistPage() {
   const heroQueueRef = useRef([]);
   const heroTriedRef = useRef([]);
   const heroSettledRef = useRef(false);
-  const handleHeroMeta = useCallback((e) => {
-    const v = e.currentTarget;
-    const ratio = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 0;
-    const q = heroQueueRef.current;
-    const cur = q[0];
-    if (!ratio || !cur || heroSettledRef.current) return;
-    heroTriedRef.current.push({ url: cur, ratio });
-    console.info("[artistHero]", { url: cur, ratio: Number(ratio.toFixed(3)), size: `${v.videoWidth}x${v.videoHeight}` });
-    if (ratio >= 1.6) { heroSettledRef.current = true; return; }
-    if (q.length > 1 && heroTriedRef.current.length < 4) {
-      q.shift();
-      setHeroVideoUrl(Api.appleMusicVideoUrl(q[0]));
-      return;
-    }
+  const handleHeroMeta = useCallback(() => {
     heroSettledRef.current = true;
-    const best = [...heroTriedRef.current].sort((x, y) => y.ratio - x.ratio)[0];
-    if (best && best.url !== cur) {
-      heroQueueRef.current = [best.url];
-      setHeroVideoUrl(Api.appleMusicVideoUrl(best.url));
-    }
   }, []);
   const handleHeroVideoError = useCallback(() => {
     const q = heroQueueRef.current;
