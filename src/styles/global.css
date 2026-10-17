@@ -3678,3 +3678,23 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 body.aivy-artist-immersive .aivy-sidebar{ border-right: 1px solid color-mix(in srgb, #fff 8%, transparent); }
 body.aivy-artist-immersive .aivy-rightpanel,
 body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-mix(in srgb, #fff 8%, transparent); }
+:root[data-theme="white"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-sidebar,
+:root[data-theme="white"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel,
+:root[data-theme="white"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel-rail,
+:root[data-theme="latte"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-sidebar,
+:root[data-theme="latte"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel,
+:root[data-theme="latte"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel-rail,
+:root[data-theme="salmon"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-sidebar,
+:root[data-theme="salmon"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel,
+:root[data-theme="salmon"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel-rail,
+:root[data-theme="premium"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-sidebar,
+:root[data-theme="premium"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel,
+:root[data-theme="premium"] body.aivy-artist-immersive:not(.aivy-artist-tinted) .aivy-rightpanel-rail{
+  background: color-mix(in srgb, var(--bg-elev) 74%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(1.25);
+  backdrop-filter: blur(30px) saturate(1.25);
+}
+.aivy-am-media.is-cover .aivy-animated-cover{
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16%, #000 84%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 16%, #000 84%, transparent 100%);
+}
