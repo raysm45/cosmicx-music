@@ -132,7 +132,8 @@ export function useImmersiveHero({ ready, tint }) {
       const m = mediaRef.current;
       if (!m) return;
       const r = scroller.getBoundingClientRect();
-      m.style.left = `${Math.max(0, Math.round(r.left))}px`;
+      m.style.left = "0px";
+      m.style.setProperty("--am-left", `${Math.max(0, Math.round(r.left))}px`);
       m.style.right = `${Math.max(0, Math.round(window.innerWidth - r.right))}px`;
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
