@@ -3648,3 +3648,27 @@ body.aivy-artist-tinted .aivy-nowplaying-about-listeners{ color: rgba(255,255,25
 body.aivy-artist-tinted .aivy-nowplaying-about-bio{ color: rgba(255,255,255,.85); }
 body.aivy-artist-tinted .aivy-nowplaying-about-eyebrow{ color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.55); }
 body.aivy-artist-tinted .aivy-credits-card{ color: var(--ink); }
+
+.aivy-row.is-no-thumb .idx{ cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; height: 22px; }
+.aivy-row.is-no-thumb .idx .play{ display: none; align-items: center; justify-content: center; color: var(--ink); }
+.aivy-row.is-no-thumb:hover:not(.is-current) .idx .num{ display: none; }
+.aivy-row.is-no-thumb:hover:not(.is-current) .idx .play{ display: flex; }
+.aivy-am-page.is-cover-page{ --am-hero-h: min(76vh, 740px); }
+.aivy-am-page.is-cover-page .aivy-am-media-blur{
+  mask-image: linear-gradient(180deg, transparent 56%, rgba(0,0,0,.12) 66%, rgba(0,0,0,.38) 75%, rgba(0,0,0,.7) 84%, rgba(0,0,0,.94) 93%, #000 98%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 56%, rgba(0,0,0,.12) 66%, rgba(0,0,0,.38) 75%, rgba(0,0,0,.7) 84%, rgba(0,0,0,.94) 93%, #000 98%);
+}
+.aivy-am-page.is-cover-page .aivy-am-media-scrim{
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 14%, rgba(0,0,0,0) 28%),
+    linear-gradient(180deg,
+      rgba(0,0,0,0) 58%,
+      color-mix(in srgb, var(--am-bg) 24%, transparent) 72%,
+      color-mix(in srgb, var(--am-bg) 62%, transparent) 84%,
+      color-mix(in srgb, var(--am-bg) 92%, transparent) 94%,
+      var(--am-bg) 100%);
+}
+.aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center 24%; }
+@media (max-width: 860px){
+  .aivy-am-page.is-cover-page{ --am-hero-h: min(64vh, 560px); }
+}

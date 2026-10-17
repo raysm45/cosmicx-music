@@ -554,7 +554,7 @@ export function AlbumPage() {
           <FlipList
             items={displayTracks}
             getKey={(tr) => tr.id}
-            renderItem={(tr) => <TrackRow track={tr} index={albumTracks.indexOf(tr)} list={albumTracks} queueMode="context" shuffleOverride={localShuffle} />}
+            renderItem={(tr) => <TrackRow track={tr} index={albumTracks.indexOf(tr)} list={albumTracks} queueMode="context" shuffleOverride={localShuffle} showThumb={false} />}
           />
         </div>
       </div>

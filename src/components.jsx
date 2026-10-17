@@ -674,7 +674,7 @@ export function filterExplicit(tracks, settings) {
   return tracks.filter((tr) => !tr?.explicit);
 }
 
-export function TrackRow({ track, index, list, showIndex = true, showAlbum = false, onRemove, removeLabel, queueMode = "single", source = null, note = null, shuffleOverride = null }) {
+export function TrackRow({ track, index, list, showIndex = true, showThumb = true, showAlbum = false, onRemove, removeLabel, queueMode = "single", source = null, note = null, shuffleOverride = null }) {
   const { currentTrack, isPlaying, togglePlay, playSingle, playList, playRadio, selectQueuePosition, liked, toggleLike } = usePlayer();
   const { openContextMenu, t } = useUI();
   const { navigate } = useRouter();
@@ -692,17 +692,20 @@ export function TrackRow({ track, index, list, showIndex = true, showAlbum = fal
   const handleContext = (e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); };
 
   return (
-    <div className={`aivy-row ${isCurrent ? "is-current" : ""}`} onContextMenu={handleContext} onPointerEnter={() => { loadTrackArtists(track); }}>
+    <div className={`aivy-row ${isCurrent ? "is-current" : ""} ${showThumb ? "" : "is-no-thumb"}`} onContextMenu={handleContext} onPointerEnter={() => { loadTrackArtists(track); }}>
       {showIndex && (
-        <div className="idx">
+        <div className="idx" onClick={showThumb ? undefined : handlePlay}>
           <span className="num">{index + 1}</span>
+          {!showThumb && <span className="play"><Play size={13} fill="currentColor" /></span>}
           <span className="eq"><EqBars playing={isPlaying} /></span>
         </div>
       )}
-      <button className="thumb" onClick={handlePlay} aria-label={isCurrent && isPlaying ? t("pause") : t("play")}>
-        <SmartCover src={track.cover} seed={track.id + track.title} size={40} radius={6} />
-        <span className="hover-play">{isCurrent && isPlaying ? <Pause size={15} /> : <Play size={15} />}</span>
-      </button>
+      {showThumb && (
+        <button className="thumb" onClick={handlePlay} aria-label={isCurrent && isPlaying ? t("pause") : t("play")}>
+          <SmartCover src={track.cover} seed={track.id + track.title} size={40} radius={6} />
+          <span className="hover-play">{isCurrent && isPlaying ? <Pause size={15} /> : <Play size={15} />}</span>
+        </button>
+      )}
       <div className="meta" onClick={handlePlay} style={{ cursor: "pointer" }}>
         <MarqueeText
           as="span" className="t" text={track.title}
