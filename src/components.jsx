@@ -3334,7 +3334,7 @@ export function Sidebar() {
     </aside>
   );
 }
-function GlassLayers() {
+export function GlassLayers() {
   return (
     <>
       <span className="lg-warp" aria-hidden="true" />

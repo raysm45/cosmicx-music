@@ -10,10 +10,11 @@ import { useRouter } from "./router.jsx";
 import { AnimatedCover } from "./lib/brand.jsx";
 import { formatTime, cleanTrackTitleForLyrics, hashStr } from "./lib/utils.js";
 import { lyricPhase } from "./lib/presenceLyrics.js";
+import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import {
   Scrubber, VolumeControl, MarqueeText, AppleLyricsPane, normLyricsFontSize,
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
-  useTrackAudioInfo, useTrackMenuItems,
+  useTrackAudioInfo, useTrackMenuItems, GlassLayers,
 } from "./components.jsx";
 import { AudioOutputSheet, AudioPipelineCard, LyricsProviderSheet, NPD_LYRICS_ID } from "./NpdSheets.jsx";
 import "./styles/nowplaying-desktop.css";
@@ -301,6 +302,76 @@ function useCoverSwipe({ onNext, onPrev, disabled }) {
   };
 }
 
+const NPD_LG_PX = 24;
+const NPD_LG_ABER = 0.08;
+const NPD_LG_SURFACES = [
+  [".npd-round", "npd-lg-round", 44, 44],
+  [".npd-seg", "npd-lg-seg", 130, 44],
+  [".npd-chip", "npd-lg-chip", 34, 34],
+];
+
+const NpdGlassDefs = React.memo(function NpdGlassDefs() {
+  const S = NPD_LG_PX * 2;
+  return (
+    <svg width="0" height="0" style={{ position: "absolute", pointerEvents: "none" }} aria-hidden="true" focusable="false">
+      <defs>
+        {NPD_LG_SURFACES.map(([, id]) => (
+          <filter key={id} id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+            <feImage x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map" />
+            <feDisplacementMap in="SourceGraphic" in2="map" scale={S} xChannelSelector="R" yChannelSelector="B" result="dr" />
+            <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
+            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - NPD_LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="dg" />
+            <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
+            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - 2 * NPD_LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="db" />
+            <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
+            <feBlend in="cg" in2="cb" mode="screen" result="gb" />
+            <feBlend in="cr" in2="gb" mode="screen" />
+          </filter>
+        ))}
+      </defs>
+    </svg>
+  );
+});
+
+function useNpdGlass(rootRef, enabled, hasTrack, queueMode) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!enabled || !hasTrack || !root) { setReady(false); return undefined; }
+    let raf = 0;
+    const regen = () => {
+      raf = 0;
+      let ok = false;
+      for (const [sel, id, fw, fh] of NPD_LG_SURFACES) {
+        const img = root.querySelector(`#${id} feImage`);
+        if (!img) continue;
+        const el = root.querySelector(sel);
+        const w = (el && el.offsetWidth) || fw;
+        const h = (el && el.offsetHeight) || fh;
+        const url = makeDisplacementMap(w, h, Math.min(26, Math.round(h * 0.45)));
+        if (!url) continue;
+        img.setAttribute("href", url);
+        img.setAttribute("width", String(w));
+        img.setAttribute("height", String(h));
+        ok = true;
+      }
+      if (ok) setReady(true);
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(regen); };
+    schedule();
+    const seg = root.querySelector(".npd-seg");
+    const ro = typeof ResizeObserver !== "undefined" && seg ? new ResizeObserver(schedule) : null;
+    if (ro) ro.observe(seg);
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      if (ro) ro.disconnect();
+      window.removeEventListener("resize", schedule);
+    };
+  }, [rootRef, enabled, hasTrack, queueMode]);
+  return ready;
+}
+
 function FullPlayer({ shown, onClose }) {
   const { currentTrack, currentTrackHasLyrics, shuffle, toggleShuffle, repeat, cycleRepeat, room, isPlaying, next, prev } = usePlayer();
   const { settings, updateSettings, t, authUser } = useUI();
@@ -313,6 +384,8 @@ function FullPlayer({ shown, onClose }) {
   const drag = useDragToClose(rootRef, onClose);
   const swipeLocked = !!(room && room.hostOnlyControl && authUser && room.hostId !== authUser.id);
   const swipe = useCoverSwipe({ onNext: () => next(false), onPrev: prev, disabled: swipeLocked });
+  const refract = settings.liquidGlass !== false && supportsRefraction();
+  const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view === "queue");
 
   useEffect(() => {
     if (!shown || !rootRef.current) return;
@@ -365,7 +438,7 @@ function FullPlayer({ shown, onClose }) {
   return (
     <div
       ref={rootRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t("nowPlaying")}
-      className={`npd ${shown ? "shown" : ""} ${reduceMotion ? "reduce" : ""}`}
+      className={`npd ${shown ? "shown" : ""} ${reduceMotion ? "reduce" : ""} ${refract && lgReady ? "lg-ready" : ""}`}
       onPointerDown={drag.onPointerDown} onPointerMove={drag.onPointerMove} onPointerUp={drag.onPointerUp}
       onPointerCancel={drag.onPointerCancel} onClickCapture={drag.onClickCapture} onDragStart={drag.onDragStart}
     >
@@ -373,6 +446,7 @@ function FullPlayer({ shown, onClose }) {
         <div key={currentTrack.id} className="npd-bg" style={{ backgroundImage: `url(${JSON.stringify(currentTrack.cover)})` }} aria-hidden="true" />
       )}
       <div className="npd-scrim" aria-hidden="true" />
+      {refract && <NpdGlassDefs />}
 
       <button type="button" className="npd-grabber" onClick={onClose} aria-label={t("close")} title={t("close")}><span /></button>
 
@@ -395,10 +469,12 @@ function FullPlayer({ shown, onClose }) {
               onClick={() => toggleView("lyrics")} disabled={lyricsDisabled} aria-pressed={view === "lyrics"}
               aria-label={t("lyrics")} title={lyricsDisabled ? t("lyricsUnavailable") : t("lyrics")}
             >
+              <GlassLayers />
               <IconLyrics />
             </button>
 
             <div className="npd-seg" role="group">
+              <GlassLayers />
               {queueMode ? (
                 <>
                   <button type="button" className={shuffle ? "active" : ""} onClick={toggleShuffle} disabled={!!room} aria-pressed={shuffle} aria-label={t("shuffle")} title={t("shuffle")}>
@@ -434,6 +510,7 @@ function FullPlayer({ shown, onClose }) {
               onClick={() => toggleView("queue")} aria-pressed={view === "queue"}
               aria-label={t("tabQueue")} title={t("tabQueue")}
             >
+              <GlassLayers />
               <IconQueue />
             </button>
           </div>
@@ -605,9 +682,11 @@ function ControlsPanel({ track, tx, onClose, onOpenLyrics }) {
         </div>
         <div className="npd-actions">
           <button type="button" className={`npd-chip ${isLiked ? "active" : ""}`} onClick={() => toggleLike(track)} aria-pressed={isLiked} aria-label={t("like")}>
+            <GlassLayers />
             <Heart size={17} fill={isLiked ? "currentColor" : "none"} />
           </button>
           <button type="button" className="npd-chip" onClick={openMenu} aria-label={t("menuMore")}>
+            <GlassLayers />
             <MoreHorizontal size={17} />
           </button>
         </div>
@@ -752,6 +831,7 @@ function LyricsPanel({ track, active, tx, onOpenProviders }) {
           type="button" className={`npd-mini ${ui.rom ? "active" : ""}`} onClick={toggleRomanization} disabled={!ui.ready}
           aria-pressed={ui.rom} aria-label={tx("Romanisasi", "Romanization")} title={tx("Romanisasi", "Romanization")}
         >
+          <GlassLayers />
           <Globe size={16} />
         </button>
 
@@ -773,6 +853,7 @@ function LyricsPanel({ track, active, tx, onOpenProviders }) {
             type="button" className={`npd-mini ${ui.tr ? "active" : ""}`} onClick={toggleTranslation} disabled={!ui.ready}
             aria-pressed={ui.tr} aria-label={tx("Terjemahan", "Translation")} title={tx("Terjemahan", "Translation")}
           >
+            <GlassLayers />
             <Languages size={16} />
           </button>
         </div>
