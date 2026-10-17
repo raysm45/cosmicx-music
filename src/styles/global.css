@@ -3312,10 +3312,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   .aivy-ck-foot{ flex-direction: column; }
   .aivy-ck-foot .aivy-ck-btn{ height: 44px; }
 }
-/* =====================================================================
-   TEMA HALLOWEEN 🎃
-   Semua gambar di sini adalah file PNG/JPG asli di /public/halloween
-   ===================================================================== */
 @font-face{
   font-family: "Creepster";
   src: url("/halloween/fonts/creepster.woff2") format("woff2");
@@ -3338,7 +3334,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 }
 :root[data-theme="halloween"] ::selection{ background: #FF7A18; color: #1A0A00; }
 
-/* logo & judul pakai font Halloween */
 :root[data-theme="halloween"] .aivy-brand .word{
   font-family: var(--font-creepy); font-weight: 400; font-size: 27px; letter-spacing: .04em; line-height: 1;
   color: var(--accent-strong); text-shadow: 0 2px 0 #000, 0 0 14px rgba(255,122,24,.45);
@@ -3350,7 +3345,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   text-shadow: 0 2px 0 rgba(0,0,0,.6), 0 0 22px rgba(255,122,24,.28);
 }
 
-/* panel samping: sarang laba-laba di pojok */
 :root[data-theme="halloween"] .aivy-sidebar{
   background: linear-gradient(180deg, rgba(20,11,30,.96), rgba(13,7,20,.98));
   border-right-color: var(--line);
@@ -3365,8 +3359,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   background: url("/halloween/decor/tombstone.png") 14px 100% / 56px no-repeat, url("/halloween/decor/pumpkin.png") 78px 100% / 44px no-repeat;
   opacity: .13; z-index: 0;
 }
-
-/* tombol utama menyala seperti lilin */
 :root[data-theme="halloween"] .aivy-btn-primary{
   background: linear-gradient(180deg, #FFA24A, #FF7A18); color: #1A0A00;
   box-shadow: 0 0 0 1px rgba(255,170,80,.4), 0 6px 22px rgba(255,122,24,.32);
@@ -3374,11 +3366,9 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 :root[data-theme="halloween"] .aivy-btn-primary:hover{ filter: brightness(1.08); }
 :root[data-theme="halloween"] .aivy-nav-item.active{ box-shadow: inset 2px 0 0 var(--accent); }
 
-/* loader labu */
 :root[data-theme="halloween"] .aivy-pumpkin-loader img{ animation: aivy-pumpkin-bob 1.2s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(255,122,24,.55)); }
 @keyframes aivy-pumpkin-bob{ 0%,100%{ transform: translateY(0) rotate(-5deg) scale(.96); } 50%{ transform: translateY(-6px) rotate(5deg) scale(1.04); } }
 
-/* kelelawar terbang melintas */
 :root[data-theme="halloween"] body::after{
   content: ""; position: fixed; top: 9vh; left: -90px; width: 56px; height: 56px; pointer-events: none; z-index: 3;
   background: url("/halloween/decor/bat.png") center / contain no-repeat; opacity: .55;
@@ -3422,10 +3412,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 @media (min-width: 1100px){ :root[data-theme="halloween"] .cx-wordmark{ font-size: 46px; } }
 :root[data-theme="halloween"] .cx-eq i{ background: linear-gradient(to top, rgba(255,122,24,.28), rgba(255,122,24,.02)); }
 
-/* =========================================================
-   Login normal — ivory + champagne (desain cosmicx music)
-   Event (Halloween) tetap memakai .cx-* di atas.
-   ========================================================= */
 .lx-stage{
   --lx-ink:#1c1814; --lx-dim:#6d645a; --lx-line:rgba(140,118,80,.22); --lx-gold:#cdb88f;
   position:relative; min-height:100dvh; width:100%; overflow:hidden; display:flex; align-items:center; justify-content:center;
@@ -3483,10 +3469,8 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 }
 @media (prefers-reduced-motion:reduce){ .lx-grid{ animation:none; } .lx-btn{ transition:none; } }
 
-/* Logo normal di sidebar: wordmark pakai font desain baru (event tetap font Halloween) */
 .aivy-brand .word{ font-family:'Outfit',var(--font-display),sans-serif; font-weight:600; letter-spacing:-.02em; }
 
-/* Album & playlist: warna mengikuti tema (tidak dari thumbnail); tema terang butuh teks gelap */
 :root[data-theme="white"] .aivy-am-page, :root[data-theme="latte"] .aivy-am-page, :root[data-theme="salmon"] .aivy-am-page, :root[data-theme="premium"] .aivy-am-page{
   --am-dim: color-mix(in srgb, var(--ink) 62%, transparent);
   --am-line: color-mix(in srgb, var(--ink) 12%, transparent);
@@ -3501,16 +3485,10 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   --ink: unset; --ink-dim: unset; --ink-faint: unset; --line: unset; --line-soft: unset;
   --bg-elev: unset; --bg-elev-2: unset; --bg-elev-3: unset;
 }
-
-/* =========================================================
-   Donasi — banner di Home (.dnb) & halaman /donasi (.dn-*)
-   Palet ivory + champagne, sama dengan banner donasi.
-   ========================================================= */
 .dnb{ position:relative; }
 .dnb-frame{ position:relative; border-radius:22px; overflow:hidden; line-height:0; background:#f3eadf;
   border:1px solid rgba(140,118,80,.22); box-shadow:0 30px 60px -36px rgba(110,88,56,.55); }
 .dnb-img{ display:block; width:100%; height:auto; }
-/* Posisi tombol tergambar di banner: x 182-564, y 559-658 dari 1983x793 */
 .dnb-hit{ position:absolute; left:9.18%; top:70.49%; width:19.26%; height:12.48%; border-radius:999px; display:block; }
 .dnb-hit-ring{ position:absolute; inset:0; border-radius:999px; transition:box-shadow 180ms ease, transform 180ms ease; }
 .dnb-hit:hover .dnb-hit-ring{ transform:scale(1.035); box-shadow:0 0 0 3px rgba(205,184,143,.6), 0 14px 30px -10px rgba(28,24,20,.5); }
