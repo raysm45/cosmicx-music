@@ -873,7 +873,7 @@ export function FlipList({ items, getKey, renderItem, className, as: Tag = "div"
  * supaya style lama (font-weight, font-size, dll) tetap kepakai.
  * `prefix`/`suffix` untuk elemen non-teks yang harus tetap diam di tempat (badge "E", "Preview", dll).
  */
-export function MarqueeText({ text, className = "", as: Tag = "span", prefix = null, suffix = null, gap = 40, pxPerSecond = 42 }) {
+export function MarqueeText({ text, className = "", as: Tag = "span", prefix = null, suffix = null, gap = 40, pxPerSecond = 42, always = false, onClick, style }) {
   const isMobile = useIsMobile(860);
   const wrapRef = useRef(null);
   const segRef = useRef(null);
@@ -909,14 +909,14 @@ export function MarqueeText({ text, className = "", as: Tag = "span", prefix = n
     return () => { if (raf) cancelAnimationFrame(raf); ro && ro.disconnect(); window.removeEventListener("resize", schedule); };
   }, [text, gap, pxPerSecond]);
 
-  const animate = isMobile && overflow;
+  const animate = (isMobile || always) && overflow;
 
   return (
-    <Tag className={`aivy-marquee-row ${className}`}>
+    <Tag className={`aivy-marquee-row ${className}`} onClick={onClick} style={style}>
       {prefix}
       <span ref={wrapRef} className="aivy-marquee">
         <span
-          className={`aivy-marquee-track ${animate ? "is-animating" : ""}`}
+          className={`aivy-marquee-track ${animate ? "is-animating" : ""} ${always ? "is-always" : ""}`}
           style={animate ? { animationDuration: `${duration}s` } : undefined}
         >
           <span ref={segRef} className="aivy-marquee-seg">{text}</span>
@@ -1232,10 +1232,12 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
               <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={52} radius={settings.noRoundCover ? 0 : 8} />
             </span>
             <div className="meta">
-              <MarqueeText as="span" className="t" text={currentTrack.title} />
-              <span className="a" onClick={() => currentTrack.artist?.id && navigate("artist", { params: { id: currentTrack.artist.id } })} style={{ cursor: "pointer" }}>
-                {currentTrack.artist?.name}{isPreviewClip && <span className="preview-tag">{` \u00b7 ${t("previewTag")}`}</span>}
-              </span>
+              <MarqueeText as="span" className="t" text={currentTrack.title} always />
+              <MarqueeText
+                as="span" className="a" text={currentTrack.artist?.name || ""} always
+                onClick={() => currentTrack.artist?.id && navigate("artist", { params: { id: currentTrack.artist.id } })} style={{ cursor: "pointer" }}
+                suffix={isPreviewClip ? <span className="preview-tag">{` \u00b7 ${t("previewTag")}`}</span> : null}
+              />
             </div>
             <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={() => toggleLike(currentTrack)} aria-label={t("like")}><Heart size={16} fill={isLiked ? "currentColor" : "none"} /></button>
           </>
@@ -2976,8 +2978,8 @@ function NowPlayingPane() {
         song={currentTrack.title} artist={currentTrack.artist?.name}
         animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
       />
-      <MarqueeText as="div" className="t" text={currentTrack.title} />
-      <div className="a">{currentTrack.artist?.name}</div>
+      <MarqueeText as="div" className="t" text={currentTrack.title} always />
+      <MarqueeText as="div" className="a" text={currentTrack.artist?.name || ""} always />
       {isPreviewClip && <div className="eyebrow" style={{ marginTop: 10 }}>{t("officialPreview")}</div>}
       <AboutArtistSection track={currentTrack} glass={isArtistView} />
       <CreditsCard track={currentTrack} glass={isArtistView} />
@@ -3846,8 +3848,8 @@ function SidebarLyricsPanel() {
   return (
     <div className="aivy-sidelyrics">
       <div className="aivy-sidelyrics-head">
-        <div className="t">{currentTrack.title}</div>
-        <div className="a">{currentTrack.artist?.name}</div>
+        <MarqueeText as="div" className="t" text={currentTrack.title} always />
+        <MarqueeText as="div" className="a" text={currentTrack.artist?.name || ""} always />
       </div>
       <div className="aivy-sidelyrics-body">
         <AppleLyricsPane

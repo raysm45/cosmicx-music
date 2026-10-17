@@ -8,7 +8,8 @@ import {
 import { usePlayer, usePlayerTime, useUI } from "./context.jsx";
 import { useRouter } from "./router.jsx";
 import { AnimatedCover } from "./lib/brand.jsx";
-import { formatTime } from "./lib/utils.js";
+import { formatTime, cleanTrackTitleForLyrics } from "./lib/utils.js";
+import { lyricAt } from "./lib/presenceLyrics.js";
 import {
   Scrubber, VolumeControl, MarqueeText, AppleLyricsPane, normLyricsFontSize,
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
@@ -153,7 +154,7 @@ function FullPlayer({ shown, onClose }) {
   const { settings, updateSettings, t } = useUI();
   const [view, setView] = useState("controls");
   const [showQuality, setShowQuality] = useState(true);
-  const [lyricsReady, setLyricsReady] = useState(false);
+  const [lyricsReady, setLyricsReady] = useState(true);
   const rootRef = useRef(null);
   const drag = useDragToClose(rootRef, onClose);
 
@@ -293,6 +294,38 @@ function QualityLine({ track, visible }) {
   return <div className={`npd-quality ${visible ? "on" : ""}`}>{parts.join(" \u00b7 ")}</div>;
 }
 
+function LyricLine({ track, onAlbum }) {
+  const time = usePlayerTime();
+  const [, force] = useState(0);
+  const el = typeof document !== "undefined" ? document.getElementById(LYRICS_ID) : null;
+  const want = cleanTrackTitleForLyrics(track.title, track.artist?.name);
+  const lines = el && el.songTitle === want && !el.isLoading && el.lyrics && el.lyrics.length ? el.lyrics : null;
+  const hasLines = !!lines;
+
+  useEffect(() => {
+    if (hasLines) return undefined;
+    const id = setInterval(() => force((n) => n + 1), 500);
+    return () => clearInterval(id);
+  }, [hasLines, track.id]);
+
+  if (!lines) {
+    if (!track.album?.title) return null;
+    return (
+      <button type="button" className="npd-album" onClick={onAlbum}>
+        <MarqueeText as="span" text={track.album.title} always />
+        <ChevronRight size={15} />
+      </button>
+    );
+  }
+
+  const text = lyricAt(lines, time * 1000 + 250);
+  return (
+    <div className="npd-lyricline">
+      {text ? <MarqueeText key={text} as="div" className="npd-lyricline-text" text={text} always /> : null}
+    </div>
+  );
+}
+
 function ScrubRow({ track }) {
   const { loadingAudio } = usePlayer();
   const { settings } = useUI();
@@ -341,8 +374,8 @@ function ControlsPanel({ track, tx, onClose }) {
 
       <div className="npd-titlerow">
         <div className="npd-titles">
-          <MarqueeText as="div" className="npd-title" text={track.title} />
-          <button type="button" className="npd-artist" onClick={goArtist}>{track.artist?.name}</button>
+          <MarqueeText as="div" className="npd-title" text={track.title} always />
+          <button type="button" className="npd-artist" onClick={goArtist}><MarqueeText as="span" text={track.artist?.name || ""} always /></button>
         </div>
         <div className="npd-actions">
           <button type="button" className={`npd-chip ${isLiked ? "active" : ""}`} onClick={() => toggleLike(track)} aria-pressed={isLiked} aria-label={t("like")}>
@@ -354,12 +387,7 @@ function ControlsPanel({ track, tx, onClose }) {
         </div>
       </div>
 
-      {track.album?.title && (
-        <button type="button" className="npd-album" onClick={goAlbum}>
-          <span>{track.album.title}</span>
-          <ChevronRight size={15} />
-        </button>
-      )}
+      <LyricLine track={track} onAlbum={goAlbum} />
 
       <ScrubRow track={track} />
 

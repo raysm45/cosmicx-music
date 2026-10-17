@@ -270,6 +270,13 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
   }
   .aivy-marquee .aivy-marquee-track.is-animating .aivy-marquee-seg{ padding-right: 40px; flex-shrink: 0; }
 }
+.aivy-marquee .aivy-marquee-track.is-animating.is-always{
+  display: inline-flex; max-width: none; overflow: visible; text-overflow: clip;
+  animation-name: aivy-marquee-scroll; animation-timing-function: linear; animation-iteration-count: infinite;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+}
+.aivy-marquee .aivy-marquee-track.is-animating.is-always .aivy-marquee-seg{ padding-right: 40px; flex-shrink: 0; }
 @keyframes aivy-marquee-scroll{ from{ transform: translateX(0); } to{ transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce){ .aivy-marquee .aivy-marquee-track.is-animating{ animation: none !important; } }
 .aivy-card .sub{ font-size: 12px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0; }
