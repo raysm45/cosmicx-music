@@ -130,11 +130,11 @@
 .npd-chip:active{ transform: scale(.92); }
 .npd-chip.active{ background: #fff; color: #111; }
 .npd-album{
-  align-self: flex-start; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; margin-top: 30px; padding: 0;
+  align-self: flex-start; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; margin-top: 28px; padding: 0;
   background: none; border: none; color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; text-align: left;
 }
 .npd-lyricline{
-  align-self: flex-start; max-width: 100%; display: inline-flex; align-items: center; gap: 8px; margin-top: 30px; min-height: 24px; padding: 0;
+  align-self: flex-start; max-width: 100%; display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; min-height: 24px; padding: 0;
   background: none; border: none; text-align: left; cursor: pointer;
   font-size: 17px; font-weight: 600; line-height: 1.4; color: #fff;
 }
@@ -156,7 +156,8 @@
 .npd-album svg{ flex-shrink: 0; color: rgba(255,255,255,.6); }
 .npd-album:hover span{ text-decoration: underline; }
 
-.npd-scrub{ margin-top: 18px; }
+.npd-scrub{ margin-top: 4px; }
+.npd-titlerow + .npd-scrub{ margin-top: 14px; }
 .npd .aivy-scrubber{ height: 28px; }
 .npd .aivy-scrubber .track{ height: 8px; background: rgba(255,255,255,.26); }
 .npd .aivy-scrubber:hover .track, .npd .aivy-scrubber.dragging .track{ height: 11px; }
