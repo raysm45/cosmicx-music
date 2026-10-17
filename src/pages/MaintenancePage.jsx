@@ -892,7 +892,7 @@ const CSS = `
   background: linear-gradient(90deg, var(--pm-accent,#9A9A9A), var(--pm-accent-strong,#D6D6D6));
   width:0%; transition: width 1.1s cubic-bezier(.22,.61,.36,1);
 }
-.pm-progress-pct{ font-size:11px; font-weight:600; color: var(--pm-ink-dim,#A3A3A3); font-family: var(--pm-font-mono,"JetBrains Mono",monospace); }
+.pm-progress-pct{ font-size:11px; font-weight:600; color: var(--pm-ink-dim,#A3A3A3); font-family: var(--pm-font-mono, var(--font-body, sans-serif)); }
 
 .pm-scene{
   position:relative; width:100vw; height:100dvh;
@@ -941,7 +941,7 @@ const CSS = `
 .pm-tv-label{
   position:absolute; left:16%; top:22%; width:60%;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-family: var(--pm-font-mono,"JetBrains Mono",monospace);
+  font-family: var(--pm-font-mono, var(--font-body, sans-serif));
   font-size:7.5px; font-weight:700; letter-spacing:.05em; color:#F2F2F2;
   text-shadow: 0 0 6px rgba(255,255,255,.55);
   animation: pm-glitch 3.6s steps(1) infinite;
@@ -1033,7 +1033,7 @@ const CSS = `
 
 .pm-zzz{
   position:absolute; top:-14px; right:-6px; display:flex; gap:1px;
-  font-family: var(--pm-font-mono,"JetBrains Mono",monospace); font-weight:700; font-size:10px;
+  font-family: var(--pm-font-mono, var(--font-body, sans-serif)); font-weight:700; font-size:10px;
   color: var(--pm-accent-strong,#D6D6D6); transform: rotate(-90deg);
 }
 .pm-zzz span{ display:inline-block; animation: pm-zzz-float 2.4s ease-in infinite; opacity:0; }

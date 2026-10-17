@@ -26,18 +26,15 @@ export const FONT_STACKS = {
   default: null,
   inter: "'Inter', -apple-system, sans-serif",
   applemusic: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  plexmono: "'IBM Plex Mono', ui-monospace, monospace",
   roboto: "'Roboto', -apple-system, sans-serif",
   opensans: "'Open Sans', -apple-system, sans-serif",
   lato: "'Lato', -apple-system, sans-serif",
   montserrat: "'Montserrat', -apple-system, sans-serif",
   poppins: "'Poppins', -apple-system, sans-serif",
   systemui: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-  mono: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 };
 const GOOGLE_FONT_QUERY = {
   inter: "Inter:wght@400;500;600;700;800",
-  plexmono: "IBM+Plex+Mono:wght@400;500;600",
   roboto: "Roboto:wght@400;500;700",
   opensans: "Open+Sans:wght@400;500;600;700",
   lato: "Lato:wght@400;500;700",

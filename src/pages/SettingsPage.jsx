@@ -31,14 +31,12 @@ const FONT_OPTIONS = [
   { value: "default", label: "Plus Jakarta (Default)" },
   { value: "inter", label: "Inter" },
   { value: "applemusic", label: "Apple Music" },
-  { value: "plexmono", label: "IBM Plex Mono" },
   { value: "roboto", label: "Roboto" },
   { value: "opensans", label: "Open Sans" },
   { value: "lato", label: "Lato" },
   { value: "montserrat", label: "Montserrat" },
   { value: "poppins", label: "Poppins" },
   { value: "systemui", label: "System UI" },
-  { value: "mono", label: "Monospace" },
 ];
 
 const VISUALIZER_STYLES = [
