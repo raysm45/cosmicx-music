@@ -462,6 +462,20 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-rightpanel-tabs .aivy-rightpanel-source svg{ flex-shrink: 0; }
 .aivy-rightpanel-tabs .aivy-rightpanel-source span{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-dim); font-weight: 600; }
 .aivy-rightpanel-body{ flex: 1; min-height: 0; overflow-y: auto; padding: 10px 10px 10px 8px; }
+.aivy-rightpanel-body.is-lyrics{ overflow: hidden; padding: 0; display: flex; flex-direction: column; }
+.aivy-sidelyrics{
+  --lyr-ink: var(--ink); --lyr-ink-dim: var(--ink-dim); --lyr-ink-faint: var(--ink-faint); --lyr-elev-2: var(--bg-elev-2);
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column;
+}
+.aivy-sidelyrics-head{ flex: none; padding: 4px 16px 10px; min-width: 0; }
+.aivy-sidelyrics-head .t{ font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aivy-sidelyrics-head .a{ margin-top: 1px; font-size: 12.5px; font-weight: 500; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aivy-sidelyrics-body{
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 7%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 7%, #000 88%, transparent 100%);
+}
+.aivy-sidelyrics .aivy-am-lyrics{ --lyrics-scroll-padding-top: 22%; --am-lyrics-inline-padding: 10px; }
 .aivy-drawer-sub{ padding: 12px 10px 6px; }
 .aivy-queue-upnext-head{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .aivy-queue-clear{ display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-faint); padding: 3px 8px; border-radius: var(--radius-pill); flex-shrink: 0; }

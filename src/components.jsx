@@ -1188,8 +1188,18 @@ export function TransportButtons({ big = false, minimal = false }) {
 export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   const { currentTrack, liked, toggleLike, isPreviewClip, loadingAudio, currentTrackHasLyrics, isPlaying, upNext } = usePlayer();
   const { navigate } = useRouter();
-  const { toggleLyrics, sidebarQueueOpen, toggleSidebarQueue, t, settings } = useUI();
+  const {
+    toggleLyrics, sidebarQueueOpen, toggleSidebarQueue, t, settings,
+    sidebarLyricsOpen, toggleSidebarLyrics, rightPanelCollapsed, toggleRightPanelCollapsed,
+  } = useUI();
   const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
+
+  const rightPanelHidden = useIsMobile(1240);
+  const handleLyricsClick = () => {
+    if (rightPanelHidden) { toggleLyrics(); return; }
+    if (!sidebarLyricsOpen && rightPanelCollapsed) toggleRightPanelCollapsed();
+    toggleSidebarLyrics();
+  };
 
   const nextUpTrack = upNext?.[0];
   useEffect(() => {
@@ -1201,7 +1211,7 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   const handleCoverClick = () => {
     if (!currentTrack) return;
     const mode = settings.nowPlayingView || "album";
-    if (mode === "lyrics") toggleLyrics();
+    if (mode === "lyrics") handleLyricsClick();
     else if (mode === "fullscreen") onOpenNowPlaying?.();
     else if (currentTrack.album?.id) navigate("album", { params: { id: currentTrack.album.id } });
     else onOpenNowPlaying?.();
@@ -1251,7 +1261,11 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, width: "min(22%, 256px)", justifyContent: "flex-end" }}>
         <button className={`aivy-icon-btn sm ${sidebarQueueOpen ? "active" : ""}`} onClick={toggleSidebarQueue} aria-label={t("lyricsQueueBtn")} title={t("lyricsQueueBtn")}><ListMusic size={16} /></button>
-        <button className="aivy-icon-btn sm" onClick={toggleLyrics} disabled={lyricsDisabled} aria-label={t("lyrics")} title={lyricsDisabled && currentTrack ? t("lyricsUnavailable") : t("lyrics")}><Mic2 size={16} /></button>
+        <button
+          className={`aivy-icon-btn sm ${!rightPanelHidden && sidebarLyricsOpen ? "active" : ""}`}
+          onClick={handleLyricsClick} disabled={lyricsDisabled} aria-pressed={!rightPanelHidden && !!sidebarLyricsOpen}
+          aria-label={t("lyrics")} title={lyricsDisabled && currentTrack ? t("lyricsUnavailable") : t("lyrics")}
+        ><Mic2 size={16} /></button>
         <VolumeControl />
         {onOpenFullscreen && (
           <button className="aivy-icon-btn sm" onClick={onOpenFullscreen} disabled={!currentTrack} aria-label={settings.language === "en" ? "Full screen player" : "Pemutar layar penuh"} title={settings.language === "en" ? "Full screen player" : "Pemutar layar penuh"}><Maximize size={16} /></button>
@@ -2377,7 +2391,7 @@ export function QueueSheet({ open, onClose }) {
 export function RightPanel() {
   const { room } = usePlayer();
   const {
-    sidebarQueueOpen, closeSidebarQueue, t,
+    sidebarQueueOpen, closeSidebarQueue, sidebarLyricsOpen, closeSidebarLyrics, t,
     rightPanelWidth, setRightPanelWidth, rightPanelCollapsed, toggleRightPanelCollapsed,
     rightPanelPeek, setRightPanelPeek,
   } = useUI();
@@ -2397,7 +2411,25 @@ export function RightPanel() {
       <span className="aivy-resize-grip"><GripVertical size={12} /></span>
     </div>
   );
-  const bodyContent = sidebarQueueOpen ? (
+  const bodyContent = sidebarLyricsOpen ? (
+    <>
+      <div className="aivy-rightpanel-tabs">
+        <button
+          className="aivy-panel-icon-btn"
+          onClick={toggleRightPanelCollapsed}
+          aria-label={t("collapsePanel", "Tutup panel")}
+          title={t("collapsePanel", "Tutup panel")}
+        >
+          <PanelRight size={18} />
+        </button>
+        <span className="aivy-rightpanel-title">{t("lyrics")}</span>
+        <button className="aivy-icon-btn sm" onClick={closeSidebarLyrics} aria-label={t("close")}><X size={16} /></button>
+      </div>
+      <div className="aivy-rightpanel-body is-lyrics">
+        <SidebarLyricsPanel />
+      </div>
+    </>
+  ) : sidebarQueueOpen ? (
     <>
       <div className="aivy-rightpanel-tabs">
         <button
@@ -3764,6 +3796,75 @@ function SidebarQueuePanel() {
         </>
       )}
     </>
+  );
+}
+
+const SIDE_LYRICS_STEP = { sm: "sm", md: "sm", lg: "md", xl: "lg", max: "xl" };
+const SIDE_LYRICS_ID = "aivy-am-lyrics-sidebar";
+
+function SidebarLyricsPanel() {
+  const { currentTrack, seekTo } = usePlayer();
+  const { settings, t } = useUI();
+  const currentTime = usePlayerTime();
+  const [unsynced, setUnsynced] = useState(false);
+  const trackKey = currentTrack?.id;
+  const fontSize = SIDE_LYRICS_STEP[normLyricsFontSize(settings.lyricsFontSize)] || "sm";
+  const resolvedTheme = (typeof document !== "undefined" && document.documentElement?.dataset?.theme) || "black";
+  const isLight = ["white", "latte", "salmon", "premium"].includes(resolvedTheme);
+  const highlightColor = isLight ? "#141414" : "#f5f5f5";
+
+  useEffect(() => {
+    let observer;
+    let retryTimer;
+    let tries = 0;
+    const attach = () => {
+      const el = document.getElementById(SIDE_LYRICS_ID);
+      const container = el?.lyricsContainer;
+      if (!container) {
+        if (tries++ < 25) retryTimer = setTimeout(attach, 200);
+        return;
+      }
+      const sync = () => setUnsynced(container.classList.contains("user-scrolling"));
+      sync();
+      observer = new MutationObserver(sync);
+      observer.observe(container, { attributes: true, attributeFilter: ["class"] });
+    };
+    attach();
+    return () => { clearTimeout(retryTimer); observer?.disconnect(); };
+  }, [trackKey]);
+
+  const resumeSync = () => {
+    const el = document.getElementById(SIDE_LYRICS_ID);
+    if (el && typeof el.resumeAutoScroll === "function") el.resumeAutoScroll();
+    setUnsynced(false);
+  };
+
+  if (!currentTrack) {
+    return <div className="aivy-empty"><StarMark size={34} color="var(--ink-faint)" /><div className="title">{t("nothingPlaying")}</div></div>;
+  }
+
+  return (
+    <div className="aivy-sidelyrics">
+      <div className="aivy-sidelyrics-head">
+        <div className="t">{currentTrack.title}</div>
+        <div className="a">{currentTrack.artist?.name}</div>
+      </div>
+      <div className="aivy-sidelyrics-body">
+        <AppleLyricsPane
+          id={SIDE_LYRICS_ID}
+          track={currentTrack}
+          currentTime={currentTime}
+          onSeek={seekTo}
+          highlightColor={highlightColor}
+          fontSize={fontSize}
+        />
+        {unsynced && (
+          <button type="button" className="aivy-lyr2-pill" onClick={resumeSync}>
+            {t("syncLyrics")}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

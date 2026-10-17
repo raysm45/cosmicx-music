@@ -50,13 +50,118 @@ export function NowPlayingDesktop({ open, onClose }) {
   return createPortal(<FullPlayer shown={shown} onClose={onClose} />, document.body);
 }
 
+const NO_DRAG_SELECTOR = "button, a, input, select, textarea, label, [role='slider'], .aivy-scrubber, .aivy-vol, am-lyrics, .npd-lyrics, .npd-queue-scroll, .npd-artist-pane";
+const DRAG_CLOSE_DISTANCE = 120;
+const DRAG_CLOSE_VELOCITY = 0.55;
+
+function useDragToClose(rootRef, onClose) {
+  const st = useRef({ id: null, startX: 0, startY: 0, dy: 0, vy: 0, lastY: 0, lastT: 0, dragging: false });
+  const justDragged = useRef(false);
+  const settleTimer = useRef(0);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => () => clearTimeout(settleTimer.current), []);
+
+  const paint = (dy) => {
+    const el = rootRef.current;
+    if (!el) return;
+    const vh = window.innerHeight || 800;
+    const p = Math.min(1, dy / vh);
+    el.style.transform = `translate3d(0, ${dy}px, 0) scale(${1 - p * 0.08})`;
+    el.style.opacity = String(1 - p * 0.55);
+    el.style.borderRadius = `${Math.min(28, dy / 5)}px`;
+  };
+
+  const onPointerDown = useCallback((e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const target = e.target;
+    if (target && target.closest && target.closest(NO_DRAG_SELECTOR) && !target.closest(".npd-grabber")) return;
+    const el = rootRef.current;
+    if (el) { clearTimeout(settleTimer.current); el.style.transition = ""; }
+    st.current = { id: e.pointerId, startX: e.clientX, startY: e.clientY, dy: 0, vy: 0, lastY: e.clientY, lastT: performance.now(), dragging: false };
+  }, [rootRef]);
+
+  const onPointerMove = useCallback((e) => {
+    const s = st.current;
+    if (s.id !== e.pointerId) return;
+    const el = rootRef.current;
+    if (!el) return;
+    const rawY = e.clientY - s.startY;
+    if (!s.dragging) {
+      const rawX = e.clientX - s.startX;
+      if (rawY < -8 || (Math.abs(rawX) > Math.abs(rawY) + 6 && Math.abs(rawX) > 10)) { s.id = null; return; }
+      if (rawY < 8) return;
+      s.dragging = true;
+      el.style.transition = "none";
+      el.style.willChange = "transform, opacity";
+      el.classList.add("is-dragging");
+      try { el.setPointerCapture(e.pointerId); } catch {}
+    }
+    const now = performance.now();
+    const dt = Math.max(1, now - s.lastT);
+    s.vy = s.vy * 0.6 + ((e.clientY - s.lastY) / dt) * 0.4;
+    s.lastY = e.clientY;
+    s.lastT = now;
+    s.dy = Math.max(0, rawY);
+    paint(s.dy);
+  }, [rootRef]);
+
+  const finish = useCallback((e, cancelled) => {
+    const s = st.current;
+    if (s.id !== e.pointerId) return;
+    const el = rootRef.current;
+    const wasDragging = s.dragging;
+    st.current = { ...s, id: null, dragging: false };
+    if (!el || !wasDragging) return;
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    el.classList.remove("is-dragging");
+    justDragged.current = true;
+    setTimeout(() => { justDragged.current = false; }, 120);
+
+    const commit = !cancelled && (s.dy > DRAG_CLOSE_DISTANCE || (s.vy > DRAG_CLOSE_VELOCITY && s.dy > 30));
+    if (commit) {
+      el.style.transition = "transform .36s cubic-bezier(.4,0,.2,1), opacity .3s ease, border-radius .3s ease";
+      el.style.transform = `translate3d(0, ${window.innerHeight || 800}px, 0) scale(.92)`;
+      el.style.opacity = "0";
+      closeRef.current();
+      return;
+    }
+    el.style.transition = "transform .5s cubic-bezier(.22,1,.36,1), opacity .35s ease, border-radius .35s ease";
+    el.style.transform = "";
+    el.style.opacity = "";
+    el.style.borderRadius = "";
+    settleTimer.current = setTimeout(() => {
+      if (!rootRef.current) return;
+      rootRef.current.style.transition = "";
+      rootRef.current.style.willChange = "";
+    }, 560);
+  }, [rootRef]);
+
+  const onPointerUp = useCallback((e) => finish(e, false), [finish]);
+  const onPointerCancel = useCallback((e) => finish(e, true), [finish]);
+  const onClickCapture = useCallback((e) => {
+    if (justDragged.current) { e.stopPropagation(); e.preventDefault(); }
+  }, []);
+  const onDragStart = useCallback((e) => e.preventDefault(), []);
+
+  return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture, onDragStart };
+}
+
 function FullPlayer({ shown, onClose }) {
-  const { currentTrack, currentTrackHasLyrics, shuffle, toggleShuffle, repeat, cycleRepeat, room } = usePlayer();
+  const { currentTrack, currentTrackHasLyrics, shuffle, toggleShuffle, repeat, cycleRepeat, room, isPlaying } = usePlayer();
   const { settings, updateSettings, t } = useUI();
   const [view, setView] = useState("controls");
   const [showQuality, setShowQuality] = useState(true);
   const [lyricsReady, setLyricsReady] = useState(false);
   const rootRef = useRef(null);
+  const drag = useDragToClose(rootRef, onClose);
+
+  useEffect(() => {
+    if (!shown || !rootRef.current) return;
+    const st = rootRef.current.style;
+    st.transform = ""; st.opacity = ""; st.transition = ""; st.borderRadius = ""; st.willChange = "";
+  }, [shown]);
 
   const tx = useCallback((idText, enText) => (settings.language === "en" ? enText : idText), [settings.language]);
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -97,6 +202,8 @@ function FullPlayer({ shown, onClose }) {
     <div
       ref={rootRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t("nowPlaying")}
       className={`npd ${shown ? "shown" : ""} ${reduceMotion ? "reduce" : ""}`}
+      onPointerDown={drag.onPointerDown} onPointerMove={drag.onPointerMove} onPointerUp={drag.onPointerUp}
+      onPointerCancel={drag.onPointerCancel} onClickCapture={drag.onClickCapture} onDragStart={drag.onDragStart}
     >
       {settings.coverBackground !== false && currentTrack.cover && (
         <div key={currentTrack.id} className="npd-bg" style={{ backgroundImage: `url(${JSON.stringify(currentTrack.cover)})` }} aria-hidden="true" />
@@ -107,7 +214,7 @@ function FullPlayer({ shown, onClose }) {
 
       <div className="npd-stage">
         <div className="npd-left">
-          <div className="npd-cover">
+          <div className={`npd-cover ${isPlaying ? "" : "is-paused"}`}>
             {cover}
             <QualityLine track={currentTrack} visible={view === "controls" && showQuality} />
           </div>
