@@ -80,7 +80,7 @@ export function useImmersiveHero({ ready, tint }) {
   useEffect(() => {
     document.body.classList.add("aivy-artist-immersive");
     return () => {
-      document.body.classList.remove("aivy-artist-immersive");
+      document.body.classList.remove("aivy-artist-immersive", "aivy-artist-tinted");
       document.body.style.removeProperty("--artist-bg");
       document.body.style.removeProperty("--artist-accent");
       document.body.style.removeProperty("--artist-accent-ink");
@@ -88,7 +88,8 @@ export function useImmersiveHero({ ready, tint }) {
   }, []);
 
   useEffect(() => {
-    if (!tint) return undefined;
+    if (!tint) { document.body.classList.remove("aivy-artist-tinted"); return undefined; }
+    document.body.classList.add("aivy-artist-tinted");
     document.body.style.setProperty("--artist-bg", tint.bg);
     document.body.style.setProperty("--artist-accent", tint.accent);
     document.body.style.setProperty("--artist-accent-ink", tint.accentInk);

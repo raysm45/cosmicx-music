@@ -3600,3 +3600,51 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 }
 @media (max-width:480px){ .dn-cta{ width:100%; height:60px; font-size:19px; } .dn-action{ gap:16px; } }
 @media (prefers-reduced-motion:reduce){ .dn-wrap{ animation:none; } .dn-cta,.dnb-hit-ring{ transition:none; } }
+
+
+body.aivy-artist-tinted{
+  --bg: #000000; --bg-elev: #0B0B0B; --bg-elev-2: #151515; --bg-elev-3: #1F1F1F;
+  --line: #3a3a3a; --line-soft: #262626;
+  --ink: #F5F5F5; --ink-dim: #C4C4C4; --ink-faint: #9A9A9A;
+  --accent: #E6E6E6; --accent-strong: #FFFFFF; --accent-ink: #000000;
+  --accent-soft: rgba(255,255,255,.12);
+  --lg-tint: rgba(14,14,14,.30);
+  --lg-rim-a: rgba(255,255,255,.55); --lg-rim-b: rgba(255,255,255,.05); --lg-rim-c: rgba(255,255,255,.24);
+  --lg-lens: rgba(255,255,255,.15); --lg-lens-ring: rgba(255,255,255,.26);
+  --lg-top: inset 0 1px 0 rgba(255,255,255,.20);
+  color-scheme: dark;
+  color: var(--ink);
+}
+body.aivy-artist-tinted .aivy-am-head h2{ color: #fff; }
+body.aivy-artist-tinted .aivy-am-tile .t,
+body.aivy-artist-tinted .aivy-am-latest .title{ color: #fff; }
+body.aivy-artist-tinted .aivy-am-tile .s,
+body.aivy-artist-tinted .aivy-am-latest .date,
+body.aivy-artist-tinted .aivy-am-latest .sub,
+body.aivy-artist-tinted .aivy-am-song .meta .s{ color: rgba(255,255,255,.72); }
+:root body.aivy-artist-tinted .aivy-am-page{
+  --am-dim: rgba(255,255,255,.72);
+  --am-line: rgba(255,255,255,.12);
+}
+:root body.aivy-artist-tinted .aivy-am-page .aivy-am-name,
+:root body.aivy-artist-tinted .aivy-am-page .aivy-am-sub .is-link{ color: #fff; }
+:root body.aivy-artist-tinted .aivy-am-page .aivy-am-ghost{ color: #fff; background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.18); }
+:root body.aivy-artist-tinted .aivy-am-page .aivy-am-ghost:hover{ background: rgba(255,255,255,.28); }
+:root body.aivy-artist-tinted .aivy-am-page .aivy-am-ghost.active{ background: var(--am-accent); color: var(--am-accent-ink); border-color: transparent; }
+body.aivy-artist-tinted .aivy-sidebar,
+body.aivy-artist-tinted .aivy-rightpanel,
+body.aivy-artist-tinted .aivy-rightpanel-rail{ color: var(--ink); }
+body.aivy-artist-tinted .aivy-nowplaying-pane .t{ color: var(--ink); }
+body.aivy-artist-tinted .aivy-nowplaying-pane .a{ color: var(--ink-dim); }
+:root body.aivy-artist-tinted .aivy-nowplaying-about.is-glass,
+:root body.aivy-artist-tinted .aivy-credits-card.is-glass{
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+:root body.aivy-artist-tinted .aivy-nowplaying-about.is-glass .aivy-nowplaying-about-body{ background: rgba(0,0,0,.28); }
+body.aivy-artist-tinted .aivy-nowplaying-about-name{ color: #fff; }
+body.aivy-artist-tinted .aivy-nowplaying-about-listeners{ color: rgba(255,255,255,.75); }
+body.aivy-artist-tinted .aivy-nowplaying-about-bio{ color: rgba(255,255,255,.85); }
+body.aivy-artist-tinted .aivy-nowplaying-about-eyebrow{ color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.55); }
+body.aivy-artist-tinted .aivy-credits-card{ color: var(--ink); }

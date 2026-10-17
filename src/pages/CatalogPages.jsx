@@ -8,7 +8,7 @@ import { SmartCover, AnimatedCover } from "../lib/brand.jsx";
 import { setSeo, SITE_URL } from "../lib/seo.js";
 import { useArtworkTint, tintFromHex, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 
-const TOP_SONGS_PREVIEW = 15;
+const TOP_SONGS_LIMIT = 12;
 
 function pickHeroRendition(hero) {
   if (!hero) return null;
@@ -122,7 +122,6 @@ export function ArtistPage() {
   const [loading, setLoading] = useState(true);
   const { followedArtistIds, toggleFollowArtist } = usePlayer();
   const favorite = !!artist?.id && followedArtistIds.has(String(artist.id));
-  const [showAllSongs, setShowAllSongs] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [videoModal, setVideoModal] = useState(null);
   const [heroVideoUrl, setHeroVideoUrl] = useState(null);
@@ -151,7 +150,6 @@ export function ArtistPage() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    setShowAllSongs(false);
     setAboutOpen(false);
     setVideoBroken(false);
     setHeroVideoUrl(null);
@@ -250,7 +248,7 @@ export function ArtistPage() {
   if (loading) return <div className="aivy-am-fallback"><SkeletonHeroPage round rows={5} /></div>;
   if (!artist) return <div className="aivy-am-fallback"><ViewNotFound label={t("artistLabel")} /></div>;
 
-  const songs = showAllSongs ? topTracks : topTracks.slice(0, TOP_SONGS_PREVIEW);
+  const songs = topTracks.slice(0, TOP_SONGS_LIMIT);
   const showHeroVideo = heroVideoUrl && !videoBroken;
   const heroLogoUrl = heroInfo?.customName?.url ? Api.appleMusicVideoUrl(heroInfo.customName.url) : null;
   const showLogo = heroLogoUrl && !logoBroken;
@@ -305,7 +303,7 @@ export function ArtistPage() {
             </button>
             <button
               className="aivy-am-cta"
-              onClick={() => topTracks.length && playList(topTracks, 0)}
+              onClick={() => songs.length && playList(songs, 0)}
               aria-label={t("playAll")}
               title={t("playAll")}
             >
@@ -355,12 +353,9 @@ export function ArtistPage() {
 
             {songs.length > 0 && (
               <section className="aivy-am-block">
-                <AmSectionHead
-                  title={t("topSongs")}
-                  onClick={topTracks.length > TOP_SONGS_PREVIEW ? () => setShowAllSongs((s) => !s) : undefined}
-                />
+                <AmSectionHead title={t("topSongs")} />
                 <div className="aivy-am-songgrid">
-                  {songs.map((tr, i) => <AmSongRow key={tr.id} track={tr} index={i} list={topTracks} />)}
+                  {songs.map((tr, i) => <AmSongRow key={tr.id} track={tr} index={i} list={songs} />)}
                 </div>
               </section>
             )}
