@@ -6,9 +6,6 @@ import { VolumeControl, useTrackAudioInfo } from "./components.jsx";
 export const NPD_LYRICS_ID = "aivy-am-lyrics-npd";
 const DASH = "\u2014";
 
-/* ------------------------------------------------------------------ */
-/* Shell: bottom sheet / center card, with enter-exit animation        */
-/* ------------------------------------------------------------------ */
 
 const escStack = [];
 let escSeq = 0;
@@ -31,8 +28,6 @@ function useSheetLife(onClose) {
     const raf = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(raf);
   }, []);
-
-  // Esc menutup sheet paling atas saja (bukan seluruh player)
   useEffect(() => {
     const id = idRef.current;
     escStack.push(id);
@@ -115,10 +110,6 @@ function SheetShell({ title, onClose, variant = "sheet", children }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Audio output (tombol headset)                                       */
-/* ------------------------------------------------------------------ */
-
 function useOutputDevices() {
   const [state, setState] = useState({ devices: [], labelsHidden: false });
   const refresh = useCallback(async () => {
@@ -178,13 +169,12 @@ export function AudioOutputSheet({ tx, onClose, onOpenPipeline }) {
 
   const extra = outputDevice && !devices.some((d) => d.deviceId === outputDevice.id) ? outputDevice : null;
 
-
   return (
     <SheetShell title={tx("Output audio", "Audio output")} onClose={onClose}>
       <DeviceRow on={activeId === ""} label={tx("Default sistem", "System default")} onClick={() => pick(null)} />
       {canSwitch && extra && <DeviceRow on label={extra.label || tx("Perangkat terpilih", "Selected device")} onClick={() => {}} />}
       {canSwitch && devices.map((d, i) => (
-        <Row
+        <DeviceRow
           key={d.deviceId} on={activeId === d.deviceId}
           label={d.label || tx(`Output ${i + 1}`, `Output ${i + 1}`)}
           onClick={() => pick({ id: d.deviceId, label: d.label })}
@@ -213,10 +203,6 @@ export function AudioOutputSheet({ tx, onClose, onOpenPipeline }) {
     </SheetShell>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Audio Pipeline detail                                               */
-/* ------------------------------------------------------------------ */
 
 function chName(n) {
   if (n === 1) return "Mono";
@@ -305,10 +291,6 @@ export function AudioPipelineCard({ track, tx, onClose }) {
     </SheetShell>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Choose lyrics provider                                              */
-/* ------------------------------------------------------------------ */
 
 export function LyricsProviderSheet({ tx, onClose }) {
   const [list, setList] = useState([]);

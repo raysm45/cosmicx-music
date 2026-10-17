@@ -142,11 +142,10 @@
 .npd-lyricline.is-instrumental .npd-lyricline-text, .npd-lyricline.is-waiting .npd-lyricline-text{
   animation: npd-line-in .35s cubic-bezier(.22,.9,.32,1) both, npd-wait-pulse 2.4s ease-in-out .4s infinite;
 }
-.npd-lyricline-note{ flex-shrink: 0; display: inline-flex; color: rgba(255,255,255,.8); transform-origin: 50% 80%; animation: npd-note-bob 1.6s ease-in-out infinite; }
+.npd-lyricline-note{ flex-shrink: 0; display: inline-flex; color: rgba(255,255,255,.8); }
 @keyframes npd-wait-pulse{ 0%, 100%{ opacity: .6; } 50%{ opacity: 1; } }
-@keyframes npd-note-bob{ 0%, 100%{ transform: translateY(1px) rotate(-8deg); } 50%{ transform: translateY(-3px) rotate(8deg); } }
 @media (prefers-reduced-motion: reduce){
-  .npd-lyricline-note, .npd-lyricline.is-instrumental .npd-lyricline-text, .npd-lyricline.is-waiting .npd-lyricline-text{ animation: none; }
+  .npd-lyricline.is-instrumental .npd-lyricline-text, .npd-lyricline.is-waiting .npd-lyricline-text{ animation: none; }
 }
 .npd-lyricline-text{ min-width: 0; animation: npd-line-in .35s cubic-bezier(.22,.9,.32,1) both; }
 .npd-lyricline-chev{ flex-shrink: 0; color: rgba(255,255,255,.7); opacity: 0; transform: translateX(-5px); transition: opacity .2s ease, transform .25s cubic-bezier(.22,.9,.32,1); }
@@ -266,13 +265,9 @@
   .npd-transport{ margin-top: 16px; }
   .npd-volume{ margin-top: 16px; }
 }
-
-/* ---------- Geser cover: next / previous ---------- */
 .npd-cover-swipe{ position: relative; cursor: grab; touch-action: none; will-change: transform, opacity; }
 .npd-cover-swipe.is-swiping{ cursor: grabbing; }
 .npd-cover-swipe.is-locked{ cursor: default; }
-
-/* ---------- Sheet (Audio output, Lyrics provider) & kartu Audio Pipeline ---------- */
 .npd-sheet-layer{ position: absolute; inset: 0; z-index: 20; pointer-events: none; }
 .npd-sheet-layer.shown{ pointer-events: auto; }
 .npd-card-layer{ z-index: 22; }

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, MoreHorizontal,
   ChevronRight, Infinity as InfinityIcon,
-  AudioLines, Plus, Trash2, Globe, Languages, Music2,
+  AudioLines, Plus, Trash2, Globe, Languages,
 } from "lucide-react";
 import { usePlayer, usePlayerTime, useUI } from "./context.jsx";
 import { useRouter } from "./router.jsx";
@@ -77,6 +77,14 @@ function IconQueue({ size = 22 }) {
         <circle cx="4.5" cy="18" r="1.7" />
       </g>
       <path d="M9.2 6h11.3M9.2 12h11.3M9.2 18h11.3" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconMusicNote({ size = 17 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
+      <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
     </svg>
   );
 }
@@ -202,7 +210,6 @@ function useDragToClose(rootRef, onClose) {
 const SWIPE_COMMIT_RATIO = 0.22;
 const SWIPE_COMMIT_VELOCITY = 0.5;
 
-// Geser cover ke kiri = lagu berikutnya, ke kanan = sebelumnya
 function useCoverSwipe({ onNext, onPrev, disabled }) {
   const ref = useRef(null);
   const st = useRef(null);
@@ -469,6 +476,20 @@ const WAIT_PHRASES = [
   "Clearing the throat", "Count me in", "Feel the beat first", "The calm before the lyrics", "Listen closely",
   "Almost there", "Picking the first note", "The story begins soon", "Let the intro breathe", "Loading the feels",
   "Sit back and relax", "A little drumroll", "Shh, it\u2019s starting", "Get comfy", "Lyrics loading in your heart",
+  "Softly now", "The first beat is near", "Let the melody find you", "Strike a chord", "Waiting on the downbeat",
+  "Hear that silence?", "The rhythm is waking", "One more moment", "Catch the groove", "The vocals are warming up",
+  "Let the bassline settle", "Ready for the first line", "The track is loading", "A hush before the sound", "Feel the room shift",
+  "The beat is on its way", "Steady now", "Here comes the hook", "Give it a second", "The intro is unfolding",
+  "Let the speakers breathe", "The tempo is rising", "Cue the melody", "Almost song time", "Wait for the drop",
+  "The music is stretching", "Listen for the cue", "The first chord is close", "Let the silence speak", "Ready when you are",
+  "The beat is warming up", "A moment before the magic", "Here’s the count-in", "Let the harmony arrive", "The song is loading",
+  "Ease into the rhythm", "Hold that thought", "The first note is coming", "Feel the pulse begin", "The lyrics are on deck",
+  "A breath before the verse", "The mix is settling", "Cue the bass", "Wait for the groove", "The melody is near",
+  "Let the drums speak", "The tune is waking up", "One beat to go", "The sound is coming alive", "Here comes the intro",
+  "Let the rhythm roll", "The vocals are ready", "A small pause", "The track is about to play", "Listen to the quiet",
+  "The first line is close", "Feel the intro build", "Cue the first beat", "The song is at the door", "Almost listening time",
+  "Let the notes gather", "The beat is in the room", "Hold for the harmony", "The melody takes shape", "Here’s the moment",
+  "The rhythm is ready", "A second of calm", "The first sound is near", "Let the music begin", "Ready, set, play"
 ];
 
 function LyricLine({ track, onAlbum, onOpenLyrics }) {
@@ -482,7 +503,6 @@ function LyricLine({ track, onAlbum, onOpenLyrics }) {
   const hasLines = !!lines;
 
   const phase = lines ? lyricPhase(lines, time * 1000 + 250) : { kind: "none", text: null };
-  // Saat audio masih loading, selalu tampilkan kalimat "menunggu" (bukan Instrumental)
   const kind = loadingAudio && time < 1.5 ? "intro" : phase.kind;
   const waiting = kind === "intro" || (loadingAudio && !lines && time < 1.5);
   const showNote = waiting || kind === "instrumental";
@@ -492,11 +512,9 @@ function LyricLine({ track, onAlbum, onOpenLyrics }) {
     const id = setInterval(() => force((n) => n + 1), 500);
     return () => clearInterval(id);
   }, [hasLines, track.id]);
-
-  // Ganti kalimat menunggu tiap beberapa detik kalau intro-nya panjang
   useEffect(() => {
     if (!waiting) return undefined;
-    const id = setInterval(() => setTick((n) => n + 1), 3600);
+    const id = setInterval(() => setTick((n) => n + 1), 5000);
     return () => clearInterval(id);
   }, [waiting, track.id]);
 
@@ -525,7 +543,7 @@ function LyricLine({ track, onAlbum, onOpenLyrics }) {
     <button type="button" className={cls} onClick={onOpenLyrics}>
       {showNote && (
         <span className="npd-lyricline-note" aria-hidden="true">
-          <Music2 size={17} />
+          <IconMusicNote size={17} />
         </span>
       )}
       <MarqueeText key={`${kind}:${text}`} as="span" className="npd-lyricline-text" text={text} always />
