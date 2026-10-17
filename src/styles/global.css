@@ -3666,14 +3666,15 @@ body.aivy-artist-tinted .aivy-credits-card{ color: var(--ink); }
 .aivy-am-media .aivy-am-cover-bg img{ filter: blur(48px) saturate(1.3) brightness(.72) !important; transform: scale(1.35) !important; }
 code, kbd, samp, pre{ font-family: var(--font-body); }
 .aivy-am-media{ box-sizing: border-box; }
-.aivy-am-media.is-cover{ padding-left: var(--am-left, 0px); }
-body.aivy-artist-immersive .aivy-shell{
-  background: var(--artist-bg, var(--bg));
-  transition: background var(--dur-slow) var(--ease);
+.aivy-am-media.is-cover{ padding-left: var(--am-left, 0px); padding-right: var(--am-right, 0px); }
+body.aivy-artist-immersive .aivy-shell{ background: var(--artist-bg, var(--bg)); }
+body.aivy-artist-immersive .aivy-sidebar,
+body.aivy-artist-immersive .aivy-rightpanel,
+body.aivy-artist-immersive .aivy-rightpanel-rail{
+  background: color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 26%, transparent);
+  -webkit-backdrop-filter: blur(30px);
+  backdrop-filter: blur(30px);
 }
-body.aivy-artist-immersive .aivy-sidebar{
-  background: color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 34%, transparent);
-  -webkit-backdrop-filter: blur(34px) saturate(1.6);
-  backdrop-filter: blur(34px) saturate(1.6);
-  border-right: 1px solid color-mix(in srgb, #fff 8%, transparent);
-}
+body.aivy-artist-immersive .aivy-sidebar{ border-right: 1px solid color-mix(in srgb, #fff 8%, transparent); }
+body.aivy-artist-immersive .aivy-rightpanel,
+body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-mix(in srgb, #fff 8%, transparent); }
