@@ -990,45 +990,42 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
   transform-origin: center 30%;
   will-change: filter, transform;
 }
-.aivy-am-media-blur{
-  position: absolute; inset: 0; pointer-events: none;
-  backdrop-filter: blur(calc(18px + var(--am-progress, 0) * 22px)) saturate(118%);
-  -webkit-backdrop-filter: blur(calc(18px + var(--am-progress, 0) * 22px)) saturate(118%);
-  mask-image: linear-gradient(180deg,
-    transparent 18%,
-    rgba(0,0,0,.05) 30%,
-    rgba(0,0,0,.16) 42%,
-    rgba(0,0,0,.34) 53%,
-    rgba(0,0,0,.58) 63%,
-    rgba(0,0,0,.80) 73%,
-    rgba(0,0,0,.94) 82%,
-    #000 90%);
-  -webkit-mask-image: linear-gradient(180deg,
-    transparent 18%,
-    rgba(0,0,0,.05) 30%,
-    rgba(0,0,0,.16) 42%,
-    rgba(0,0,0,.34) 53%,
-    rgba(0,0,0,.58) 63%,
-    rgba(0,0,0,.80) 73%,
-    rgba(0,0,0,.94) 82%,
-    #000 90%);
+.aivy-am-media-blur{ position: absolute; inset: 0; pointer-events: none; }
+.aivy-am-media-blur > i{ position: absolute; inset: 0; display: block; }
+.aivy-am-media-blur > i:nth-child(1){
+  backdrop-filter: blur(calc(2px + var(--am-progress, 0) * 5px));
+  -webkit-backdrop-filter: blur(calc(2px + var(--am-progress, 0) * 5px));
+  mask-image: linear-gradient(180deg, transparent 38%, #000 50%, #000 62%, transparent 72%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 38%, #000 50%, #000 62%, transparent 72%);
 }
-@media (max-width: 860px){
-  .aivy-am-media-blur{
-    mask-image: linear-gradient(180deg, transparent 34%, rgba(0,0,0,.35) 54%, rgba(0,0,0,.82) 72%, #000 88%);
-    -webkit-mask-image: linear-gradient(180deg, transparent 34%, rgba(0,0,0,.35) 54%, rgba(0,0,0,.82) 72%, #000 88%);
-  }
+.aivy-am-media-blur > i:nth-child(2){
+  backdrop-filter: blur(calc(6px + var(--am-progress, 0) * 8px));
+  -webkit-backdrop-filter: blur(calc(6px + var(--am-progress, 0) * 8px));
+  mask-image: linear-gradient(180deg, transparent 48%, #000 60%, #000 72%, transparent 82%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 48%, #000 60%, #000 72%, transparent 82%);
+}
+.aivy-am-media-blur > i:nth-child(3){
+  backdrop-filter: blur(calc(16px + var(--am-progress, 0) * 12px));
+  -webkit-backdrop-filter: blur(calc(16px + var(--am-progress, 0) * 12px));
+  mask-image: linear-gradient(180deg, transparent 58%, #000 70%, #000 82%, transparent 92%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 58%, #000 70%, #000 82%, transparent 92%);
+}
+.aivy-am-media-blur > i:nth-child(4){
+  backdrop-filter: blur(calc(34px + var(--am-progress, 0) * 16px));
+  -webkit-backdrop-filter: blur(calc(34px + var(--am-progress, 0) * 16px));
+  mask-image: linear-gradient(180deg, transparent 68%, #000 82%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 68%, #000 82%);
 }
 .aivy-am-media-scrim{
   position: absolute; inset: 0; pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 16%, rgba(0,0,0,0) 34%),
-    linear-gradient(180deg,
-      rgba(0,0,0,0) 38%,
-      color-mix(in srgb, var(--am-bg) 26%, transparent) 56%,
-      color-mix(in srgb, var(--am-bg) 66%, transparent) 72%,
-      color-mix(in srgb, var(--am-bg) 92%, transparent) 86%,
-      var(--am-bg) 98%);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--am-bg) 0%, transparent) 42%,
+    color-mix(in srgb, var(--am-bg) 8%, transparent) 54%,
+    color-mix(in srgb, var(--am-bg) 24%, transparent) 65%,
+    color-mix(in srgb, var(--am-bg) 48%, transparent) 76%,
+    color-mix(in srgb, var(--am-bg) 76%, transparent) 87%,
+    color-mix(in srgb, var(--am-bg) 94%, transparent) 95%,
+    var(--am-bg) 100%);
 }
 
 .aivy-am-hero{
@@ -3654,20 +3651,6 @@ body.aivy-artist-tinted .aivy-credits-card{ color: var(--ink); }
 .aivy-row.is-no-thumb:hover:not(.is-current) .idx .num{ display: none; }
 .aivy-row.is-no-thumb:hover:not(.is-current) .idx .play{ display: flex; }
 .aivy-am-page.is-cover-page{ --am-hero-h: min(76vh, 740px); }
-.aivy-am-page.is-cover-page .aivy-am-media-blur{
-  mask-image: linear-gradient(180deg, transparent 56%, rgba(0,0,0,.12) 66%, rgba(0,0,0,.38) 75%, rgba(0,0,0,.7) 84%, rgba(0,0,0,.94) 93%, #000 98%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 56%, rgba(0,0,0,.12) 66%, rgba(0,0,0,.38) 75%, rgba(0,0,0,.7) 84%, rgba(0,0,0,.94) 93%, #000 98%);
-}
-.aivy-am-page.is-cover-page .aivy-am-media-scrim{
-  background:
-    linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 14%, rgba(0,0,0,0) 28%),
-    linear-gradient(180deg,
-      rgba(0,0,0,0) 58%,
-      color-mix(in srgb, var(--am-bg) 24%, transparent) 72%,
-      color-mix(in srgb, var(--am-bg) 62%, transparent) 84%,
-      color-mix(in srgb, var(--am-bg) 92%, transparent) 94%,
-      var(--am-bg) 100%);
-}
 .aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center 24%; }
 @media (max-width: 860px){
   .aivy-am-page.is-cover-page{ --am-hero-h: min(64vh, 560px); }

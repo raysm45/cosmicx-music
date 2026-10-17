@@ -274,7 +274,7 @@ export function ArtistPage() {
           <SmartCover src={posterImg} seed={"artist-bg" + artist.id + artist.name} size={1600} radius={0} style={{ width: "100%", height: "100%" }} />
         )}
         {}
-        <div className="aivy-am-media-blur" />
+        <div className="aivy-am-media-blur"><i /><i /><i /><i /></div>
         <div className="aivy-am-media-scrim" />
       </div>
 

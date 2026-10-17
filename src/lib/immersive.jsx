@@ -55,7 +55,7 @@ export function tintFromHsl(h, satPct) {
   const hue = Math.round(h);
   const s = Math.round(Math.min(52, Math.max(22, satPct)));
   return {
-    bg: `hsl(${hue} ${s}% 15%)`,
+    bg: `hsl(${hue} ${Math.round(Math.min(24, Math.max(8, s * 0.5)))}% 14%)`,
     accent: `hsl(${hue} ${Math.min(72, s + 24)}% 78%)`,
     accentInk: `hsl(${hue} ${Math.min(60, s + 10)}% 12%)`,
   };
@@ -146,7 +146,7 @@ export function ImmersiveHero({ mediaRef, heroRef, media, coverStyle = false, ch
     <>
       <div ref={mediaRef} className={`aivy-am-media ${coverStyle ? "is-cover" : ""}`} aria-hidden="true">
         {media}
-        <div className="aivy-am-media-blur" />
+        <div className="aivy-am-media-blur"><i /><i /><i /><i /></div>
         <div className="aivy-am-media-scrim" />
       </div>
       <header ref={heroRef} className="aivy-am-hero">
