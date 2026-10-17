@@ -296,7 +296,7 @@ export function VolumeControl({ showEndIcon = false }) {
   );
 }
 
-function useScrubberBinding() {
+export function useScrubberBinding() {
   const { duration, seekRatio, registerProgressEl } = usePlayer();
   const currentTime = usePlayerTime();
   const fillCleanupRef = useRef(null);
@@ -1185,7 +1185,7 @@ export function TransportButtons({ big = false, minimal = false }) {
   );
 }
 
-export function PlayerBar({ onOpenNowPlaying }) {
+export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   const { currentTrack, liked, toggleLike, isPreviewClip, loadingAudio, currentTrackHasLyrics, isPlaying, upNext } = usePlayer();
   const { navigate } = useRouter();
   const { toggleLyrics, sidebarQueueOpen, toggleSidebarQueue, t, settings } = useUI();
@@ -1249,10 +1249,13 @@ export function PlayerBar({ onOpenNowPlaying }) {
           <span className="aivy-time right font-mono">{loadingAudio ? "\u2013\u2013" : formatTime(duration)}</span>
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, width: "min(20%, 220px)", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, width: "min(22%, 256px)", justifyContent: "flex-end" }}>
         <button className={`aivy-icon-btn sm ${sidebarQueueOpen ? "active" : ""}`} onClick={toggleSidebarQueue} aria-label={t("lyricsQueueBtn")} title={t("lyricsQueueBtn")}><ListMusic size={16} /></button>
         <button className="aivy-icon-btn sm" onClick={toggleLyrics} disabled={lyricsDisabled} aria-label={t("lyrics")} title={lyricsDisabled && currentTrack ? t("lyricsUnavailable") : t("lyrics")}><Mic2 size={16} /></button>
         <VolumeControl />
+        {onOpenFullscreen && (
+          <button className="aivy-icon-btn sm" onClick={onOpenFullscreen} disabled={!currentTrack} aria-label={settings.language === "en" ? "Full screen player" : "Pemutar layar penuh"} title={settings.language === "en" ? "Full screen player" : "Pemutar layar penuh"}><Maximize size={16} /></button>
+        )}
       </div>
     </div>
   );
@@ -2195,7 +2198,7 @@ function TrackDetailInfoTab({ track }) {
 }
 
 const audioInfoCache = new Map();
-function useTrackAudioInfo(track) {
+export function useTrackAudioInfo(track) {
   const videoId = track?.videoId || track?.id || null;
   const [info, setInfo] = useState(null);
   useEffect(() => {
@@ -2523,7 +2526,7 @@ function useArtistAbout(track) {
   return artist;
 }
 
-function AboutArtistSection({ track, onNavigate, glass = false }) {
+export function AboutArtistSection({ track, onNavigate, glass = false }) {
   const artist = useArtistAbout(track);
   const { navigate } = useRouter();
   const { t, settings } = useUI();
@@ -2715,7 +2718,7 @@ function NextUpPreview({ compact }) {
   );
 }
 
-function QueueTrackMeta({ track }) {
+export function QueueTrackMeta({ track }) {
   return (
     <div className="aivy-queue-meta">
       <SmartCover src={track.cover} seed={track.id + track.title} size={44} radius={6} style={{ width: 44, height: 44 }} />
@@ -2760,7 +2763,7 @@ function QueueHistoryRow({ track, onSelect }) {
   );
 }
 
-function QueueUpNextList({ items }) {
+export function QueueUpNextList({ items }) {
   const { moveQueueItem, removeFromQueue, selectQueuePosition, posInOrder, liked, toggleLike } = usePlayer();
   const { t } = useUI();
   const [dragIndex, setDragIndex] = useState(null);
@@ -3546,7 +3549,7 @@ const AM_LYRICS_FONT_SIZES = {
   // Terbesar: ukuran mengikuti tinggi layar sehingga hanya sekitar 3 baris lirik yang muat
   max: { "--am-lyrics-compact-font-size": "max(36px, 5.5vh)", "--lyplus-font-size-base": "max(44px, 7.5vh)", "--am-lyrics-wide-font-size": "max(48px, 9vh)" },
 };
-function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur }) {
+export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur }) {
   const elRef = useRef(null);
 
   useEffect(() => {

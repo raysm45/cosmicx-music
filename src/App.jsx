@@ -15,6 +15,7 @@ import {
   LyricsPrefetch, AiAssistantWidget,
 } from "./components.jsx";
 import { CookieConsent } from "./CookieConsent.jsx";
+import { NowPlayingDesktop } from "./NowPlayingDesktop.jsx";
 import { LandingPage, LoginPage } from "./pages/AuthPages.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { NewTrendingPage, BestAlbumsPage, EditorsPicksPage } from "./pages/FeedPages.jsx";
@@ -98,9 +99,11 @@ function AppInner() {
     return () => clearTimeout(id);
   }, []);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  const [fullPlayerOpen, setFullPlayerOpen] = useState(false);
+  useEffect(() => { if (isMobile && fullPlayerOpen) setFullPlayerOpen(false); }, [isMobile, fullPlayerOpen]);
 
-  const anyModalOpen = nowPlayingOpen || mobileQueueOpen || lyricsOpen || !!sidebarQueueOpen;
-  const closeAllModals = () => { setNowPlayingOpen(false); closeMobileQueue(); closeLyrics(); if (closeSidebarQueue) closeSidebarQueue(); };
+  const anyModalOpen = nowPlayingOpen || fullPlayerOpen || mobileQueueOpen || lyricsOpen || !!sidebarQueueOpen;
+  const closeAllModals = () => { setNowPlayingOpen(false); setFullPlayerOpen(false); closeMobileQueue(); closeLyrics(); if (closeSidebarQueue) closeSidebarQueue(); };
 
   const prevNameRef = useRef(name);
   useEffect(() => {
@@ -157,7 +160,7 @@ function AppInner() {
           </ErrorBoundary>
         </div>
       </main>
-      {!isMobile && <PlayerBar onOpenNowPlaying={() => setNowPlayingOpen(true)} />}
+      {!isMobile && <PlayerBar onOpenNowPlaying={() => setNowPlayingOpen(true)} onOpenFullscreen={() => setFullPlayerOpen(true)} />}
       {!isMobile && <RightPanel />}
       <AiAssistantWidget />
 
@@ -166,6 +169,7 @@ function AppInner() {
       { }
       <NowPlayingSheet open={nowPlayingOpen} onClose={() => setNowPlayingOpen(false)} onOpenQueue={() => { setNowPlayingOpen(false); openMobileQueue(); }} />
       {isMobile && <QueueSheet open={mobileQueueOpen} onClose={closeMobileQueue} />}
+      {!isMobile && <NowPlayingDesktop open={fullPlayerOpen} onClose={() => setFullPlayerOpen(false)} />}
 
       <AddToPlaylistModal />
       <CreditsModal />
