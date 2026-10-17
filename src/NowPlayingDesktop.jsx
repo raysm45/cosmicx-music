@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom";
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, MoreHorizontal,
-  ChevronRight, ListMusic, MessageSquareQuote, Headphones, User, Infinity as InfinityIcon,
+  ChevronRight, Infinity as InfinityIcon,
   AudioLines, Plus, Trash2, Globe, Languages,
 } from "lucide-react";
 import { usePlayer, usePlayerTime, useUI } from "./context.jsx";
@@ -30,6 +30,55 @@ const FALLBACK_LANGS = [
   { code: "fr", label: "Français" },
   { code: "de", label: "Deutsch" },
 ];
+
+function IconLyrics({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <mask id="npd-lyrics-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+        <rect width="24" height="24" fill="#fff" />
+        <circle cx="9.2" cy="9.6" r="1.55" fill="#000" />
+        <circle cx="14.6" cy="9.6" r="1.55" fill="#000" />
+        <path d="M10.7 9.9c0 1.9-.9 3.1-2.5 3.6M16.1 9.9c0 1.9-.9 3.1-2.5 3.6" fill="none" stroke="#000" strokeWidth="1.5" strokeLinecap="round" />
+      </mask>
+      <path
+        mask="url(#npd-lyrics-mask)" fill="currentColor"
+        d="M7 2.8h10a5 5 0 0 1 5 5v5.4a5 5 0 0 1-5 5h-5.6l-3.9 3.1a.9.9 0 0 1-1.5-.7V18.2H7a5 5 0 0 1-5-5V7.8a5 5 0 0 1 5-5z"
+      />
+    </svg>
+  );
+}
+
+function IconHeadphones({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.5 15v-3a7.5 7.5 0 0 1 15 0v3" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+      <rect x="3" y="13.6" width="5" height="7.6" rx="2.4" fill="currentColor" />
+      <rect x="16" y="13.6" width="5" height="7.6" rx="2.4" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconPerson({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
+      <circle cx="12" cy="7.8" r="4.3" />
+      <path d="M3.8 20.2c0-4.1 3.7-6.5 8.2-6.5s8.2 2.4 8.2 6.5c0 .6-.4 1-1 1H4.8c-.6 0-1-.4-1-1z" />
+    </svg>
+  );
+}
+
+function IconQueue({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <g fill="currentColor">
+        <circle cx="4.5" cy="6" r="1.7" />
+        <circle cx="4.5" cy="12" r="1.7" />
+        <circle cx="4.5" cy="18" r="1.7" />
+      </g>
+      <path d="M9.2 6h11.3M9.2 12h11.3M9.2 18h11.3" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export function NowPlayingDesktop({ open, onClose }) {
   const [mounted, setMounted] = useState(!!open);
@@ -197,6 +246,13 @@ function FullPlayer({ shown, onClose }) {
   if (!currentTrack) return null;
 
   const toggleView = (v) => setView((cur) => (cur === v ? "controls" : v));
+  const openLyricsAtLine = () => {
+    setView("lyrics");
+    setTimeout(() => {
+      const el = document.getElementById(LYRICS_ID);
+      if (el && typeof el.resumeAutoScroll === "function") el.resumeAutoScroll();
+    }, 140);
+  };
   const queueMode = view === "queue";
 
   return (
@@ -226,7 +282,7 @@ function FullPlayer({ shown, onClose }) {
               onClick={() => toggleView("lyrics")} disabled={lyricsDisabled} aria-pressed={view === "lyrics"}
               aria-label={t("lyrics")} title={lyricsDisabled ? t("lyricsUnavailable") : t("lyrics")}
             >
-              <MessageSquareQuote size={20} />
+              <IconLyrics />
             </button>
 
             <div className="npd-seg" role="group">
@@ -248,13 +304,13 @@ function FullPlayer({ shown, onClose }) {
                     type="button" className={showQuality ? "active" : ""} onClick={() => setShowQuality((v) => !v)} aria-pressed={showQuality}
                     aria-label={tx("Info kualitas audio", "Audio quality info")} title={tx("Info kualitas audio", "Audio quality info")}
                   >
-                    <Headphones size={19} />
+                    <IconHeadphones />
                   </button>
                   <button
                     type="button" className={view === "artist" ? "active" : ""} onClick={() => toggleView("artist")} aria-pressed={view === "artist"}
                     aria-label={t("aboutArtistLabel")} title={t("aboutArtistLabel")}
                   >
-                    <User size={19} />
+                    <IconPerson />
                   </button>
                 </>
               )}
@@ -265,13 +321,13 @@ function FullPlayer({ shown, onClose }) {
               onClick={() => toggleView("queue")} aria-pressed={view === "queue"}
               aria-label={t("tabQueue")} title={t("tabQueue")}
             >
-              <ListMusic size={20} />
+              <IconQueue />
             </button>
           </div>
         </div>
 
         <div className="npd-right">
-          {view === "controls" && <ControlsPanel key="controls" track={currentTrack} tx={tx} onClose={onClose} />}
+          {view === "controls" && <ControlsPanel key="controls" track={currentTrack} tx={tx} onClose={onClose} onOpenLyrics={openLyricsAtLine} />}
           {lyricsReady && <LyricsPanel track={currentTrack} active={view === "lyrics"} tx={tx} />}
           {view === "queue" && <QueuePanel key="queue" track={currentTrack} tx={tx} />}
           {view === "artist" && <ArtistPanel key="artist" track={currentTrack} onClose={onClose} />}
@@ -294,7 +350,7 @@ function QualityLine({ track, visible }) {
   return <div className={`npd-quality ${visible ? "on" : ""}`}>{parts.join(" \u00b7 ")}</div>;
 }
 
-function LyricLine({ track, onAlbum }) {
+function LyricLine({ track, onAlbum, onOpenLyrics }) {
   const time = usePlayerTime();
   const [, force] = useState(0);
   const el = typeof document !== "undefined" ? document.getElementById(LYRICS_ID) : null;
@@ -320,9 +376,10 @@ function LyricLine({ track, onAlbum }) {
 
   const text = lyricAt(lines, time * 1000 + 250);
   return (
-    <div className="npd-lyricline">
-      {text ? <MarqueeText key={text} as="div" className="npd-lyricline-text" text={text} always /> : null}
-    </div>
+    <button type="button" className={`npd-lyricline ${text ? "" : "is-instrumental"}`} onClick={onOpenLyrics}>
+      <MarqueeText key={text || "instrumental"} as="span" className="npd-lyricline-text" text={text || "Instrumental"} always />
+      <ChevronRight size={16} className="npd-lyricline-chev" />
+    </button>
   );
 }
 
@@ -345,7 +402,7 @@ function ScrubRow({ track }) {
   );
 }
 
-function ControlsPanel({ track, tx, onClose }) {
+function ControlsPanel({ track, tx, onClose, onOpenLyrics }) {
   const { isPlaying, togglePlay, next, prev, room, liked, toggleLike, playSource } = usePlayer();
   const { authUser, t, openContextMenu } = useUI();
   const { navigate } = useRouter();
@@ -387,7 +444,7 @@ function ControlsPanel({ track, tx, onClose }) {
         </div>
       </div>
 
-      <LyricLine track={track} onAlbum={goAlbum} />
+      <LyricLine track={track} onAlbum={goAlbum} onOpenLyrics={onOpenLyrics} />
 
       <ScrubRow track={track} />
 

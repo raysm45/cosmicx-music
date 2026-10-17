@@ -95,7 +95,7 @@
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
 }
 .npd-seg button{
-  min-width: 58px; height: 44px; padding: 0 12px; display: flex; align-items: center; justify-content: center;
+  min-width: 64px; height: 44px; padding: 0 12px; display: flex; align-items: center; justify-content: center;
   background: transparent; border: none; color: rgba(255,255,255,.7); cursor: pointer;
   transition: background .2s ease, color .2s ease;
 }
@@ -133,15 +133,24 @@
   align-self: flex-start; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; margin-top: 20px; padding: 0;
   background: none; border: none; color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; text-align: left;
 }
-.npd-lyricline{ margin-top: 20px; min-height: 24px; max-width: 100%; font-size: 17px; font-weight: 600; line-height: 1.4; color: #fff; }
-.npd-lyricline-text{ animation: npd-line-in .35s cubic-bezier(.22,.9,.32,1) both; }
+.npd-lyricline{
+  align-self: flex-start; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; margin-top: 20px; min-height: 24px; padding: 0;
+  background: none; border: none; text-align: left; cursor: pointer;
+  font-size: 17px; font-weight: 600; line-height: 1.4; color: #fff;
+}
+.npd-lyricline.is-instrumental{ color: rgba(255,255,255,.6); }
+.npd-lyricline-text{ min-width: 0; animation: npd-line-in .35s cubic-bezier(.22,.9,.32,1) both; }
+.npd-lyricline-chev{ flex-shrink: 0; color: rgba(255,255,255,.7); opacity: 0; transform: translateX(-5px); transition: opacity .2s ease, transform .25s cubic-bezier(.22,.9,.32,1); }
+.npd-lyricline:hover .npd-lyricline-chev, .npd-lyricline:focus-visible .npd-lyricline-chev{ opacity: 1; transform: none; }
 @keyframes npd-line-in{ from{ opacity: 0; transform: translateY(6px); } to{ opacity: 1; transform: none; } }
 .npd-album > span{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .npd-album svg{ flex-shrink: 0; color: rgba(255,255,255,.6); }
 .npd-album:hover span{ text-decoration: underline; }
 
 .npd-scrub{ margin-top: 12px; }
-.npd .aivy-scrubber .track{ background: rgba(255,255,255,.26); }
+.npd .aivy-scrubber{ height: 28px; }
+.npd .aivy-scrubber .track{ height: 8px; background: rgba(255,255,255,.26); }
+.npd .aivy-scrubber:hover .track, .npd .aivy-scrubber.dragging .track{ height: 11px; }
 .npd .aivy-scrubber .fill{ background: rgba(255,255,255,.9); }
 .npd .aivy-scrubber .thumb{ background: #fff; }
 .npd .aivy-scrubber.is-loading .track{ background: rgba(255,255,255,.2); }
@@ -158,7 +167,9 @@
 
 .npd-volume{ margin-top: 26px; }
 .npd-volume .aivy-vol{ width: 100%; gap: 12px; }
-.npd-volume .aivy-vol .track{ flex: 1; width: auto; max-width: none; background: rgba(255,255,255,.26); }
+.npd .npd-volume .aivy-vol .track{ flex: 1; width: auto; max-width: none; height: 8px; background: rgba(255,255,255,.26); }
+.npd .npd-volume .aivy-vol .track::before{ content: ""; position: absolute; left: 0; right: 0; top: -10px; bottom: -10px; }
+.npd .npd-volume .aivy-vol:hover .track, .npd .npd-volume .aivy-vol.dragging .track{ height: 11px; }
 .npd-volume .aivy-vol .fill{ background: rgba(255,255,255,.88); }
 .npd-volume .aivy-vol .aivy-icon-btn, .npd-volume .aivy-vol .vol-end{ color: rgba(255,255,255,.7); display: flex; align-items: center; }
 
