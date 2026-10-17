@@ -500,7 +500,7 @@ export function AlbumPage() {
     });
   }, [album, params.id]);
 
-  const albumTracks = useMemo(() => filterExplicit(album?.tracks, settings) || [], [album, settings]);
+  const albumTracks = useMemo(() => (filterExplicit(album?.tracks, settings) || []).map((tr) => (album?.cover ? { ...tr, cover: album.cover } : tr)), [album, settings]);
   const totalMin = Math.round(albumTracks.reduce((s, tr) => s + (tr.duration || 0), 0) / 60);
   const [displayTracks, setDisplayTracks] = useState(albumTracks);
 
