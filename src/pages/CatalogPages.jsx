@@ -10,6 +10,17 @@ import { useArtworkTint, tintFromHex, useImmersiveHero, ImmersiveHero } from "..
 
 const TOP_SONGS_LIMIT = 12;
 
+function appleWide(url, w = 1920) {
+  if (!url || typeof url !== "string") return url;
+  const h = Math.round((w * 9) / 16);
+  if (/\{w\}x\{h\}/.test(url)) {
+    return url.replace(/\{w\}x\{h\}(?:\{c\})?\.\{f\}/, `${w}x${h}sr.webp`).replace(/\{w\}x\{h\}/, `${w}x${h}`);
+  }
+  const m = url.match(/^(https?:\/\/[^?#]*mzstatic\.com\/image\/thumb\/.+\/)\d+x\d+[a-z]*\.(?:jpg|jpeg|png|webp)((?:[?#].*)?)$/i);
+  if (!m) return url;
+  return `${m[1]}${w}x${h}sr.webp${m[2] || ""}`;
+}
+
 function pickHeroRenditions(hero) {
   if (!hero) return [];
   let nativeHls = false;
@@ -206,7 +217,7 @@ export function ArtistPage() {
             heroQueueRef.current = pickHeroRenditions(h).map((r) => r.url);
             if (heroQueueRef.current[0]) setHeroVideoUrl(Api.appleMusicVideoUrl(heroQueueRef.current[0]));
             const poster = h?.previewFrame?.url || h?.artwork?.url;
-            if (poster) setHeroArtwork(poster);
+            if (poster) setHeroArtwork(appleWide(poster));
             if (h?.artwork?.bgColor) setHeroBgColor(h.artwork.bgColor);
           })
           .catch(() => {});
@@ -226,7 +237,7 @@ export function ArtistPage() {
     });
   }, [artist, params.id]);
 
-  const posterImg = heroArtwork || artist?.banner || artist?.image || null;
+  const posterImg = heroArtwork || appleWide(artist?.banner || artist?.image) || null;
   const tintSource = artist?.image || artist?.banner || artist?.albums?.[0]?.cover || null;
   const tintFromArt = useArtworkTint(tintSource);
   const tint = useMemo(() => {
