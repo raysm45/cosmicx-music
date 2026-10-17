@@ -8,8 +8,9 @@ export function supportsRefraction() {
 
 const mapCache = new Map();
 
-export function makeDisplacementMap(w, h, bezel) {
-  const key = `v2:${w}x${h}x${bezel}`;
+export function makeDisplacementMap(w, h, bezel, radius) {
+  const rr = radius > 0 ? Math.min(radius, Math.min(w, h) / 2) : Math.min(w, h) / 2;
+  const key = `v2:${w}x${h}x${bezel}${radius > 0 ? `r${Math.round(rr)}` : ""}`;
   if (mapCache.has(key)) return mapCache.get(key);
   let url = "";
   try {
@@ -17,7 +18,7 @@ export function makeDisplacementMap(w, h, bezel) {
     c.width = w; c.height = h;
     const ctx = c.getContext("2d");
     const img = ctx.createImageData(w, h);
-    const r = Math.min(w, h) / 2;
+    const r = rr;
     for (let j = 0; j < h; j++) {
       for (let i = 0; i < w; i++) {
         const px = i + 0.5 - w / 2, py = j + 0.5 - h / 2;

@@ -342,11 +342,15 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 
   border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 6%, transparent);
+  isolation: isolate;
   will-change: transform;
   transform: translateZ(0);
   z-index: 40;
   transition: left var(--dur-slow) var(--ease), right var(--dur-slow) var(--ease);
 }
+:root .aivy-player{ background: var(--lg-tint); border: 0; box-shadow: var(--lg-shadow); }
+:root[data-glass="full"][data-glass-fx="1"] .aivy-player.lg-ready .lg-warp{ filter: url(#lg-player); }
+:root[data-glass="blur"] .aivy-player{ box-shadow: none; }
 .aivy-player .now{ display: flex; align-items: center; gap: 12px; min-width: 0; width: min(28%, 300px); }
 .aivy-player .now .meta{ min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .aivy-player .now .meta .t{ font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1265,7 +1269,7 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   z-index: 3;
 }
 body.aivy-artist-immersive .aivy-player{
-  background: color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 78%, transparent);
+  background: color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 38%, transparent);
 }
 .aivy-am-page.is-cover-page{ --am-hero-h: min(54vh, 460px); }
 .aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center 30%; }
@@ -3004,6 +3008,7 @@ body.aivy-artist-immersive .aivy-player{
 .is-mobile ~ .aivy-ai-panel, .aivy-shell.is-mobile .aivy-ai-panel{ bottom: calc(var(--dock-total) + 72px); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .aivy-dock .aivy-tabbar, .aivy-dock .aivy-mini-player, .aivy-dock .aivy-dock-search{ background: color-mix(in srgb, var(--bg-elev-2) 92%, transparent); }
+  :root .aivy-player{ background: color-mix(in srgb, var(--bg-elev-2) 92%, transparent); }
 }
 @media (prefers-reduced-motion: reduce){
   .aivy-dock, .aivy-dock *{ transition-duration: 1ms !important; animation-duration: 1ms !important; }

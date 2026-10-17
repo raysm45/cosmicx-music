@@ -1219,8 +1219,39 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
 
+  const refract = settings?.liquidGlass !== false && supportsRefraction();
+  const barRef = useRef(null);
+  const [lg, setLg] = useState("off");
+  useEffect(() => {
+    const el = barRef.current;
+    if (!refract || !el) { setLg("off"); return undefined; }
+    let tm = 0;
+    const regen = () => {
+      const img = el.querySelector("#lg-player feImage");
+      const w = el.offsetWidth, h = el.offsetHeight;
+      if (!img || w < 8 || h < 8) return;
+      const radius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || h / 2;
+      const url = makeDisplacementMap(w, h, Math.min(26, Math.round(h * 0.45)), radius);
+      if (!url) return;
+      img.setAttribute("href", url);
+      img.setAttribute("width", String(w));
+      img.setAttribute("height", String(h));
+      setLg("ready");
+    };
+    const onSize = () => {
+      setLg((v) => (v === "ready" ? "busy" : v));
+      clearTimeout(tm);
+      tm = setTimeout(regen, 180);
+    };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onSize) : null;
+    if (ro) ro.observe(el); else onSize();
+    return () => { clearTimeout(tm); if (ro) ro.disconnect(); };
+  }, [refract]);
+
   return (
-    <div className={`aivy-player ${isPlaying ? "is-playing" : ""}`}>
+    <div ref={barRef} className={`aivy-player ${isPlaying ? "is-playing" : ""} ${lg === "ready" ? "lg-ready" : ""}`}>
+      {refract && <LiquidGlassDefs ids={LG_PLAYER_IDS} />}
+      <GlassLayers />
       <div className="now">
         {currentTrack ? (
           <>
@@ -3349,15 +3380,17 @@ const LG_SURFACES = [
   [".aivy-mini-player", "lg-mini"],
   [".aivy-dock-search", "lg-search"],
 ];
+const LG_DOCK_IDS = LG_SURFACES.map(([, id]) => id);
+const LG_PLAYER_IDS = ["lg-player"];
 const LG_PX = 24;
 const LG_ABER = 0.08;
 
-const LiquidGlassDefs = React.memo(function LiquidGlassDefs() {
+const LiquidGlassDefs = React.memo(function LiquidGlassDefs({ ids = LG_DOCK_IDS }) {
   const S = LG_PX * 2;
   return (
     <svg width="0" height="0" style={{ position: "absolute", pointerEvents: "none" }} aria-hidden="true" focusable="false">
       <defs>
-        {LG_SURFACES.map(([, id]) => (
+        {ids.map((id) => (
           <filter key={id} id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
             <feImage x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map" />
             <feDisplacementMap in="SourceGraphic" in2="map" scale={S} xChannelSelector="R" yChannelSelector="B" result="dr" />
