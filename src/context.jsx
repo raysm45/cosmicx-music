@@ -233,6 +233,7 @@ export function UIProvider({ children }) {
   const [creditsTrack, setCreditsTrack] = useState(null);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [sidebarQueueOpen, setSidebarQueueOpen] = useState(false);
+  const [sidebarLyricsOpen, setSidebarLyricsOpen] = useState(false);
   const [mobileQueueOpen, setMobileQueueOpen] = useState(false);
   const [panelPrefs, setPanelPrefs] = useState(loadPanelPrefs);
 
@@ -413,8 +414,10 @@ export function UIProvider({ children }) {
   const openLyrics = useCallback(() => setLyricsOpen(true), []);
   const closeLyrics = useCallback(() => setLyricsOpen(false), []);
   const toggleLyrics = useCallback(() => setLyricsOpen((o) => !o), []);
-  const toggleSidebarQueue = useCallback(() => setSidebarQueueOpen((o) => !o), []);
+  const toggleSidebarQueue = useCallback(() => { setSidebarQueueOpen((o) => !o); setSidebarLyricsOpen(false); }, []);
   const closeSidebarQueue = useCallback(() => setSidebarQueueOpen(false), []);
+  const toggleSidebarLyrics = useCallback(() => { setSidebarLyricsOpen((o) => !o); setSidebarQueueOpen(false); }, []);
+  const closeSidebarLyrics = useCallback(() => setSidebarLyricsOpen(false), []);
   const openMobileQueue = useCallback(() => { setLyricsOpen(false); setMobileQueueOpen(true); }, []);
   const closeMobileQueue = useCallback(() => setMobileQueueOpen(false), []);
 
@@ -442,6 +445,7 @@ export function UIProvider({ children }) {
     creditsTrack, openCredits, closeCredits,
     lyricsOpen, openLyrics, closeLyrics, toggleLyrics,
     sidebarQueueOpen, toggleSidebarQueue, closeSidebarQueue,
+    sidebarLyricsOpen, toggleSidebarLyrics, closeSidebarLyrics,
     mobileQueueOpen, openMobileQueue, closeMobileQueue,
     sidebarWidth: panelPrefs.sidebarWidth,
     sidebarCollapsed: panelPrefs.sidebarCollapsed,
