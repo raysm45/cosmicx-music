@@ -995,39 +995,41 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-am-media-blur > i:nth-child(1){
   backdrop-filter: blur(calc(2px + var(--am-progress, 0) * 5px));
   -webkit-backdrop-filter: blur(calc(2px + var(--am-progress, 0) * 5px));
-  mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 55%, #000 78%);
-  -webkit-mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 55%, #000 78%);
+  mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 62.0%, rgba(0,0,0,0.074) 67.5%, rgba(0,0,0,0.259) 73.0%, rgba(0,0,0,0.500) 78.5%, rgba(0,0,0,0.741) 84.0%, rgba(0,0,0,0.926) 89.5%, rgba(0,0,0,1.000) 95.0%);
+  -webkit-mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 62.0%, rgba(0,0,0,0.074) 67.5%, rgba(0,0,0,0.259) 73.0%, rgba(0,0,0,0.500) 78.5%, rgba(0,0,0,0.741) 84.0%, rgba(0,0,0,0.926) 89.5%, rgba(0,0,0,1.000) 95.0%);
 }
 .aivy-am-media-blur > i:nth-child(2){
   backdrop-filter: blur(calc(6px + var(--am-progress, 0) * 8px));
   -webkit-backdrop-filter: blur(calc(6px + var(--am-progress, 0) * 8px));
-  mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 66%, #000 88%);
-  -webkit-mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 66%, #000 88%);
+  mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 72.0%, rgba(0,0,0,0.074) 77.5%, rgba(0,0,0,0.259) 83.0%, rgba(0,0,0,0.500) 88.5%, rgba(0,0,0,0.741) 94.0%, rgba(0,0,0,0.926) 99.5%, rgba(0,0,0,1.000) 105.0%);
+  -webkit-mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 72.0%, rgba(0,0,0,0.074) 77.5%, rgba(0,0,0,0.259) 83.0%, rgba(0,0,0,0.500) 88.5%, rgba(0,0,0,0.741) 94.0%, rgba(0,0,0,0.926) 99.5%, rgba(0,0,0,1.000) 105.0%);
 }
 .aivy-am-media-blur > i:nth-child(3){
   backdrop-filter: blur(calc(16px + var(--am-progress, 0) * 12px));
   -webkit-backdrop-filter: blur(calc(16px + var(--am-progress, 0) * 12px));
-  mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 76%, #000 98%);
-  -webkit-mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 76%, #000 98%);
+  mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 82.0%, rgba(0,0,0,0.074) 87.5%, rgba(0,0,0,0.259) 93.0%, rgba(0,0,0,0.500) 98.5%, rgba(0,0,0,0.741) 104.0%, rgba(0,0,0,0.926) 109.5%, rgba(0,0,0,1.000) 115.0%);
+  -webkit-mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 82.0%, rgba(0,0,0,0.074) 87.5%, rgba(0,0,0,0.259) 93.0%, rgba(0,0,0,0.500) 98.5%, rgba(0,0,0,0.741) 104.0%, rgba(0,0,0,0.926) 109.5%, rgba(0,0,0,1.000) 115.0%);
 }
 .aivy-am-media-blur > i:nth-child(4){
   backdrop-filter: blur(calc(34px + var(--am-progress, 0) * 16px));
   -webkit-backdrop-filter: blur(calc(34px + var(--am-progress, 0) * 16px));
-  mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 86%, #000 108%);
-  -webkit-mask-image: radial-gradient(ellipse 72% 80% at 50% 6%, transparent 86%, #000 108%);
+  mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 92.0%, rgba(0,0,0,0.074) 97.5%, rgba(0,0,0,0.259) 103.0%, rgba(0,0,0,0.500) 108.5%, rgba(0,0,0,0.741) 114.0%, rgba(0,0,0,0.926) 119.5%, rgba(0,0,0,1.000) 125.0%);
+  -webkit-mask-image: radial-gradient(ellipse 100% 90% at 50% -10%, rgba(0,0,0,0.000) 92.0%, rgba(0,0,0,0.074) 97.5%, rgba(0,0,0,0.259) 103.0%, rgba(0,0,0,0.500) 108.5%, rgba(0,0,0,0.741) 114.0%, rgba(0,0,0,0.926) 119.5%, rgba(0,0,0,1.000) 125.0%);
 }
 .aivy-am-media-scrim{
   position: absolute; inset: 0; pointer-events: none;
   background:
     linear-gradient(180deg, transparent 88%, var(--am-bg) 100%),
-    radial-gradient(ellipse 72% 80% at 50% 6%,
-      color-mix(in srgb, var(--am-bg) 0%, transparent) 58%,
-      color-mix(in srgb, var(--am-bg) 8%, transparent) 68%,
-      color-mix(in srgb, var(--am-bg) 24%, transparent) 78%,
-      color-mix(in srgb, var(--am-bg) 48%, transparent) 88%,
-      color-mix(in srgb, var(--am-bg) 76%, transparent) 98%,
-      color-mix(in srgb, var(--am-bg) 94%, transparent) 108%,
-      var(--am-bg) 118%);
+    radial-gradient(ellipse 100% 90% at 50% -10%,
+      color-mix(in srgb, var(--am-bg) 0.0%, transparent) 60.0%,
+      color-mix(in srgb, var(--am-bg) 4.3%, transparent) 67.8%,
+      color-mix(in srgb, var(--am-bg) 15.6%, transparent) 75.5%,
+      color-mix(in srgb, var(--am-bg) 31.6%, transparent) 83.2%,
+      color-mix(in srgb, var(--am-bg) 50.0%, transparent) 91.0%,
+      color-mix(in srgb, var(--am-bg) 68.4%, transparent) 98.8%,
+      color-mix(in srgb, var(--am-bg) 84.4%, transparent) 106.5%,
+      color-mix(in srgb, var(--am-bg) 95.7%, transparent) 114.2%,
+      color-mix(in srgb, var(--am-bg) 100.0%, transparent) 122.0%);
 }
 
 .aivy-am-hero{
