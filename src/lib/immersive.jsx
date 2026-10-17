@@ -128,14 +128,26 @@ export function useImmersiveHero({ ready, tint }) {
         }
       }
     };
+    const place = () => {
+      const m = mediaRef.current;
+      if (!m) return;
+      const r = scroller.getBoundingClientRect();
+      m.style.left = `${Math.max(0, Math.round(r.left))}px`;
+      m.style.right = `${Math.max(0, Math.round(window.innerWidth - r.right))}px`;
+    };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
+    const onResize = () => { place(); onScroll(); };
+    place();
     apply();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null;
+    if (ro) ro.observe(scroller);
     scroller.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", onResize);
     return () => {
       if (raf) cancelAnimationFrame(raf);
+      if (ro) ro.disconnect();
       scroller.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", onResize);
     };
   }, [ready]);
 
