@@ -3,13 +3,13 @@ import { createPortal } from "react-dom";
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, MoreHorizontal,
   ChevronRight, Infinity as InfinityIcon,
-  AudioLines, Plus, Trash2, Globe, Languages,
+  AudioLines, Plus, Trash2, Globe, Languages, Music2,
 } from "lucide-react";
 import { usePlayer, usePlayerTime, useUI } from "./context.jsx";
 import { useRouter } from "./router.jsx";
 import { AnimatedCover } from "./lib/brand.jsx";
-import { formatTime, cleanTrackTitleForLyrics } from "./lib/utils.js";
-import { lyricAt } from "./lib/presenceLyrics.js";
+import { formatTime, cleanTrackTitleForLyrics, hashStr } from "./lib/utils.js";
+import { lyricPhase } from "./lib/presenceLyrics.js";
 import {
   Scrubber, VolumeControl, MarqueeText, AppleLyricsPane, normLyricsFontSize,
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
@@ -350,21 +350,56 @@ function QualityLine({ track, visible }) {
   return <div className={`npd-quality ${visible ? "on" : ""}`}>{parts.join(" \u00b7 ")}</div>;
 }
 
+const WAIT_PHRASES = [
+  "Wait for it...", "The song is starting", "Bass first", "Warming up", "Finding the right word",
+  "Setting the mood", "Tuning the strings", "Hold on, here it comes", "Getting ready", "Take a breath",
+  "Here we go", "Easing into it", "Building the intro", "Dimming the lights", "Cueing the vocals",
+  "Clearing the throat", "Count me in", "Feel the beat first", "The calm before the lyrics", "Listen closely",
+  "Almost there", "Picking the first note", "The story begins soon", "Let the intro breathe", "Loading the feels",
+  "Sit back and relax", "A little drumroll", "Shh, it\u2019s starting", "Get comfy", "Lyrics loading in your heart",
+  "Softly now", "The first beat is near", "Let the melody find you", "Strike a chord", "Waiting on the downbeat",
+  "Hear that silence?", "The rhythm is waking", "One more moment", "Catch the groove", "The vocals are warming up",
+  "Let the bassline settle", "Ready for the first line", "The track is loading", "A hush before the sound", "Feel the room shift",
+  "The beat is on its way", "Steady now", "Here comes the hook", "Give it a second", "The intro is unfolding",
+  "Let the speakers breathe", "The tempo is rising", "Cue the melody", "Almost song time", "Wait for the drop",
+  "The music is stretching", "Listen for the cue", "The first chord is close", "Let the silence speak", "Ready when you are",
+  "The beat is warming up", "A moment before the magic", "Here’s the count-in", "Let the harmony arrive", "The song is loading",
+  "Ease into the rhythm", "Hold that thought", "The first note is coming", "Feel the pulse begin", "The lyrics are on deck",
+  "A breath before the verse", "The mix is settling", "Cue the bass", "Wait for the groove", "The melody is near",
+  "Let the drums speak", "The tune is waking up", "One beat to go", "The sound is coming alive", "Here comes the intro",
+  "Let the rhythm roll", "The vocals are ready", "A small pause", "The track is about to play", "Listen to the quiet",
+  "The first line is close", "Feel the intro build", "Cue the first beat", "The song is at the door", "Almost listening time",
+  "Let the notes gather", "The beat is in the room", "Hold for the harmony", "The melody takes shape", "Here’s the moment",
+  "The rhythm is ready", "A second of calm", "The first sound is near", "Let the music begin", "Ready, set, play"
+];
+
 function LyricLine({ track, onAlbum, onOpenLyrics }) {
   const time = usePlayerTime();
+  const { loadingAudio } = usePlayer();
   const [, force] = useState(0);
+  const [tick, setTick] = useState(0);
   const el = typeof document !== "undefined" ? document.getElementById(LYRICS_ID) : null;
   const want = cleanTrackTitleForLyrics(track.title, track.artist?.name);
   const lines = el && el.songTitle === want && !el.isLoading && el.lyrics && el.lyrics.length ? el.lyrics : null;
   const hasLines = !!lines;
+
+  const phase = lines ? lyricPhase(lines, time * 1000 + 250) : { kind: "none", text: null };
+  const kind = loadingAudio && time < 1.5 ? "intro" : phase.kind;
+  const waiting = kind === "intro" || (loadingAudio && !lines && time < 1.5);
+  const showNote = waiting || kind === "instrumental";
 
   useEffect(() => {
     if (hasLines) return undefined;
     const id = setInterval(() => force((n) => n + 1), 500);
     return () => clearInterval(id);
   }, [hasLines, track.id]);
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const id = setInterval(() => setTick((n) => n + 1), 3600);
+    return () => clearInterval(id);
+  }, [waiting, track.id]);
 
-  if (!lines) {
+  if (!lines && !waiting) {
     if (!track.album?.title) return null;
     return (
       <button type="button" className="npd-album" onClick={onAlbum}>
@@ -374,10 +409,25 @@ function LyricLine({ track, onAlbum, onOpenLyrics }) {
     );
   }
 
-  const text = lyricAt(lines, time * 1000 + 250);
+  let text;
+  if (waiting) {
+    const seed = hashStr(String(track.id || track.videoId || track.title || ""));
+    text = WAIT_PHRASES[(seed + tick) % WAIT_PHRASES.length];
+  } else if (kind === "instrumental") {
+    text = "Instrumental";
+  } else {
+    text = phase.text;
+  }
+
+  const cls = `npd-lyricline ${waiting ? "is-waiting" : ""} ${kind === "instrumental" ? "is-instrumental" : ""}`;
   return (
-    <button type="button" className={`npd-lyricline ${text ? "" : "is-instrumental"}`} onClick={onOpenLyrics}>
-      <MarqueeText key={text || "instrumental"} as="span" className="npd-lyricline-text" text={text || "Instrumental"} always />
+    <button type="button" className={cls} onClick={onOpenLyrics}>
+      {showNote && (
+        <span className="npd-lyricline-note" aria-hidden="true">
+          <Music2 size={17} />
+        </span>
+      )}
+      <MarqueeText key={`${kind}:${text}`} as="span" className="npd-lyricline-text" text={text} always />
       <ChevronRight size={16} className="npd-lyricline-chev" />
     </button>
   );

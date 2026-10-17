@@ -35,3 +35,11 @@ export function lyricAt(lines, tMs) {
   if (idx < 0 || tMs >= highlightEnd(lines, idx)) return null;
   return lineText(lines[idx]);
 }
+export function lyricPhase(lines, tMs) {
+  if (!Array.isArray(lines) || !lines.length) return { kind: "instrumental", text: null };
+  const text = lyricAt(lines, tMs);
+  if (text) return { kind: "lyric", text };
+  const first = lines.find(hasMainText);
+  if (!first || tMs < first.timestamp) return { kind: "intro", text: null };
+  return { kind: "instrumental", text: null };
+}
