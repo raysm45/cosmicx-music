@@ -3667,11 +3667,13 @@ body.aivy-artist-tinted .aivy-credits-card{ color: var(--ink); }
 code, kbd, samp, pre{ font-family: var(--font-body); }
 .aivy-am-media{ box-sizing: border-box; }
 .aivy-am-media.is-cover{ padding-left: var(--am-left, 0px); }
+body.aivy-artist-immersive .aivy-shell{
+  background: var(--artist-bg, var(--bg));
+  transition: background var(--dur-slow) var(--ease);
+}
 body.aivy-artist-immersive .aivy-sidebar{
-  background:
-    linear-gradient(180deg, color-mix(in srgb, #fff 8%, transparent) 0%, transparent 26%),
-    color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 30%, transparent);
+  background: color-mix(in srgb, var(--artist-bg, var(--bg-elev)) 34%, transparent);
   -webkit-backdrop-filter: blur(34px) saturate(1.6);
   backdrop-filter: blur(34px) saturate(1.6);
-  border-right: 1px solid color-mix(in srgb, #fff 12%, transparent);
+  border-right: 1px solid color-mix(in srgb, #fff 8%, transparent);
 }
