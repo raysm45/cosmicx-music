@@ -3850,4 +3850,120 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   }
   .aivy-search-artist-hero-avatar{ width: 84px; height: 84px; }
   .aivy-search-artist-hero-name{ font-size: 22px; white-space: normal; }
-}
+}
+
+/* =========================================================
+   Library v2 — desktop & mobile dipisah, hanya pakai token tema
+   ========================================================= */
+.lib2{ max-width: 1280px; min-width: 0; }
+
+/* ---------- header ---------- */
+.lib2-head{ display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0 14px; }
+.lib2-head h1{ margin: 0; font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+.lib2-actions{ display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.lib2-action{ display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: var(--radius-pill); font-size: 13px; font-weight: 600; color: var(--ink-dim); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.lib2-action:hover{ background: var(--bg-elev-2); color: var(--ink); }
+.lib2-iconbtn{ width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--ink-dim); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.lib2-iconbtn:hover, .lib2-iconbtn:active{ background: var(--bg-elev-2); color: var(--ink); }
+
+/* ---------- desktop: tab garis bawah + alat ---------- */
+.lib2-toolbar{ display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+.lib2-tabs{ display: flex; gap: 24px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.lib2-tabs::-webkit-scrollbar{ display: none; }
+.lib2-tab{ position: relative; padding: 12px 0; font-size: 14px; font-weight: 600; color: var(--ink-faint); white-space: nowrap; transition: color var(--dur-fast) var(--ease); }
+.lib2-tab:hover{ color: var(--ink); }
+.lib2-tab.active{ color: var(--ink); }
+.lib2-tab.active::after{ content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--accent-strong); }
+
+.lib2-tools{ display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-bottom: 8px; }
+.lib2-search{ display: flex; align-items: center; gap: 8px; height: 34px; width: 220px; padding: 0 12px; border-radius: var(--radius-pill); background: var(--bg-elev-2); border: 1px solid transparent; color: var(--ink-faint); transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.lib2-search:focus-within{ border-color: var(--ink-faint); color: var(--ink); }
+.lib2-search input{ flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-size: 13px; color: var(--ink); }
+.lib2-search input::placeholder{ color: var(--ink-faint); }
+.lib2-search button{ display: flex; color: inherit; }
+.lib2-search.is-block{ width: 100%; height: 40px; margin-bottom: 12px; }
+.lib2-search.is-block input{ font-size: 14px; }
+.lib2-seg{ display: inline-flex; padding: 2px; border-radius: var(--radius-pill); background: var(--bg-elev-2); }
+.lib2-seg button{ width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--ink-faint); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.lib2-seg button:hover{ color: var(--ink); }
+.lib2-seg button.active{ background: var(--bg-elev-3); color: var(--ink); }
+
+/* ---------- mobile: chip filter ---------- */
+.lib2-chips{ display: flex; gap: 8px; margin: 0 -16px 16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+.lib2-chips::-webkit-scrollbar{ display: none; }
+.lib2-chip{ flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: var(--radius-pill); background: var(--bg-elev-2); color: var(--ink-dim); font-size: 13px; font-weight: 600; white-space: nowrap; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.lib2-chip.active{ background: var(--accent); color: var(--accent-ink); }
+
+/* ---------- teks bersama ---------- */
+.lib2-meta{ min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lib2-title{ font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib2-sub{ font-size: 12.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- pin: Lagu Disukai & Semua lagu ---------- */
+.lib2-pins{ display: grid; grid-template-columns: repeat(2, minmax(0, 340px)); gap: 12px; margin-bottom: 36px; }
+.lib2-pins.is-single{ grid-template-columns: minmax(0, 340px); margin-bottom: 28px; }
+.lib2-pin{ display: flex; align-items: center; min-width: 0; border-radius: var(--radius-md); background: var(--bg-elev); border: 1px solid var(--line); transition: background var(--dur-fast) var(--ease); }
+.lib2-pin:hover{ background: var(--bg-elev-2); }
+.lib2-pin-main{ flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; padding: 12px 14px; text-align: left; border-radius: inherit; }
+.lib2-pin-ic{ width: 48px; height: 48px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--bg-elev-3); color: var(--ink-dim); }
+.lib2-pin-ic.is-accent{ background: var(--accent); color: var(--accent-ink); }
+.lib2-pin-play{ width: 38px; height: 38px; margin-right: 12px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-ink); transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.lib2-pin-play svg{ margin-left: 2px; }
+.lib2-pin-play:hover{ transform: scale(1.06); }
+@media (hover: hover){
+  .lib2.is-desktop .lib2-pin-play{ opacity: 0; }
+  .lib2.is-desktop .lib2-pin:hover .lib2-pin-play,
+  .lib2.is-desktop .lib2-pin:focus-within .lib2-pin-play{ opacity: 1; }
+}
+
+/* ---------- section & shelf ---------- */
+.lib2-section{ margin-bottom: 36px; min-width: 0; }
+.lib2-section-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.lib2-section-head h2{ margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; letter-spacing: -.01em; }
+.lib2-link{ font-size: 13px; font-weight: 600; color: var(--ink-faint); transition: color var(--dur-fast) var(--ease); }
+.lib2-link:hover{ color: var(--ink); }
+
+/* ---------- grid (desktop) ---------- */
+.lib2-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 28px 20px; }
+.lib2-item{ display: flex; min-width: 0; color: inherit; }
+.lib2-art{ position: relative; display: block; flex-shrink: 0; overflow: hidden; background: var(--bg-elev-2); }
+.lib2-art > img, .lib2-art > svg{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.lib2-item.is-grid{ flex-direction: column; gap: 12px; }
+.lib2-item.is-grid .lib2-art{ width: 100%; aspect-ratio: 1; border-radius: 10px; }
+.lib2-item.is-grid .lib2-art::after{ content: ""; position: absolute; inset: 0; background: rgba(0,0,0,0); transition: background var(--dur-base) var(--ease); }
+.lib2-item.is-grid:hover .lib2-art::after{ background: rgba(0,0,0,.2); }
+.lib2-item.is-grid.is-round .lib2-art{ border-radius: 50%; }
+.lib2-item.is-grid.is-round .lib2-meta{ align-items: center; text-align: center; }
+
+/* ---------- list / baris (mobile & desktop list) ---------- */
+.lib2-list{ display: flex; flex-direction: column; }
+.lib2-item.is-row{ align-items: center; gap: 14px; margin: 0 -10px; padding: 8px 10px; border-radius: var(--radius-sm); transition: background var(--dur-fast) var(--ease); }
+.lib2-item.is-row:hover, .lib2-item.is-row:active{ background: var(--bg-elev-2); }
+.lib2-item.is-row .lib2-art{ width: 56px; height: 56px; border-radius: 8px; }
+.lib2-item.is-row.is-round .lib2-art{ border-radius: 50%; }
+.lib2.is-desktop .lib2-list{ max-width: 820px; }
+
+/* ---------- bar lagu & tombol ---------- */
+.lib2-songbar{ display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.lib2-songbar .count{ margin-right: auto; font-size: 13px; color: var(--ink-faint); }
+.lib2-btn{ display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 18px; border-radius: var(--radius-pill); font-size: 13.5px; font-weight: 700; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.lib2-btn.is-primary{ background: var(--accent); color: var(--accent-ink); }
+.lib2-btn.is-ghost{ border: 1px solid var(--line); color: var(--ink); }
+.lib2-btn.is-ghost:hover{ background: var(--bg-elev-2); border-color: var(--ink-faint); }
+.lib2-more{ display: flex; justify-content: center; padding: 18px 0 4px; }
+
+/* ---------- override mobile ---------- */
+.lib2.is-mobile .lib2-head{ padding: 10px 0 8px; }
+.lib2.is-mobile .lib2-head h1{ font-size: 1.5rem; }
+.lib2.is-mobile .lib2-actions{ margin-right: -8px; }
+.lib2.is-mobile .lib2-pins, .lib2.is-mobile .lib2-pins.is-single{ grid-template-columns: minmax(0, 1fr); gap: 0; margin-bottom: 4px; }
+.lib2.is-mobile .lib2-pin{ margin: 0 -10px; padding: 0 10px; background: none; border: 0; border-radius: var(--radius-sm); }
+.lib2.is-mobile .lib2-pin-main{ padding: 8px 0; }
+.lib2.is-mobile .lib2-pin-ic{ width: 56px; height: 56px; border-radius: 8px; }
+.lib2.is-mobile .lib2-pin-play{ width: 36px; height: 36px; margin-right: 0; background: none; border: 1px solid var(--line); color: var(--ink); }
+.lib2.is-mobile .lib2-section{ margin-bottom: 28px; }
+.lib2.is-mobile .lib2-songbar .lib2-btn{ height: 36px; padding: 0 14px; }
+
+@media (prefers-reduced-motion: reduce){
+  .lib2 *, .lib2 *::after{ transition: none !important; }
+}

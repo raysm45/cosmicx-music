@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from "react";
-import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid } from "lucide-react";
+import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid, List } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
 import { TrackRow, ViewNotFound, ViewLoading, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur, shareLink } from "../components.jsx";
@@ -34,135 +34,76 @@ function mergeTracks(...lists) {
   return out;
 }
 
-function LibSection({ title, onMore, moreLabel = "Lihat semua", children }) {
-  return (
-    <section className="aivy-lib-section">
-      <div className="aivy-lib-section-head">
-        <h2 className="aivy-lib-section-title">{title}</h2>
-        {onMore && <button className="aivy-lib-section-link" onClick={onMore}>{moreLabel}</button>}
-      </div>
-      {children}
-    </section>
-  );
+const LIB_VIEW_KEY = "cx_lib_view";
+
+/* ---------- helpers ---------- */
+
+function useMq(query) {
+  const [matches, setMatches] = React.useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  React.useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setMatches(mq.matches);
+    on();
+    if (mq.addEventListener) mq.addEventListener("change", on); else mq.addListener(on);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", on); else mq.removeListener(on); };
+  }, [query]);
+  return matches;
 }
 
-function LibPlaylistCard({ pl, big = false }) {
-  const { t } = useUI();
+/* jumlah kolom grid saat ini, supaya 1 baris "shelf" tidak pernah terpotong */
+function useGridCols(ref, fallback = 6) {
+  const [cols, setCols] = React.useState(fallback);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const read = () => {
+      const n = getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length;
+      setCols((c) => (n > 0 && n !== c ? n : c));
+    };
+    read();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return cols;
+}
+
+function playlistItem(pl, t) {
   const cover = pl.cover_thumbnail ?? pl.songs?.[0]?.cover ?? null;
   const count = pl.songs ? pl.songs.length : (pl.song_count ?? 0);
-  const blur = thumbBlur(cover);
-  return (
-    <Link to="playlist" params={{ id: pl.id }} className={`aivy-card ${big ? "is-big" : ""} ${blur.className}`} style={{ textAlign: "left", ...blur.style }}>
-      <div className="art-wrap">
-        {cover ? (
-          <SmartCover src={cover} seed={"pl" + pl.id} size={big ? 320 : 160} radius={10} style={{ width: "100%", height: "100%" }} />
-        ) : (
-          <div className="aivy-lib-ph"><LibraryIcon size={26} color="var(--ink-faint)" /></div>
-        )}
-      </div>
-      <div className="title">{pl.name}</div>
-      <div className="sub">{count} {t("songsCount")}</div>
-    </Link>
-  );
+  return { key: "pl" + pl.id, to: "playlist", params: { id: pl.id }, title: pl.name, sub: `${count} ${t("songsCount")}`, kind: t("playlistLabel"), cover, seed: "pl" + pl.id, round: false };
 }
 
-function LibLikedCard({ count, cover }) {
-  const { t } = useUI();
-  const blur = thumbBlur(cover);
-  return (
-    <Link to="liked" className={`aivy-card ${blur.className}`} style={{ textAlign: "left", ...blur.style }}>
-      <div className="art-wrap">
-        <div className="aivy-lib-ph" style={{ background: "linear-gradient(135deg, var(--berry), var(--bg-elev-3))" }}>
-          <Heart size={30} color="var(--accent-ink)" fill="var(--accent-ink)" />
-        </div>
-      </div>
-      <div className="title">{t("navLikedSongs")}</div>
-      <div className="sub">{count} {t("songsCount")}</div>
-    </Link>
-  );
+function albumItem(al, t) {
+  const year = al.releaseDate ? String(al.releaseDate).slice(0, 4) : "";
+  return { key: "al" + al.id, to: "album", params: { id: al.id }, title: al.title, sub: [al.artist?.name || al.artistLine, year].filter(Boolean).join(" \u00b7 "), kind: t("albumLabel"), cover: al.cover, seed: "album" + al.id + al.title, round: false };
 }
 
-function LibArtistCard({ artist }) {
-  const { t } = useUI();
-  const blur = thumbBlur(artist.image);
-  return (
-    <Link to="artist" params={{ id: artist.id }} className={`aivy-card ${blur.className}`} style={{ textAlign: "center", ...blur.style }}>
-      <div className="art-wrap round">
-        <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={128} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
-      </div>
-      <div className="title" style={{ textAlign: "center" }}>{artist.name}</div>
-      <div className="sub" style={{ textAlign: "center" }}>{t("artistLabel")}</div>
-    </Link>
-  );
+function artistItem(a, t) {
+  return { key: "ar" + a.id, to: "artist", params: { id: a.id }, title: a.name, sub: "", kind: t("artistLabel"), cover: a.image, seed: "artist" + a.id + a.name, round: true };
 }
 
-function LibTabs({ tabs, value, onChange }) {
-  const trackRef = useRef(null);
-  const btnRefs = useRef({});
-  const [pos, setPos] = React.useState({ x: 0, w: 0 });
-  const [ready, setReady] = React.useState(false);
-  const sig = tabs.map((tb) => `${tb.id}:${tb.label}`).join("|");
+/* ---------- data (dipakai desktop & mobile) ---------- */
 
-  const measure = React.useCallback(() => {
-    const el = btnRefs.current[value];
-    if (!el) return;
-    setPos((p) => (p.x === el.offsetLeft && p.w === el.offsetWidth ? p : { x: el.offsetLeft, w: el.offsetWidth }));
-  }, [value]);
-
-  React.useLayoutEffect(() => {
-    measure();
-    const track = trackRef.current;
-    if (!track || typeof ResizeObserver === "undefined") return undefined;
-    const ro = new ResizeObserver(measure);
-    ro.observe(track);
-    Object.values(btnRefs.current).forEach((b) => b && ro.observe(b));
-    return () => ro.disconnect();
-  }, [measure, sig]);
-  React.useEffect(() => {
-    const id = requestAnimationFrame(() => setReady(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-
-  return (
-    <div className="aivy-lib-tabs-wrap">
-      <div
-        ref={trackRef}
-        className="aivy-lib-tabs"
-        role="tablist"
-        data-ready={ready ? "1" : "0"}
-        style={{ "--ind-x": `${pos.x}px`, "--ind-w": `${pos.w}px` }}
-      >
-        <span className="aivy-lib-tabs-ind" aria-hidden="true" />
-        {tabs.map((tb) => {
-          const Icon = tb.Icon;
-          const active = value === tb.id;
-          return (
-            <button
-              key={tb.id}
-              ref={(node) => { btnRefs.current[tb.id] = node; }}
-              role="tab"
-              aria-selected={active}
-              className={`aivy-lib-tab ${active ? "active" : ""}`}
-              onClick={() => onChange(tb.id)}
-            >
-              {Icon && <span className="ic"><Icon size={15} /></span>}
-              <span className="lb">{tb.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-export function LibraryPage() {
+function useLibraryData() {
   const { playlists, liked, localTracks, playList, setPlaylistDetail, followedArtists, savedAlbums } = usePlayer();
   const { t, authUser } = useUI();
   const [tab, setTab] = React.useState("all");
+  const [q, setQ] = React.useState("");
   const [likedTracks, setLikedTracks] = React.useState([]);
   const [songLimit, setSongLimit] = React.useState(60);
+  const [collLimit, setCollLimit] = React.useState(40);
+  const [view, setViewState] = React.useState(() => {
+    try { return localStorage.getItem(LIB_VIEW_KEY) === "list" ? "list" : "grid"; } catch { return "grid"; }
+  });
   const requestedRef = useRef(new Set());
   const aliveRef = useRef(true);
+
+  const setView = (v) => {
+    setViewState(v);
+    try { localStorage.setItem(LIB_VIEW_KEY, v); } catch { /* ignore */ }
+  };
 
   React.useEffect(() => {
     aliveRef.current = true;
@@ -195,6 +136,8 @@ export function LibraryPage() {
     })();
   }, [playlists, setPlaylistDetail]);
 
+  React.useEffect(() => { setSongLimit(60); setCollLimit(40); }, [q, tab]);
+
   const allSongs = useMemo(
     () => mergeTracks(likedTracks, localTracks, ...playlists.map((pl) => pl.songs)),
     [likedTracks, localTracks, playlists]
@@ -202,171 +145,308 @@ export function LibraryPage() {
   const artists = followedArtists;
   const albums = savedAlbums;
 
-  const likedCover = likedTracks.find((tr) => tr.cover)?.cover || null;
-  const libSource = { type: "library", label: t("yourLibrary") };
-  const hasAnything = allSongs.length > 0 || playlists.length > 0;
+  const norm = q.trim().toLowerCase();
+  const items = useMemo(() => {
+    const has = (...parts) => !norm || parts.some((p) => p && String(p).toLowerCase().includes(norm));
+    const albumName = (tr) => (typeof tr.album === "string" ? tr.album : (tr.album?.name || tr.album?.title || ""));
+    return {
+      pls: playlists.filter((pl) => has(pl.name)).map((pl) => playlistItem(pl, t)),
+      als: albums.filter((al) => has(al.title, al.artist?.name, al.artistLine)).map((al) => albumItem(al, t)),
+      ars: artists.filter((a) => has(a.name)).map((a) => artistItem(a, t)),
+      songs: norm
+        ? allSongs.filter((tr) => has(tr.title, tr.artist?.name, Array.isArray(tr.artists) ? tr.artists.map((a) => a?.name).join(" ") : "", albumName(tr)))
+        : allSongs,
+    };
+  }, [norm, playlists, albums, artists, allSongs, t]);
 
-  const tabs = [
-    { id: "all", label: "Semua", Icon: LayoutGrid },
-    { id: "songs", label: "Lagu", Icon: Music2 },
-    { id: "artists", label: t("artistLabel"), Icon: Mic2 },
-    { id: "albums", label: t("albumLabel"), Icon: Disc },
-    { id: "playlists", label: t("playlistLabel"), Icon: ListMusic },
-  ];
+  return {
+    t, tab, setTab, q, setQ, view, setView,
+    liked, likedTracks, allSongs, items, playList,
+    songLimit, setSongLimit, collLimit, setCollLimit,
+    libSource: { type: "library", label: t("yourLibrary") },
+    hasAnything: allSongs.length > 0 || playlists.length > 0 || albums.length > 0 || artists.length > 0,
+    tabs: [
+      { id: "all", label: "Semua" },
+      { id: "songs", label: "Lagu" },
+      { id: "artists", label: t("artistLabel") },
+      { id: "albums", label: t("albumLabel") },
+      { id: "playlists", label: t("playlistLabel") },
+    ],
+  };
+}
 
-  const jumpTiles = [
-    { id: "songs", label: "Lagu", count: allSongs.length, unit: t("songsCount"), cover: allSongs.find((tr) => tr.cover)?.cover, Icon: Music2 },
-    { id: "artists", label: t("artistLabel"), count: artists.length, unit: "", cover: artists.find((a) => a.image)?.image, Icon: Mic2 },
-    { id: "albums", label: t("albumLabel"), count: albums.length, unit: "", cover: albums.find((a) => a.cover)?.cover, Icon: Disc },
-    { id: "playlists", label: t("playlistLabel"), count: playlists.length, unit: "", cover: playlists.map((pl) => pl.cover_thumbnail ?? pl.songs?.[0]?.cover).find(Boolean), Icon: ListMusic },
-  ];
+/* ---------- potongan UI bersama ---------- */
 
-  const likedBlur = thumbBlur(likedCover);
-
-  const renderAll = () => (
-    <>
-      <div className="aivy-lib-hero">
-        <div className={`aivy-lib-feature ${likedBlur.className}`} style={likedBlur.style}>
-          <Link to="liked" className="aivy-lib-feature-link" aria-label={t("navLikedSongs")} />
-          <div className="aivy-lib-feature-icon"><Heart size={24} color="var(--ink)" fill="var(--ink)" /></div>
-          <div className="aivy-lib-feature-meta">
-            <div className="eyebrow">{t("playlistLabel")}</div>
-            <h2>{t("navLikedSongs")}</h2>
-            <div className="sub">{liked.size} {t("songsCount")}</div>
-          </div>
-          {likedTracks.length > 0 && (
-            <button className="aivy-lib-feature-play" onClick={() => playList(likedTracks, 0, { type: "library", label: t("navLikedSongs") })} aria-label={t("playAll")}>
-              <Play size={22} fill="currentColor" />
-            </button>
-          )}
-        </div>
-        <div className="aivy-lib-minis">
-          {jumpTiles.map(({ id, label, count, unit, cover, Icon }) => {
-            const blur = thumbBlur(cover);
-            return (
-              <button key={id} className={`aivy-lib-mini ${blur.className}`} style={blur.style} onClick={() => setTab(id)}>
-                <span className="thumb">
-                  {cover ? <SmartCover src={cover} seed={"jump" + id} size={52} radius={8} style={{ width: "100%", height: "100%" }} /> : <Icon size={20} color="var(--ink-faint)" />}
-                </span>
-                <span className="meta">
-                  <div className="name">{label}</div>
-                  <div className="count">{count}{unit ? ` ${unit}` : ""}</div>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {artists.length > 0 && (
-        <LibSection title={t("artistLabel")} onMore={() => setTab("artists")}>
-          <div className="aivy-lib-rail is-artists">
-            {artists.slice(0, 14).map((a) => <LibArtistCard key={a.id} artist={a} />)}
-          </div>
-        </LibSection>
-      )}
-
-      {playlists.length > 0 && (
-        <LibSection title={t("playlistLabel")} onMore={() => setTab("playlists")}>
-          {playlists.length >= 5 ? (
-            <div className="aivy-lib-bento">
-              {playlists.slice(0, 5).map((pl, i) => <LibPlaylistCard key={pl.id} pl={pl} big={i === 0} />)}
-            </div>
-          ) : (
-            <div className="aivy-lib-rail">
-              {playlists.map((pl) => <LibPlaylistCard key={pl.id} pl={pl} />)}
-            </div>
-          )}
-        </LibSection>
-      )}
-
-      {albums.length > 0 && (
-        <LibSection title={t("albumLabel")} onMore={() => setTab("albums")}>
-          <div className="aivy-lib-rail">
-            {albums.slice(0, 14).map((al) => <CardAlbum key={al.id} album={al} />)}
-          </div>
-        </LibSection>
-      )}
-
-      {allSongs.length > 0 && (
-        <LibSection title="Lagu" onMore={() => setTab("songs")}>
-          <div className="aivy-lib-songs">
-            {allSongs.slice(0, 10).map((tr, i) => (
-              <TrackRow key={tr.id} track={tr} index={i} list={allSongs} showIndex={false} queueMode="context" source={libSource} />
-            ))}
-          </div>
-        </LibSection>
-      )}
-
-      {!hasAnything && <p className="eyebrow" style={{ padding: "8px 2px" }}>{t("noPlaylistsYetLong")}</p>}
-    </>
-  );
-
-  const renderSongs = () => (
-    allSongs.length > 0 ? (
-      <>
-        <div className="aivy-import-actions" style={{ marginBottom: 8 }}>
-          <button className="aivy-btn-ghost" onClick={() => playList(allSongs, 0, libSource)}><Play size={15} /> {t("playAll")}</button>
-        </div>
-        <div>
-          {allSongs.slice(0, songLimit).map((tr, i) => (
-            <TrackRow key={tr.id} track={tr} index={i} list={allSongs} showAlbum queueMode="context" source={libSource} />
-          ))}
-        </div>
-        {allSongs.length > songLimit && (
-          <div className="aivy-lib-more">
-            <button className="aivy-btn-ghost" onClick={() => setSongLimit((n) => n + 60)}>Tampilkan lebih banyak</button>
-          </div>
-        )}
-      </>
-    ) : (
-      <div className="aivy-empty"><Music2 size={34} color="var(--ink-faint)" /><div className="title">Belum ada lagu</div><div className="sub">Suka lagu atau tambahkan ke playlist, nanti muncul di sini.</div></div>
-    )
-  );
-
-  const renderArtists = () => (
-    artists.length > 0 ? (
-      <div className="aivy-grid">{artists.map((a) => <LibArtistCard key={a.id} artist={a} />)}</div>
-    ) : (
-      <div className="aivy-empty"><Mic2 size={34} color="var(--ink-faint)" /><div className="title">Belum ada artist yang diikuti</div><div className="sub">Ikuti artist dari halaman artist, nanti muncul di sini.</div></div>
-    )
-  );
-
-  const renderAlbums = () => (
-    albums.length > 0 ? (
-      <div className="aivy-grid">{albums.map((al) => <CardAlbum key={al.id} album={al} />)}</div>
-    ) : (
-      <div className="aivy-empty"><Disc size={34} color="var(--ink-faint)" /><div className="title">Belum ada album yang disimpan</div><div className="sub">Tekan ikon hati di halaman album untuk menyimpannya ke sini.</div></div>
-    )
-  );
-
-  const renderPlaylists = () => (
-    <>
-      <div className="aivy-grid">
-        <LibLikedCard count={liked.size} cover={likedCover} />
-        {playlists.map((pl) => <LibPlaylistCard key={pl.id} pl={pl} />)}
-      </div>
-      {playlists.length === 0 && <p className="eyebrow" style={{ padding: "8px 2px" }}>{t("noPlaylistsYetLong")}</p>}
-    </>
-  );
-
+function LibItem({ it, layout }) {
+  const size = layout === "row" ? 56 : 200;
+  const sub = layout === "row" ? [it.kind, it.sub].filter(Boolean).join(" \u00b7 ") : (it.sub || it.kind);
   return (
-    <div className="aivy-view-enter">
-      <div className="aivy-greet" style={{ paddingBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h1 className="font-display" style={{ fontSize: "clamp(22px,3vw,28px)" }}>{t("yourLibrary")}</h1>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link to="libraryLocal" className="aivy-btn-ghost"><FolderSearch size={15} /> Lokal</Link>
-          <Link to="libraryImport" className="aivy-btn-ghost"><Youtube size={15} /> Import dari YouTube</Link>
-        </div>
-      </div>
-      <LibTabs tabs={tabs} value={tab} onChange={setTab} />
-      {tab === "all" && renderAll()}
-      {tab === "songs" && renderSongs()}
-      {tab === "artists" && renderArtists()}
-      {tab === "albums" && renderAlbums()}
-      {tab === "playlists" && renderPlaylists()}
+    <Link to={it.to} params={it.params} className={`lib2-item is-${layout} ${it.round ? "is-round" : ""}`}>
+      <span className="lib2-art">
+        <SmartCover src={it.cover} seed={it.seed} size={size} radius={it.round ? 999 : 8} style={{ width: "100%", height: "100%" }} />
+      </span>
+      <span className="lib2-meta">
+        <span className="lib2-title">{it.title}</span>
+        <span className="lib2-sub">{sub}</span>
+      </span>
+    </Link>
+  );
+}
+
+function LibPin({ Icon, accent = false, title, sub, to, onOpen, onPlay, playLabel }) {
+  const body = (
+    <>
+      <span className={`lib2-pin-ic ${accent ? "is-accent" : ""}`}><Icon size={20} fill={accent ? "currentColor" : "none"} /></span>
+      <span className="lib2-meta">
+        <span className="lib2-title">{title}</span>
+        <span className="lib2-sub">{sub}</span>
+      </span>
+    </>
+  );
+  return (
+    <div className="lib2-pin">
+      {to
+        ? <Link to={to} className="lib2-pin-main">{body}</Link>
+        : <button type="button" className="lib2-pin-main" onClick={onOpen}>{body}</button>}
+      {onPlay && (
+        <button type="button" className="lib2-pin-play" onClick={onPlay} aria-label={playLabel}>
+          <Play size={16} fill="currentColor" />
+        </button>
+      )}
     </div>
   );
+}
+
+/* satu baris kartu, jumlahnya mengikuti lebar layar */
+function LibShelf({ title, items, onMore }) {
+  const ref = useRef(null);
+  const cols = useGridCols(ref);
+  return (
+    <section className="lib2-section">
+      <div className="lib2-section-head">
+        <h2>{title}</h2>
+        {items.length > cols && <button type="button" className="lib2-link" onClick={onMore}>Lihat semua</button>}
+      </div>
+      <div ref={ref} className="lib2-grid is-shelf">
+        {items.slice(0, cols).map((it) => <LibItem key={it.key} it={it} layout="grid" />)}
+      </div>
+    </section>
+  );
+}
+
+function LibEmpty({ Icon, title, sub }) {
+  return (
+    <div className="aivy-empty">
+      <Icon size={34} color="var(--ink-faint)" />
+      <div className="title">{title}</div>
+      {sub && <div className="sub">{sub}</div>}
+    </div>
+  );
+}
+
+function LibBody({ lib, isMobile }) {
+  const { t, tab, setTab, q, view, items, allSongs, likedTracks, liked, playList, libSource, songLimit, setSongLimit, collLimit, setCollLimit, hasAnything } = lib;
+  const { pls, als, ars, songs } = items;
+  const searching = q.trim() !== "";
+  const rowMode = isMobile || view === "list";
+  const noResult = <LibEmpty Icon={Search} title="Tidak ada hasil" sub={`Tidak ada yang cocok dengan \u201c${q.trim()}\u201d.`} />;
+
+  const likedPin = (
+    <LibPin
+      Icon={Heart} accent title={t("navLikedSongs")} sub={`${liked.size} ${t("songsCount")}`} to="liked"
+      onPlay={likedTracks.length ? () => playList(likedTracks, 0, { type: "library", label: t("navLikedSongs") }) : null}
+      playLabel={t("playAll")}
+    />
+  );
+  const songsPin = (
+    <LibPin Icon={Music2} title="Semua lagu" sub={`${allSongs.length} ${t("songsCount")}`} onOpen={() => setTab("songs")} />
+  );
+
+  /* ---- Semua ---- */
+  if (tab === "all") {
+    const mixed = [...pls, ...als, ...ars];
+    const hasCollections = mixed.length > 0;
+    const previewSongs = searching ? songs.slice(0, 8) : [];
+    if (searching && !hasCollections && !previewSongs.length) return noResult;
+    return (
+      <>
+        {!searching && <div className="lib2-pins">{likedPin}{songsPin}</div>}
+
+        {isMobile ? (
+          hasCollections && (
+            <>
+              <div className="lib2-list">
+                {mixed.slice(0, collLimit).map((it) => <LibItem key={it.key} it={it} layout="row" />)}
+              </div>
+              {mixed.length > collLimit && (
+                <div className="lib2-more"><button type="button" className="aivy-btn-ghost" onClick={() => setCollLimit((n) => n + 40)}>Tampilkan lebih banyak</button></div>
+              )}
+            </>
+          )
+        ) : (
+          <>
+            {pls.length > 0 && <LibShelf title={t("playlistLabel")} items={pls} onMore={() => setTab("playlists")} />}
+            {als.length > 0 && <LibShelf title={t("albumLabel")} items={als} onMore={() => setTab("albums")} />}
+            {ars.length > 0 && <LibShelf title={t("artistLabel")} items={ars} onMore={() => setTab("artists")} />}
+          </>
+        )}
+
+        {previewSongs.length > 0 && (
+          <section className="lib2-section">
+            <div className="lib2-section-head">
+              <h2>Lagu</h2>
+              {songs.length > previewSongs.length && <button type="button" className="lib2-link" onClick={() => setTab("songs")}>Lihat semua</button>}
+            </div>
+            <div>
+              {previewSongs.map((tr, i) => (
+                <TrackRow key={tr.id} track={tr} index={i} list={songs} showIndex={false} showAlbum={!isMobile} queueMode="context" source={libSource} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!searching && !hasAnything && <LibEmpty Icon={LibraryIcon} title="Koleksimu masih kosong" sub={t("noPlaylistsYetLong")} />}
+      </>
+    );
+  }
+
+  /* ---- Lagu ---- */
+  if (tab === "songs") {
+    if (!songs.length) {
+      return searching
+        ? noResult
+        : <LibEmpty Icon={Music2} title="Belum ada lagu" sub="Suka lagu atau tambahkan ke playlist, nanti muncul di sini." />;
+    }
+    return (
+      <>
+        <div className="lib2-songbar">
+          <span className="count">{songs.length} {t("songsCount")}</span>
+          <button type="button" className="lib2-btn is-ghost" onClick={() => playList(shuffleArray(songs), 0, libSource)}>
+            <Shuffle size={15} /> {t("shuffle")}
+          </button>
+          <button type="button" className="lib2-btn is-primary" onClick={() => playList(songs, 0, libSource)}>
+            <Play size={15} fill="currentColor" /> {t("playAll")}
+          </button>
+        </div>
+        <div>
+          {songs.slice(0, songLimit).map((tr, i) => (
+            <TrackRow key={tr.id} track={tr} index={i} list={songs} showAlbum={!isMobile} showIndex={!isMobile} queueMode="context" source={libSource} />
+          ))}
+        </div>
+        {songs.length > songLimit && (
+          <div className="lib2-more"><button type="button" className="aivy-btn-ghost" onClick={() => setSongLimit((n) => n + 60)}>Tampilkan lebih banyak</button></div>
+        )}
+      </>
+    );
+  }
+
+  /* ---- Artist / Album / Playlist ---- */
+  const list = tab === "artists" ? ars : tab === "albums" ? als : pls;
+  const empty = {
+    artists: { Icon: Mic2, title: "Belum ada artist yang diikuti", sub: "Ikuti artist dari halaman artist, nanti muncul di sini." },
+    albums: { Icon: Disc, title: "Belum ada album yang disimpan", sub: "Tekan ikon hati di halaman album untuk menyimpannya ke sini." },
+    playlists: { Icon: ListMusic, title: "Belum ada playlist", sub: t("noPlaylistsYetLong") },
+  }[tab];
+
+  return (
+    <>
+      {tab === "playlists" && !searching && <div className="lib2-pins is-single">{likedPin}</div>}
+      {list.length === 0
+        ? (searching ? noResult : <LibEmpty {...empty} />)
+        : rowMode
+          ? <div className="lib2-list">{list.map((it) => <LibItem key={it.key} it={it} layout="row" />)}</div>
+          : <div className="lib2-grid">{list.map((it) => <LibItem key={it.key} it={it} layout="grid" />)}</div>}
+    </>
+  );
+}
+
+/* ---------- Desktop ---------- */
+
+function LibraryDesktop({ lib }) {
+  const { t, tab, setTab, tabs, q, setQ, view, setView } = lib;
+  const showViewToggle = tab === "artists" || tab === "albums" || tab === "playlists";
+  return (
+    <div className="aivy-view-enter lib2 is-desktop">
+      <header className="lib2-head">
+        <h1>{t("yourLibrary")}</h1>
+        <div className="lib2-actions">
+          <Link to="libraryLocal" className="lib2-action"><FolderSearch size={16} /> Lokal</Link>
+          <Link to="libraryImport" className="lib2-action"><Youtube size={16} /> Import dari YouTube</Link>
+        </div>
+      </header>
+
+      <div className="lib2-toolbar">
+        <div className="lib2-tabs" role="tablist">
+          {tabs.map((tb) => (
+            <button key={tb.id} type="button" role="tab" aria-selected={tab === tb.id} className={`lib2-tab ${tab === tb.id ? "active" : ""}`} onClick={() => setTab(tb.id)}>
+              {tb.label}
+            </button>
+          ))}
+        </div>
+        <div className="lib2-tools">
+          <label className="lib2-search">
+            <Search size={15} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari di koleksi" aria-label="Cari di koleksi" />
+            {q && <button type="button" onClick={() => setQ("")} aria-label="Hapus pencarian"><X size={14} /></button>}
+          </label>
+          {showViewToggle && (
+            <div className="lib2-seg" role="group" aria-label="Tampilan">
+              <button type="button" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} aria-label="Tampilan grid" aria-pressed={view === "grid"}><LayoutGrid size={15} /></button>
+              <button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")} aria-label="Tampilan daftar" aria-pressed={view === "list"}><List size={16} /></button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <LibBody lib={lib} isMobile={false} />
+    </div>
+  );
+}
+
+/* ---------- Mobile ---------- */
+
+function LibraryMobile({ lib }) {
+  const { t, tab, setTab, tabs, q, setQ } = lib;
+  const [searchOpen, setSearchOpen] = React.useState(q !== "");
+  const closeSearch = () => { setQ(""); setSearchOpen(false); };
+  return (
+    <div className="aivy-view-enter lib2 is-mobile">
+      <header className="lib2-head">
+        <h1>{t("yourLibrary")}</h1>
+        <div className="lib2-actions">
+          <button type="button" className="lib2-iconbtn" onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))} aria-label="Cari di koleksi"><Search size={20} /></button>
+          <Link to="libraryLocal" className="lib2-iconbtn" aria-label="Musik lokal"><FolderSearch size={20} /></Link>
+          <Link to="libraryImport" className="lib2-iconbtn" aria-label="Import dari YouTube"><Youtube size={20} /></Link>
+        </div>
+      </header>
+
+      {searchOpen && (
+        <label className="lib2-search is-block">
+          <Search size={15} />
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari di koleksi" aria-label="Cari di koleksi" />
+          <button type="button" onClick={closeSearch} aria-label="Tutup pencarian"><X size={16} /></button>
+        </label>
+      )}
+
+      <div className="lib2-chips" role="tablist">
+        {tabs.map((tb) => (
+          <button key={tb.id} type="button" role="tab" aria-selected={tab === tb.id} className={`lib2-chip ${tab === tb.id ? "active" : ""}`} onClick={() => setTab(tb.id)}>
+            {tb.label}
+          </button>
+        ))}
+      </div>
+
+      <LibBody lib={lib} isMobile />
+    </div>
+  );
+}
+
+/* ---------- Halaman ---------- */
+
+export function LibraryPage() {
+  const isMobile = useMq("(max-width: 860px)");
+  const lib = useLibraryData();
+  return isMobile ? <LibraryMobile lib={lib} /> : <LibraryDesktop lib={lib} />;
 }
 
 export function LikedPage() {
