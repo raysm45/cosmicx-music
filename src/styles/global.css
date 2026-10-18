@@ -3979,3 +3979,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 @keyframes cx-loader-pulse{ 0%, 100%{ transform: scale(.72) rotate(0deg); opacity: .4; } 50%{ transform: scale(.96) rotate(45deg); opacity: .9; } }
 @media (prefers-reduced-motion: reduce){ .cx-loader-fallback{ animation: none; } }
 .aivy-actionsheet-spinner{ width: auto; height: auto; border: 0; border-radius: 0; animation: none; display: flex; align-items: center; }
+.cx-loader.is-static .cx-loader-fallback{ animation: none; opacity: 1; }
+.cx-loader.is-static.is-ready .cx-loader-fallback{ opacity: 0; }
+.aivy-brand .cx-loader{ margin: -4px 0; }

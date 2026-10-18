@@ -8,7 +8,7 @@
   - Dua varian: "light" (titanium gelap, untuk latar terang) dan "dark" (krom terang, untuk latar gelap).
 */
 
-const RS = 320;          // resolusi render bersama (px)
+const MAXRS = 512;       // ukuran canvas WebGL bersama (px); tiap loader dirender di viewport seukuran dirinya
 const DUR = 3.0;         // durasi satu loop (detik)
 const BASE_Y = 0.42;
 const BASE_X = -0.22;
@@ -48,7 +48,7 @@ async function createEngine() {
   /* ---- renderer bersama (melempar error kalau WebGL tidak ada -> komponen tetap pakai fallback) ---- */
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(1);
-  renderer.setSize(RS, RS, false);
+  renderer.setSize(MAXRS, MAXRS, false);
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -141,8 +141,8 @@ async function createEngine() {
   const rigs = {};
   const getRig = (variant) => rigs[variant] || (rigs[variant] = makeRig(variant === "dark"));
 
-  /* ---- animasi (identik dengan demo, tanpa parallax mouse & bayangan) ---- */
-  function animate(rig, time) {
+  /* ---- animasi (sama dengan demo, termasuk parallax mouse) ---- */
+  function animate(rig, time, mx, my) {
     const sec = time * 0.001;
     const t = reduce ? 0.92 : (sec / DUR) % 1;
 
@@ -170,34 +170,36 @@ async function createEngine() {
     rig.specLight.position.x = Math.cos(t * TAU) * 2.8;
     rig.specLight.position.y = 1.2 + Math.sin(t * TAU * 2) * 1.1;
 
-    rig.pivot.rotation.set(rx, ry, rz);
+    rig.pivot.rotation.set(rx + my, ry + mx, rz);
     rig.pivot.scale.setScalar(s);
     rig.pivot.position.y = py;
   }
 
-  /* ---- loop bersama ---- */
+  /* ---- loop bersama: tiap loader dirender di resolusi aslinya (px) lalu disalin ke canvas 2D-nya ---- */
   const instances = new Set();
   let raf = 0;
 
   function frame(time) {
     raf = 0;
     if (!instances.size) return;
-    const used = new Set();
-    instances.forEach((inst) => used.add(inst.variant));
-    used.forEach((variant) => {
-      const rig = getRig(variant);
-      animate(rig, time);
+    instances.forEach((inst) => {
+      const { canvas, ctx } = inst;
+      const px = Math.min(MAXRS, Math.max(16, canvas.width));
+      inst.mx += (inst.tx - inst.mx) * 0.08;
+      inst.my += (inst.ty - inst.my) * 0.08;
+
+      const rig = getRig(inst.variant);
+      animate(rig, time, inst.mx, inst.my);
       renderer.toneMappingExposure = rig.exposure;
+      renderer.setViewport(0, 0, px, px);
       renderer.render(rig.scene, rig.camera);
-      instances.forEach((inst) => {
-        if (inst.variant !== variant) return;
-        const { canvas, ctx } = inst;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(renderer.domElement, 0, 0, RS, RS, 0, 0, canvas.width, canvas.height);
-        if (!inst.drawn) { inst.drawn = true; inst.onFirstFrame?.(); }
-      });
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      // viewport WebGL berasal dari kiri-bawah, canvas dari kiri-atas
+      ctx.drawImage(renderer.domElement, 0, MAXRS - px, px, px, 0, 0, canvas.width, canvas.height);
+      if (!inst.drawn) { inst.drawn = true; inst.onFirstFrame?.(); }
     });
     if (!reduce) raf = requestAnimationFrame(frame);
   }
@@ -206,12 +208,13 @@ async function createEngine() {
   return {
     attach(canvas, variant, onFirstFrame) {
       const ctx = canvas.getContext("2d");
-      if (!ctx) return { setVariant() {}, detach() {} };
-      const inst = { canvas, ctx, variant, onFirstFrame, drawn: false };
+      if (!ctx) return { setVariant() {}, setPointer() {}, detach() {} };
+      const inst = { canvas, ctx, variant, onFirstFrame, drawn: false, mx: 0, my: 0, tx: 0, ty: 0 };
       instances.add(inst);
       kick();
       return {
         setVariant(v) { if (inst.variant !== v) { inst.variant = v; kick(); } },
+        setPointer(x, y) { if (!reduce) { inst.tx = x; inst.ty = y; } },
         detach() { instances.delete(inst); },
       };
     },

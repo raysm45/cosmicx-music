@@ -27,7 +27,7 @@ function inkIsLight(el) {
  * `color` = warna "tinta" di sekitarnya (sama seperti StarLoader lama). Dari situ dipilih varian logo:
  * tinta terang (latar gelap) -> krom terang, tinta gelap (latar terang) -> titanium gelap.
  */
-export default function CosmicLoader({ size = 48, color = "var(--accent-strong)", label, className = "", style }) {
+export default function CosmicLoader({ size = 48, color = "var(--accent-strong)", label, className = "", style, decorative = false, staticFallback = false }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -38,22 +38,36 @@ export default function CosmicLoader({ size = 48, color = "var(--accent-strong)"
     let cancelled = false;
     let handle = null;
     let observer = null;
+    let onMove = null;
+    let onLeave = null;
+    const el = wrapRef.current;
     const variantNow = () => (inkIsLight(wrapRef.current) ? "dark" : "light");
 
     loadCosmicEngine()
       .then((engine) => {
         if (cancelled || !canvasRef.current) return;
         handle = engine.attach(canvasRef.current, variantNow(), () => { if (!cancelled) setReady(true); });
+        onMove = (e) => {
+          const r = el.getBoundingClientRect();
+          handle.setPointer(((e.clientX - r.left) / r.width - 0.5) * 0.8, ((e.clientY - r.top) / r.height - 0.5) * 0.8);
+        };
+        onLeave = () => handle.setPointer(0, 0);
+        el.addEventListener("pointermove", onMove);
+        el.addEventListener("pointerleave", onLeave);
         if (typeof MutationObserver !== "undefined") {
           observer = new MutationObserver(() => handle && handle.setVariant(variantNow()));
           observer.observe(document.documentElement, { attributes: true });
         }
       })
-      .catch(() => { /* WebGL / three gagal -> tetap tampil fallback */ });
+      .catch((err) => { console.warn("[CosmicLoader] logo 3D gagal dimuat, memakai fallback:", err); });
 
     return () => {
       cancelled = true;
       if (handle) handle.detach();
+      if (el && onMove) {
+        el.removeEventListener("pointermove", onMove);
+        el.removeEventListener("pointerleave", onLeave);
+      }
       if (observer) observer.disconnect();
     };
   }, [color]);
@@ -61,10 +75,9 @@ export default function CosmicLoader({ size = 48, color = "var(--accent-strong)"
   return (
     <div
       ref={wrapRef}
-      className={`aivy-starloader cx-loader ${ready ? "is-ready" : ""} ${className}`}
+      className={`aivy-starloader cx-loader ${ready ? "is-ready" : ""} ${staticFallback ? "is-static" : ""} ${className}`}
       style={{ width: size, height: size, color, ...style }}
-      role="status"
-      aria-label={label || "Memuat"}
+      {...(decorative ? { "aria-hidden": "true" } : { role: "status", "aria-label": label || "Memuat" })}
     >
       <svg className="cx-loader-fallback" viewBox="-54 -54 108 108" aria-hidden="true" focusable="false">
         <path d={FALLBACK_PATH} fill="currentColor" />

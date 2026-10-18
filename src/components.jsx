@@ -15,7 +15,7 @@ import {
   SIDEBAR_MIN_W, SIDEBAR_MAX_W, RIGHTPANEL_MIN_W, RIGHTPANEL_MAX_W,
 } from "./context.jsx";
 import { useRouter, Link } from "./router.jsx";
-import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, prefetchAnimatedArtwork } from "./lib/brand.jsx";
+import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, AnimatedLogo, prefetchAnimatedArtwork } from "./lib/brand.jsx";
 import { peekArtistProfile, loadArtistProfile, loadTrackArtists, menuArtists } from "./lib/artistProfile.js";
 import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
 import { runAiAssistantTurn } from "./lib/aiAssistant.js";
@@ -3356,7 +3356,7 @@ export function Sidebar() {
         >
           <PanelLeft size={18} />
         </button>
-        <Link to="home" className="aivy-brand"><StarMark size={26} color="var(--accent-strong)" className="mark" logo /><div className="word font-display">cosmicx</div></Link>
+        <Link to="home" className="aivy-brand"><AnimatedLogo size={34} className="mark" /><div className="word font-display">cosmicx</div></Link>
       </div>
       <nav className="aivy-nav">
         {visibleNavItems.map(({ route, labelKey, icon: Icon }) => (
@@ -3610,7 +3610,7 @@ export function TopBar({ isMobile }) {
     <div className={`aivy-topbar ${scrolled ? "scrolled" : ""}`}>
       {isMobile ? (
         <>
-          {name !== "home" ? <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ArrowLeft size={16} /></button> : <StarMark size={20} color="var(--accent-strong)" logo />}
+          {name !== "home" ? <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ArrowLeft size={16} /></button> : <AnimatedLogo size={28} />}
           <span className="aivy-topbar-title font-display" style={{ fontSize: 15 }}>{titleMap[name] ?? ""}</span>
         </>
       ) : (

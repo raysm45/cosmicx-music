@@ -85,6 +85,13 @@ export function TendrilSpinner({ size = 28, color = "currentColor" }) {
   return <CosmicLoader size={size} color={color} />;
 }
 
+/* Logo merek beranimasi (kiri atas). Saat tema Halloween tetap memakai logo Halloween. */
+export function AnimatedLogo({ size = 34, color = "var(--accent-strong)", className = "" }) {
+  const halloween = useIsHalloween();
+  if (halloween) return <StarMark size={Math.round(size * 0.77)} color={color} className={className} logo />;
+  return <CosmicLoader size={size} color={color} className={className} decorative staticFallback />;
+}
+
 export function StarLoader({ size = 48, color = "var(--accent-strong)", label }) {
   return <CosmicLoader size={size} color={color} label={label} />;
 }
