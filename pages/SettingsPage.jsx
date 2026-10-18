@@ -1,54 +1,42 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
-  Palette, LayoutPanelLeft, AudioLines, Speaker, Download, Server, Cog,
-  LogOut, RotateCcw, SlidersHorizontal, Plus, Trash2, ArrowUp, ArrowDown,
-  RefreshCw, Pencil, Check, FileUp, FileDown, Ban, Lock,
+  Palette, LayoutPanelLeft, Speaker, Cog,
+  LogOut, RotateCcw, SlidersHorizontal, Check, FileUp, FileDown, Cookie,
 } from "lucide-react";
 import { useUI, usePlayer, EQ_BANDS_HZ, EQ_PRESETS } from "../context.jsx";
 import { Api } from "../lib/api.js";
 import { CustomSelect } from "../components.jsx";
-
-const SHORTCUTS_KEY = "aivy_shortcut_overrides";
-const FOLDER_KEY = "aivy_last_download_folder";
+import { useCookieConsent, openCookieSettings } from "../lib/cookieConsent.js";
+import {
+  checkFontUrl, useLocalFont, setFontFile, setInstalledFont, clearLocalFont, isFontInstalled,
+  FONT_FILE_ACCEPT, FONT_URL_PLACEHOLDER, FREE_FONT_SOURCES, MAX_FONT_FILE_BYTES,
+} from "../lib/fonts.js";
 
 const THEME_SWATCHES = {
   system: ["#000000", "#ffffff", "#f2f2f0"],
   black: ["#000000", "#ffffff", "#f2f2f0"],
   white: ["#ffffff", "#141414", "#141414"],
-  dark: ["#12140f", "#ece8d9", "#ece8d9"],
   ocean: ["#0b1220", "#dfe9f5", "#dfe9f5"],
   purple: ["#13101e", "#eae4f6", "#eae4f6"],
-  forest: ["#0e1510", "#e2ecdf", "#e2ecdf"],
   mocha: ["#1e1e2e", "#cdd6f4", "#cdd6f4"],
   macchiato: ["#24273a", "#cad3f5", "#cad3f5"],
   frappe: ["#303446", "#c6d0f5", "#c6d0f5"],
   latte: ["#eff1f5", "#4c4f69", "#4c4f69"],
+  salmon: ["#fdebe7", "#e8736a", "#4a2b2b"],
+  premium: ["#f6f2ec", "#1c1814", "#c9b48f"],
+  halloween: ["#0d0714", "#ff7a18", "#9b5de5"],
 };
 
 const FONT_OPTIONS = [
   { value: "default", label: "Plus Jakarta (Default)" },
   { value: "inter", label: "Inter" },
   { value: "applemusic", label: "Apple Music" },
-  { value: "plexmono", label: "IBM Plex Mono" },
   { value: "roboto", label: "Roboto" },
   { value: "opensans", label: "Open Sans" },
   { value: "lato", label: "Lato" },
   { value: "montserrat", label: "Montserrat" },
   { value: "poppins", label: "Poppins" },
   { value: "systemui", label: "System UI" },
-  { value: "mono", label: "Monospace" },
-];
-
-const QUALITY_OPTIONS = [
-  { value: "auto", label: "Auto (Adaptif)" },
-  { value: "eac3_high", label: "Dolby Atmos — E-AC-3 High" },
-  { value: "eac3_low", label: "Dolby Atmos — E-AC-3 Low" },
-  { value: "ac4_high", label: "Dolby Atmos — AC-4 High" },
-  { value: "ac4_low", label: "Dolby Atmos — AC-4 Low" },
-  { value: "hires", label: "Hi-Res Lossless (24-bit)" },
-  { value: "lossless", label: "Lossless (16-bit)" },
-  { value: "high", label: "High" },
-  { value: "low", label: "Low" },
 ];
 
 const VISUALIZER_STYLES = [
@@ -66,28 +54,7 @@ const VISUALIZER_PRESETS = [
   { value: "martian", label: "Martian" },
   { value: "sunset", label: "Sunset" },
   { value: "kaleido", label: "Kaleidoscope" },
-  { value: "matrix", label: "Matrix" },
 ];
-
-const DEFAULT_SHORTCUTS = [
-  { id: "togglePlay", combo: ["Space"], id_: "Putar / Jeda", en_: "Play / Pause" },
-  { id: "seekFwd10", combo: ["→"], id_: "Maju 10 detik", en_: "Seek forward 10s" },
-  { id: "seekBack10", combo: ["←"], id_: "Mundur 10 detik", en_: "Seek backward 10s" },
-  { id: "nextTrack", combo: ["Shift", "→"], id_: "Lagu berikutnya", en_: "Next track" },
-  { id: "prevTrack", combo: ["Shift", "←"], id_: "Lagu sebelumnya", en_: "Previous track" },
-  { id: "volUp", combo: ["↑"], id_: "Volume naik", en_: "Volume up" },
-  { id: "volDown", combo: ["↓"], id_: "Volume turun", en_: "Volume down" },
-  { id: "mute", combo: ["M"], id_: "Bisukan", en_: "Mute" },
-  { id: "shuffle", combo: ["S"], id_: "Acak", en_: "Shuffle" },
-  { id: "repeat", combo: ["R"], id_: "Ulangi", en_: "Repeat" },
-  { id: "queue", combo: ["Q"], id_: "Buka antrean", en_: "Open queue" },
-  { id: "lyrics", combo: ["L"], id_: "Lirik", en_: "Lyrics" },
-  { id: "focusSearch", combo: ["/"], id_: "Fokus pencarian", en_: "Focus search" },
-];
-
-function loadShortcutOverrides() {
-  try { return JSON.parse(localStorage.getItem(SHORTCUTS_KEY)) || {}; } catch { return {}; }
-}
 
 function downloadJson(filename, data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -101,23 +68,6 @@ function downloadJson(filename, data) {
   setTimeout(() => URL.revokeObjectURL(url), 400);
 }
 
-function SoonTag() {
-  const { settings } = useUI();
-  return <span className="aivy-soon-badge">{settings.language === "en" ? "Coming soon" : "Segera hadir"}</span>;
-}
-
-function SealBanner() {
-  const { settings } = useUI();
-  return (
-    <div className="aivy-seal-banner">
-      <Lock size={15} />
-      <span>{settings.language === "en"
-        ? "Features in this section are coming soon — settings are locked for now."
-        : "Fitur di bagian ini segera hadir — pengaturan disegel untuk saat ini."}</span>
-    </div>
-  );
-}
-
 function SettingSection({ title, children, desc }) {
   return (
     <section className="aivy-settings-section">
@@ -128,45 +78,45 @@ function SettingSection({ title, children, desc }) {
   );
 }
 
-function ToggleRow({ label, hint, checked, onChange, soon }) {
+function ToggleRow({ label, hint, checked, onChange }) {
   const { settings } = useUI();
   return (
-    <div className={`aivy-settings-row ${soon ? "is-sealed" : ""}`}>
-      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}{soon && <SoonTag />}</div>
-      <span className={`aivy-switch ${checked ? "on" : ""}`} onClick={() => { if (!soon) onChange(!checked); }} role="switch" aria-checked={checked} tabIndex={soon ? -1 : 0}
-        onKeyDown={(e) => { if (!soon && (e.key === " " || e.key === "Enter")) { e.preventDefault(); onChange(!checked); } }}>
+    <div className="aivy-settings-row">
+      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}</div>
+      <span className={`aivy-switch ${checked ? "on" : ""}`} onClick={() => onChange(!checked)} role="switch" aria-checked={checked} tabIndex={0}
+        onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onChange(!checked); } }}>
         <span className="knob" />
       </span>
     </div>
   );
 }
 
-function SelectRow({ label, hint, value, options, onChange, soon }) {
+function SelectRow({ label, hint, value, options, onChange }) {
   const { settings } = useUI();
   return (
-    <div className={`aivy-settings-row ${soon ? "is-sealed" : ""}`}>
-      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}{soon && <SoonTag />}</div>
-      <CustomSelect className="aivy-settings-select" value={value} options={options} onChange={onChange} disabled={soon} aria-label={settings.language === "en" ? label : undefined} />
+    <div className="aivy-settings-row">
+      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}</div>
+      <CustomSelect className="aivy-settings-select" value={value} options={options} onChange={onChange} aria-label={settings.language === "en" ? label : undefined} />
     </div>
   );
 }
 
-function SliderRow({ label, hint, value, min, max, step, onChange, format, soon }) {
+function SliderRow({ label, hint, value, min, max, step, onChange, format }) {
   return (
-    <div className={`aivy-settings-row ${soon ? "is-sealed" : ""}`}>
-      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}{soon && <SoonTag />}</div>
+    <div className="aivy-settings-row">
+      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <input type="range" min={min} max={max} step={step} value={value} disabled={!!soon} onChange={(e) => onChange(Number(e.target.value))} className="aivy-range" />
-        <span className="font-mono" style={{ fontSize: 12, width: 52, textAlign: "right", color: "var(--ink-faint)" }}>{format ? format(value) : value}</span>
+        <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="aivy-range" />
+        <span className="font-mono" style={{ fontSize: 12, minWidth: 52, textAlign: "right", color: "var(--ink-faint)" }}>{format ? format(value) : value}</span>
       </div>
     </div>
   );
 }
 
-function TextRow({ label, hint, value, onChange, type = "text", placeholder, mono, soon }) {
+function TextRow({ label, hint, value, onChange, type = "text", placeholder, mono }) {
   return (
-    <div className={`aivy-settings-row ${soon ? "is-sealed" : ""}`}>
-      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}{soon && <SoonTag />}</div>
+    <div className="aivy-settings-row">
+      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}</div>
       <input
         className={`aivy-settings-input ${mono ? "mono" : ""}`}
         type={type}
@@ -174,19 +124,152 @@ function TextRow({ label, hint, value, onChange, type = "text", placeholder, mon
         placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}
-        disabled={!!soon}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
   );
 }
 
-function ActionRow({ label, hint, tone = "ghost", buttonText, onAction, disabled, icon: Icon, soon }) {
+function FontUrlRow({ value, onCommit, tt }) {
+  const [draft, setDraft] = useState(value || "");
+  const [error, setError] = useState("");
+  React.useEffect(() => { setDraft(value || ""); setError(""); }, [value]);
+
+  const reasons = {
+    invalid: tt("URL tidak valid.", "Invalid URL."),
+    insecure: tt("Gunakan URL https://.", "Use an https:// URL."),
+    paid: tt(
+      "Situs font berbayar (mis. MyFonts, Fonts.com, Adobe Fonts) tidak didukung. Pakai sumber gratis.",
+      "Paid font sites (e.g. MyFonts, Fonts.com, Adobe Fonts) aren't supported. Use a free source."
+    ),
+  };
+  const commit = () => {
+    const v = draft.trim();
+    if (v === (value || "")) return;
+    if (!v) { setError(""); onCommit(""); return; }
+    const res = checkFontUrl(v);
+    if (!res.ok) { setError(reasons[res.reason] || reasons.invalid); return; }
+    setError("");
+    onCommit(v);
+  };
+
+  return (
+    <div className="aivy-settings-row">
+      <div>
+        <div className="label">{tt("Font dari URL (gratis)", "Font from URL (free)")}</div>
+        <div className="hint">
+          {tt(
+            `Tempel link CSS atau file font (.woff2/.woff/.ttf/.otf) dari sumber gratis: ${FREE_FONT_SOURCES}. Font berbayar tidak didukung.`,
+            `Paste a CSS link or font file (.woff2/.woff/.ttf/.otf) from a free source: ${FREE_FONT_SOURCES}. Paid fonts aren't supported.`
+          )}
+        </div>
+        {error && <div className="hint" style={{ color: "var(--danger, #e5484d)" }}>{error}</div>}
+      </div>
+      <input
+        className="aivy-settings-input mono"
+        type="url"
+        value={draft}
+        placeholder={FONT_URL_PLACEHOLDER}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => { setDraft(e.target.value); if (error) setError(""); }}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      />
+    </div>
+  );
+}
+
+function LocalFontRows({ localFont, onActivate, tt, pushToast }) {
+  const fileRef = useRef(null);
+  const [draft, setDraft] = useState(localFont?.kind === "installed" ? localFont.name : "");
+  const [warn, setWarn] = useState(false);
+  React.useEffect(() => {
+    setDraft(localFont?.kind === "installed" ? localFont.name : "");
+    setWarn(false);
+  }, [localFont]);
+
+  const onPickFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const name = await setFontFile(file);
+      onActivate();
+      pushToast(tt(`Font "${name}" dipakai`, `Font "${name}" applied`));
+    } catch (err) {
+      const msgs = {
+        type: tt("Format harus .woff2, .woff, .ttf, atau .otf.", "File must be .woff2, .woff, .ttf or .otf."),
+        size: tt(`Ukuran file maksimal ${Math.round(MAX_FONT_FILE_BYTES / 1048576)} MB.`, `Max file size is ${Math.round(MAX_FONT_FILE_BYTES / 1048576)} MB.`),
+        storage: tt("Gagal menyimpan font di perangkat.", "Couldn't store the font on this device."),
+      };
+      pushToast(msgs[err?.message] || tt("File font tidak valid.", "Invalid font file."));
+    }
+  };
+
+  const commitInstalled = () => {
+    const v = draft.trim();
+    if (!v) { if (localFont?.kind === "installed") clearLocalFont(); setWarn(false); return; }
+    if (localFont?.kind === "installed" && localFont.name === v) return;
+    const name = setInstalledFont(v);
+    if (name) { onActivate(); setWarn(!isFontInstalled(name)); }
+  };
+
+  return (
+    <>
+      <div className="aivy-settings-row">
+        <div>
+          <div className="label">{tt("Font dari file lokal", "Font from local file")}</div>
+          <div className="hint">
+            {localFont?.kind === "file"
+              ? tt(`Dipakai: ${localFont.name}. Disimpan di perangkat ini saja.`, `In use: ${localFont.name}. Stored on this device only.`)
+              : tt("Pilih file .woff2/.woff/.ttf/.otf dari perangkat kamu. Disimpan di perangkat ini saja.", "Pick a .woff2/.woff/.ttf/.otf file from your device. Stored on this device only.")}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <input ref={fileRef} type="file" accept={FONT_FILE_ACCEPT} onChange={onPickFile} hidden />
+          <button className="aivy-btn-ghost sm" onClick={() => fileRef.current?.click()}>
+            <FileUp size={14} />{tt("Pilih file", "Choose file")}
+          </button>
+          {localFont?.kind === "file" && (
+            <button className="aivy-btn-danger sm" onClick={clearLocalFont}>{tt("Hapus", "Remove")}</button>
+          )}
+        </div>
+      </div>
+      <div className="aivy-settings-row">
+        <div>
+          <div className="label">{tt("Font terpasang di perangkat", "Font installed on device")}</div>
+          <div className="hint">
+            {tt("Ketik nama font yang sudah terpasang di sistem (mis. Segoe UI, Helvetica Neue, Menlo).", "Type the name of a font already installed on your system (e.g. Segoe UI, Helvetica Neue, Menlo).")}
+          </div>
+          {warn && (
+            <div className="hint" style={{ color: "var(--danger, #e5484d)" }}>
+              {tt("Font ini sepertinya tidak terpasang di perangkat ini, jadi tampilan memakai font cadangan.", "This font doesn't seem to be installed on this device, so a fallback font is shown.")}
+            </div>
+          )}
+        </div>
+        <input
+          className="aivy-settings-input"
+          type="text"
+          value={draft}
+          placeholder="Segoe UI"
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitInstalled}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        />
+      </div>
+    </>
+  );
+}
+
+function ActionRow({ label, hint, tone = "ghost", buttonText, onAction, disabled, icon: Icon }) {
   const cls = tone === "danger" ? "aivy-btn-danger" : "aivy-btn-ghost";
   return (
-    <div className={`aivy-settings-row ${soon ? "is-sealed" : ""}`}>
-      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}{soon && <SoonTag />}</div>
-      <button className={`${cls} sm`} disabled={disabled || soon} onClick={onAction}>{Icon ? <Icon size={14} /> : null}{buttonText}</button>
+    <div className="aivy-settings-row">
+      <div><div className="label">{label}</div>{hint && <div className="hint">{hint}</div>}</div>
+      <button className={`${cls} sm`} disabled={disabled} onClick={onAction}>{Icon ? <Icon size={14} /> : null}{buttonText}</button>
     </div>
   );
 }
@@ -250,67 +333,12 @@ function EqualizerPanel({ eq, onChange, tt }) {
   );
 }
 
-function ShortcutRow({ shortcut, override, capturing, onStartCapture, onSave, onClear, tt, soon }) {
-  const combo = override || shortcut.combo.join("+");
-  useEffect(() => {
-    if (!capturing) return undefined;
-    const onKey = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.key === "Escape") { onStartCapture(null); return; }
-      const parts = [];
-      if (e.ctrlKey) parts.push("Ctrl");
-      if (e.altKey) parts.push("Alt");
-      if (e.shiftKey) parts.push("Shift");
-      if (e.metaKey) parts.push("Meta");
-      let k = e.key;
-      if (k === " ") k = "Space";
-      else if (k.length === 1) k = k.toUpperCase();
-      if (!["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
-        parts.push(k);
-        onSave(shortcut.id, parts.join("+"));
-        onStartCapture(null);
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [capturing, shortcut.id, onSave, onStartCapture]);
-
-  return (
-    <div className={`aivy-settings-row ${soon ? "is-sealed" : ""}`}>
-      <div>
-        <div className="label">{tt(shortcut.id_, shortcut.en_)}</div>
-        {soon && <SoonTag />}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        {capturing ? (
-          <span className="aivy-capture-tip">{tt("Tekan kombinasi tombol… (Esc batal)", "Press a key combination… (Esc to cancel)")}</span>
-        ) : (
-          <span className="aivy-shortcut-keys">
-            {combo.split("+").map((part, i) => <kbd className="aivy-kbd" key={i}>{part}</kbd>)}
-          </span>
-        )}
-        {!soon && (
-          <button className="aivy-icon-btn bare" title={tt("Ubah", "Rebind")} aria-label={tt("Ubah shortcut", "Rebind shortcut")} onClick={() => onStartCapture(capturing ? null : shortcut.id)}>
-            {capturing ? <Check size={14} /> : <Pencil size={13} />}
-          </button>
-        )}
-        {!soon && override && (
-          <button className="aivy-icon-btn bare" title={tt("Kembalikan default", "Reset to default")} onClick={() => onClear(shortcut.id)}>
-            <RotateCcw size={13} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function SettingsPage() {
   const { settings, updateSettings, resetSettings, authUser, logout, loggingOut, pushToast, t } = useUI();
+  const localFont = useLocalFont();
   const player = usePlayer();
+  const cookieConsent = useCookieConsent();
   const [tab, setTab] = useState("appearance");
-  const [capturingShortcut, setCapturingShortcut] = useState(null);
-  const [shortcutOverrides, setShortcutOverrides] = useState(loadShortcutOverrides);
   const fileInputRef = useRef(null);
   const importModeRef = useRef("backup");
 
@@ -324,10 +352,7 @@ export function SettingsPage() {
   const tabs = [
     { id: "appearance", label: tt("Tampilan", "Appearance"), icon: Palette },
     { id: "interface", label: tt("Antarmuka", "Interface"), icon: LayoutPanelLeft },
-    { id: "scrobble", label: "Scrobbling", icon: AudioLines },
     { id: "audio", label: "Audio", icon: Speaker },
-    { id: "downloads", label: tt("Unduhan", "Downloads"), icon: Download },
-    { id: "instances", label: "Instance", icon: Server },
     { id: "system", label: tt("Sistem", "System"), icon: Cog },
   ];
 
@@ -336,24 +361,6 @@ export function SettingsPage() {
   }
 
   const eq = settings.equalizer || { enabled: false, preset: "flat", preamp: 0, bands: [...EQ_PRESETS.flat] };
-  const blocked = settings.blockedContent || {};
-  const instances = settings.apiInstances || [];
-
-  const saveShortcutOverride = (id, combo) => {
-    const next = { ...shortcutOverrides, [id]: combo };
-    setShortcutOverrides(next);
-    try { localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(next)); } catch {}
-  };
-  const clearShortcutOverride = (id) => {
-    const next = { ...shortcutOverrides };
-    delete next[id];
-    setShortcutOverrides(next);
-    try { localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(next)); } catch {}
-  };
-  const resetAllShortcuts = () => {
-    setShortcutOverrides({});
-    try { localStorage.removeItem(SHORTCUTS_KEY); } catch {}
-  };
 
   const openImport = (mode) => {
     importModeRef.current = mode;
@@ -430,33 +437,6 @@ export function SettingsPage() {
     catch { pushToast(tt("Gagal membersihkan data awan", "Failed to clear cloud data")); }
   };
 
-  const resetSavedFolder = () => {
-    try { localStorage.removeItem(FOLDER_KEY); } catch {}
-    pushToast(tt("Folder tersimpan di-reset", "Saved folder reset"));
-  };
-
-  const addInstance = () => {
-    updateSettings({ apiInstances: [...instances, { id: `inst_${Date.now()}`, url: "" }] });
-  };
-  const updateInstance = (id, url) => {
-    updateSettings({ apiInstances: instances.map((it) => (it.id === id ? { ...it, url } : it)) });
-  };
-  const removeInstance = (id) => {
-    updateSettings({ apiInstances: instances.filter((it) => it.id !== id) });
-  };
-  const moveInstance = (idx, dir) => {
-    const next = [...instances];
-    const target = idx + dir;
-    if (target < 0 || target >= next.length) return;
-    [next[idx], next[target]] = [next[target], next[idx]];
-    updateSettings({ apiInstances: next });
-  };
-
-  const clearBlocked = () => {
-    updateSettings({ blockedContent: { artists: [], albums: [], tracks: [] } });
-    pushToast(tt("Daftar blokir dibersihkan", "Blocked list cleared"));
-  };
-
   const applyCommunityTheme = (css) => {
     updateSettings({ theme: "custom", customThemeCss: css });
   };
@@ -467,15 +447,15 @@ export function SettingsPage() {
   const communityThemes = [
     {
       id: "nord", name: "Nordic",
-      css: ":root{--bg:#2E3440;--bg-elev:#3B4252;--bg-elev-2:#434C5E;--bg-elev-3:#4C566A;--line:#4C566A;--line-soft:#3B4252;--ink:#ECEFF4;--ink-dim:#D8DEE9;--ink-faint:#7B88A1;--moss:#88C0D0;--moss-strong:#8FBCBB;--moss-ink:#2E3440;}",
+      css: ":root{--bg:#2E3440;--bg-elev:#3B4252;--bg-elev-2:#434C5E;--bg-elev-3:#4C566A;--line:#4C566A;--line-soft:#3B4252;--ink:#ECEFF4;--ink-dim:#D8DEE9;--ink-faint:#7B88A1;--accent:#88C0D0;--accent-strong:#8FBCBB;--accent-ink:#2E3440;}",
     },
     {
       id: "rosepine", name: "Rosé Pine",
-      css: ":root{--bg:#191724;--bg-elev:#1F1D2E;--bg-elev-2:#26233A;--bg-elev-3:#302C46;--line:#403D52;--line-soft:#26233A;--ink:#E0DEF4;--ink-dim:#908CAA;--ink-faint:#6E6A86;--moss:#C4A7E7;--moss-strong:#DFCCF3;--moss-ink:#191724;}",
+      css: ":root{--bg:#191724;--bg-elev:#1F1D2E;--bg-elev-2:#26233A;--bg-elev-3:#302C46;--line:#403D52;--line-soft:#26233A;--ink:#E0DEF4;--ink-dim:#908CAA;--ink-faint:#6E6A86;--accent:#C4A7E7;--accent-strong:#DFCCF3;--accent-ink:#191724;}",
     },
     {
       id: "gruvbox", name: "Gruvbox",
-      css: ":root{--bg:#282828;--bg-elev:#32302F;--bg-elev-2:#3C3836;--bg-elev-3:#504945;--line:#504945;--line-soft:#3C3836;--ink:#FBF1C7;--ink-dim:#BDAE93;--ink-faint:#7C6F64;--moss:#D8A657;--moss-strong:#E3B76E;--moss-ink:#282828;}",
+      css: ":root{--bg:#282828;--bg-elev:#32302F;--bg-elev-2:#3C3836;--bg-elev-3:#504945;--line:#504945;--line-soft:#3C3836;--ink:#FBF1C7;--ink-dim:#BDAE93;--ink-faint:#7C6F64;--accent:#D8A657;--accent-strong:#E3B76E;--accent-ink:#282828;}",
     },
   ];
 
@@ -500,19 +480,20 @@ export function SettingsPage() {
             ["system", tt("Sistem", "System")],
             ["black", "Black"],
             ["white", "White"],
-            ["dark", tt("Gelap", "Dark")],
+            ["premium", "✦ Premium"],
             ["ocean", "Ocean"],
             ["purple", "Purple"],
-            ["forest", "Forest"],
             ["mocha", "Mocha"],
             ["macchiato", "Macchiato"],
             ["frappe", "Frappé"],
             ["latte", "Latte"],
+            ["halloween", "🎃 Halloween"],
+            ["salmon", "Salmon"],
             ["custom", tt("Kustom", "Custom")],
           ].map(([value, label]) => (
             <button key={value} className={`aivy-theme-card ${settings.theme === value ? "active" : ""}`} onClick={() => set("theme")(value)}>
               <span className="aivy-theme-swatch">
-                {(THEME_SWATCHES[value] || ["var(--bg)", "var(--moss)", "var(--ink)"]).map((c, i) => (
+                {(THEME_SWATCHES[value] || ["var(--bg)", "var(--accent)", "var(--ink)"]).map((c, i) => (
                   <i key={i} style={{ background: c }} />
                 ))}
               </span>
@@ -532,7 +513,7 @@ export function SettingsPage() {
             <textarea
               className="aivy-settings-textarea"
               value={settings.customThemeCss || ""}
-              placeholder={':root {\n  --bg: #101010;\n  --moss: #7fd18c;\n}'}
+              placeholder={':root {\n  --bg: #101010;\n  --accent: #e6e6e6;\n}'}
               onChange={(e) => set("customThemeCss")(e.target.value)}
               spellCheck={false}
             />
@@ -561,13 +542,16 @@ export function SettingsPage() {
           onChange={set("fontFamily")}
           options={FONT_OPTIONS}
         />
-        <TextRow
-          label={tt("Font dari URL", "Font from URL")}
-          hint={tt("Masukkan URL file font (.woff2/.ttf/.otf) untuk dipakai di seluruh aplikasi.", "Paste a font file URL (.woff2/.ttf/.otf) to use it app-wide.")}
-          mono
+        <FontUrlRow
           value={settings.fontUrl || ""}
-          onChange={(v) => set("fontUrl")(v.trim())}
-          placeholder="https://…/MyFont.woff2"
+          tt={tt}
+          onCommit={(v) => { if (v) clearLocalFont(); set("fontUrl")(v); }}
+        />
+        <LocalFontRows
+          localFont={localFont}
+          tt={tt}
+          pushToast={pushToast}
+          onActivate={() => { if (settings.fontUrl) set("fontUrl")(""); }}
         />
         <SliderRow
           label={tt("Ukuran font", "Font size")}
@@ -580,7 +564,19 @@ export function SettingsPage() {
           label={tt("Reset font", "Reset font")}
           buttonText={tt("Reset", "Reset")}
           icon={RotateCcw}
-          onAction={() => updateSettings({ fontFamily: "default", fontUrl: "", fontScale: 100 })}
+          onAction={() => { clearLocalFont(); updateSettings({ fontFamily: "default", fontUrl: "", fontScale: 100 }); }}
+        />
+      </SettingSection>
+
+      <SettingSection title={tt("Efek Kaca", "Glass Effect")}>
+        <ToggleRow
+          label="Liquid Glass"
+          hint={tt(
+            "Aktif: dock bawah memakai kaca dengan efek refraksi (tepinya membelokkan latar). Nonaktif: blur biasa. Refraksi hanya tampil di Chrome/Edge/Android; browser lain tetap memakai kaca bening. Kalau terasa berat, matikan.",
+            "On: the bottom dock uses glass with a refraction effect (edges bend the background). Off: plain blur. Refraction only shows in Chrome/Edge/Android; other browsers use clear glass. Turn it off if it feels slow."
+          )}
+          checked={settings.liquidGlass !== false}
+          onChange={set("liquidGlass")}
         />
       </SettingSection>
 
@@ -593,6 +589,11 @@ export function SettingsPage() {
         <SliderRow label={tt("Jarak tilt", "Tilt Distance")} hint={tt("Maksimum kemiringan (default 10)", "Max tilt distance (default: 10)")} value={Number(settings.tiltDistance) || 10} min={1} max={30} step={1} onChange={set("tiltDistance")} />
         <SliderRow label={tt("Kecepatan tilt", "Tilt Speed")} hint="ms" value={Number(settings.tiltSpeed) || 240} min={50} max={600} step={10} onChange={set("tiltSpeed")} format={(v) => `${v}`} />
         <ToggleRow label={tt("Sampul CD berputar", "CD Album Cover")} hint={tt("Sampul berputar seperti CD saat lagu diputar", "Spin the cover like a CD while a song is playing")} checked={!!settings.cdCoverSpin} onChange={set("cdCoverSpin")} />
+        <SliderRow label={tt("Ukuran teks lirik", "Lyrics Text Size")} hint={tt("Dari terkecil sampai terbesar (hanya muat sekitar 3 baris lirik di layar)", "From smallest to largest (only about 3 lyric lines fit on screen)")}
+          value={Math.max(0, ["sm", "md", "lg", "xl", "max"].indexOf(settings.lyricsFontSize || "md"))} min={0} max={4} step={1}
+          onChange={(v) => set("lyricsFontSize")(["sm", "md", "lg", "xl", "max"][v] || "md")}
+          format={(v) => [tt("Kecil", "Small"), tt("Sedang", "Medium"), tt("Besar", "Large"), tt("XL", "XL"), tt("3 baris", "3 lines")][v]} />
+        <ToggleRow label={tt("Sampul animasi (Now Playing & Lirik)", "Animated Artwork")} hint={tt("Cari video sampul album animasi (kalau tersedia) di layar Now Playing dan tampilan lirik desktop; sampul statis tetap tampil dulu sampai animasinya siap diputar. Pakai data ekstra.", "Looks up an animated album cover video when available on the Now Playing screen and the desktop lyrics view; the static cover always shows first until the animation is ready to play. Uses extra data.")} checked={!!settings.animatedArtwork} onChange={set("animatedArtwork")} />
       </SettingSection>
 
       <SettingSection title="Visualizer" desc={tt("Visualizer canvas ringan berbasis Web Audio — gaya Butterchurn/Kawarp di sini adalah interpretasi kustom, bukan library Milkdrop asli.", "A lightweight Web-Audio canvas visualizer — the Butterchurn/Kawarp styles here are custom interpretations, not the original Milkdrop library.")}>
@@ -600,11 +601,10 @@ export function SettingsPage() {
         <SelectRow label={tt("Gaya visualizer", "Visualizer Style")} value={settings.visualizerStyle || "butterchurn"} onChange={set("visualizerStyle")} options={VISUALIZER_STYLES} />
         <SelectRow label={tt("Mode visualizer", "Visualizer Mode")} value={settings.visualizerMode || "solid"} onChange={set("visualizerMode")}
           options={[{ value: "solid", label: tt("Background solid", "Solid Background") }, { value: "blended", label: tt("Menyatu dengan sampul", "Blended on Cover Art") }]} />
-        <ToggleRow label={tt("Pergantian intensitas pintar", "Smart Intensity Switching")} hint={tt("Intensitas menyesuaikan energi lagu yang sedang diputar", "Adjust intensity based on the playing track's audio energy")} checked={!!settings.smartIntensity} onChange={set("smartIntensity")} />
         <SliderRow label={tt("Sensitivitas visualizer", "Visualizer Sensitivity")} hint={tt("Hati-hati: sensitivitas tinggi bisa memicu fotosensitif", "Warning: high sensitivity may cause flashing lights")} value={Number(settings.visualizerSensitivity) || 60} min={10} max={200} step={5} onChange={set("visualizerSensitivity")} format={(v) => `${v}%`} />
         <SliderRow label={tt("Kecerahan visualizer", "Visualizer Brightness")} value={Number(settings.visualizerBrightness) || 100} min={20} max={200} step={5} onChange={set("visualizerBrightness")} format={(v) => `${v}%`} />
         <ToggleRow label={tt("Ganti preset otomatis", "Cycle Presets")} checked={!!settings.cyclePresets} onChange={set("cyclePresets")} />
-        <SelectRow label={tt("Preset saat ini", "Current Preset")} value={settings.visualizerPreset || "auto"} onChange={set("visualizerPreset")} options={VISUALIZER_PRESETS} />
+        <SelectRow label={tt("Preset saat ini", "Current Preset")} value={VISUALIZER_PRESETS.some((x) => x.value === settings.visualizerPreset) ? settings.visualizerPreset : "auto"} onChange={set("visualizerPreset")} options={VISUALIZER_PRESETS} />
         <SliderRow label={tt("Durasi siklus", "Cycle Duration")} hint={tt("Detik antar pergantian preset", "Seconds between preset changes")} value={Number(settings.cycleDuration) || 30} min={5} max={120} step={5} onChange={set("cycleDuration")} format={(v) => `${v}s`} />
         <ToggleRow label={tt("Acak preset", "Randomize Presets")} hint={tt("Preset berikutnya dipilih acak", "Pick the next preset randomly")} checked={!!settings.randomizePresets} onChange={set("randomizePresets")} />
       </SettingSection>
@@ -673,92 +673,27 @@ export function SettingsPage() {
     </>
   );
 
-  const renderScrobble = () => (
-    <div className="aivy-tab-sealed">
-      <SealBanner />
-      <SettingSection title={tt("Umum", "General")}>
-        <SliderRow soon label={tt("Ambang scrobble", "Scrobble Threshold")} hint={tt("Persentase lagu yang harus diputar sebelum di-scrobble", "Percentage of track to play before scrobbling")} value={Number(settings.scrobbleThreshold) || 50} min={1} max={100} step={1} onChange={set("scrobbleThreshold")} format={(v) => `${v}%`} />
-      </SettingSection>
-
-      <SettingSection title="Last.fm" desc={tt("Aktivitas terbaru dan statistik top tampil di profilmu.", "Recent activity and top stats appear on your profile.")}>
-        <ToggleRow soon label={tt("Aktifkan scrobbling", "Enable Scrobbling")} checked={!!settings.lastfmEnabled} onChange={set("lastfmEnabled")} />
-        <TextRow soon label={tt("Nama pengguna", "Username")} value={settings.lastfmUser || ""} onChange={set("lastfmUser")} placeholder="username" />
-        <TextRow soon label={tt("Kata sandi", "Password")} type="password" value={settings.lastfmPass || ""} onChange={set("lastfmPass")} placeholder="••••••••" />
-        <ToggleRow soon label={tt("'Love' saat disukai", "Love on Like")} hint={tt("Otomatis 'love' di Last.fm saat kamu suka lagu", "Automatically 'love' tracks on Last.fm when you like them")} checked={!!settings.lastfmLoveOnLike} onChange={set("lastfmLoveOnLike")} />
-        <ToggleRow soon label={tt("Pakai kredensial API sendiri", "Use Custom API Credentials")} checked={!!settings.lastfmCustomApi} onChange={set("lastfmCustomApi")} />
-        {settings.lastfmCustomApi && (
-          <>
-            <TextRow soon label="API Key" mono value={settings.lastfmApiKey || ""} onChange={set("lastfmApiKey")} />
-            <TextRow soon label="API Secret" type="password" mono value={settings.lastfmApiSecret || ""} onChange={set("lastfmApiSecret")} />
-          </>
-        )}
-      </SettingSection>
-
-      <SettingSection title="Libre.fm">
-        <ToggleRow soon label={tt("Aktifkan scrobbling", "Enable Scrobbling")} checked={!!settings.librefmEnabled} onChange={set("librefmEnabled")} />
-        <TextRow soon label={tt("Nama pengguna", "Username")} value={settings.librefmUser || ""} onChange={set("librefmUser")} />
-        <TextRow soon label={tt("Kata sandi", "Password")} type="password" value={settings.librefmPass || ""} onChange={set("librefmPass")} />
-        <ToggleRow soon label={tt("'Love' saat disukai", "Love on Like")} checked={!!settings.librefmLoveOnLike} onChange={set("librefmLoveOnLike")} />
-      </SettingSection>
-
-      <SettingSection title="ListenBrainz" desc={tt("Butuh User Token dari halaman profil ListenBrainz.", "Requires the User Token found on your ListenBrainz profile page.")}>
-        <ToggleRow soon label={tt("Aktifkan scrobbling", "Enable Scrobbling")} checked={!!settings.listenbrainzEnabled} onChange={set("listenbrainzEnabled")} />
-        <TextRow soon label="User Token" type="password" mono value={settings.listenbrainzToken || ""} onChange={set("listenbrainzToken")} />
-        <TextRow soon label="API URL" hint={tt("Opsional — kosongkan untuk server resmi", "Optional — leave empty for the official server")} mono value={settings.listenbrainzUrl || ""} onChange={set("listenbrainzUrl")} placeholder="https://api.listenbrainz.org" />
-        <ToggleRow soon label={tt("'Love' saat disukai", "Love on Like")} checked={!!settings.listenbrainzLoveOnLike} onChange={set("listenbrainzLoveOnLike")} />
-      </SettingSection>
-
-      <SettingSection title="Maloja" desc={tt("Kirim scrobble ke server Maloja milikmu sendiri.", "Submit listens to your self-hosted Maloja server.")}>
-        <ToggleRow soon label={tt("Aktifkan scrobbling", "Enable Scrobbling")} checked={!!settings.malojaEnabled} onChange={set("malojaEnabled")} />
-        <TextRow soon label="API Key" hint={tt("Ada di pengaturan Malojamu", "Found in your Maloja settings")} type="password" mono value={settings.malojaKey || ""} onChange={set("malojaKey")} />
-        <TextRow soon label={tt("URL Server", "Server URL")} mono value={settings.malojaUrl || ""} onChange={set("malojaUrl")} placeholder="https://maloja.example.com" />
-      </SettingSection>
-    </div>
-  );
-
   const renderAudio = () => (
     <>
       <SettingSection title={tt("Streaming", "Streaming")}>
-        <SelectRow soon label={tt("Kualitas streaming", "Streaming Quality")} hint={tt("Kualitas pemutaran default", "Default playback quality")} value={settings.streamingQuality || "auto"} onChange={set("streamingQuality")} options={QUALITY_OPTIONS} />
-        <ToggleRow soon label={tt("Utamakan Dolby Atmos", "Prefer Dolby Atmos")} hint={tt("Minta Dolby Atmos otomatis saat tersedia", "Automatically request Dolby Atmos spatial audio when available")} checked={!!settings.preferAtmos} onChange={set("preferAtmos")} />
-        <ToggleRow soon label={tt("Rendering Atmos OS native", "Native OS Dolby Atmos Rendering")} checked={!!settings.nativeAtmos} onChange={set("nativeAtmos")} />
-        <ToggleRow soon label={tt("Badge kualitas", "Show Quality Badges")} hint={tt('Tampilkan badge "HD" untuk track Hi-Res', 'Display an "HD" badge for Hi-Res tracks')} checked={!!settings.qualityBadges} onChange={set("qualityBadges")} />
-        <ToggleRow soon label={tt("Tahun rilis album", "Album release year")} hint={tt("Tampilkan tahun album asli, bukan tanggal remaster", "Show the original album year instead of the remaster date")} checked={!!settings.originalReleaseYear} onChange={set("originalReleaseYear")} />
         <SelectRow label={tt("Kualitas audio", "Audio quality")} hint={tt("Pratinjau: 30 detik resmi dari Deezer. Penuh: eksperimental lewat YouTube.", "Preview: official 30s from Deezer. Full: experimental via YouTube.")}
           value={settings.audioQuality || "preview"} onChange={set("audioQuality")}
           options={[{ value: "preview", label: tt("Pratinjau (disarankan)", "Preview (recommended)") }, { value: "full", label: tt("Penuh (eksperimental)", "Full (experimental)") }]} />
+        <SelectRow label={tt("Format audio", "Audio format")} hint={tt("Berlaku untuk pemutaran Penuh. FLAC: sumber lossless via stream.py (butuh judul+artis), fallback transcode YouTube — putaran pertama lebih lama karena disiapkan dulu.", "Applies to Full playback. FLAC: lossless source via stream.py (needs title+artist), falls back to YouTube transcode — first play is slower while it prepares the file.")}
+          value={settings.audioFormat || "opus"} onChange={set("audioFormat")}
+          options={[
+            { value: "aac", label: tt("AAC (m4a \u00b7 128kbps)", "AAC (m4a \u00b7 128kbps)") },
+            { value: "opus", label: tt("OPUS (webm \u00b7 160kbps)", "OPUS (webm \u00b7 160kbps)") },
+            { value: "flac", label: tt("FLAC (lossless)", "FLAC (lossless)") },
+          ]} />
       </SettingSection>
 
       <SettingSection title={tt("Pemutaran", "Playback")}>
         <ToggleRow label={tt("Putar otomatis", "Autoplay")} hint={tt("Lanjut ke lagu berikutnya otomatis", "Automatically continue to the next song")} checked={settings.autoplay !== false} onChange={set("autoplay")} />
-        <ToggleRow soon label={tt("Gapless playback", "Gapless Playback")} checked={!!settings.gapless} onChange={set("gapless")} />
-        <ToggleRow soon label={tt("Buang keheningan", "Remove Silence")} hint={tt("Skip silence di awal dan akhir lagu", "Skip leading/trailing silence between tracks")} checked={!!settings.removeSilence} onChange={set("removeSilence")} />
         <SliderRow label={tt("Crossfade", "Crossfade")} hint={tt("Detik transisi antar lagu", "Transition seconds between songs")} value={Number(settings.crossfadeSeconds) || 0} min={0} max={12} step={1} onChange={set("crossfadeSeconds")} format={(v) => `${v}s`} />
         <ToggleRow label={tt("Ratakan volume (ReplayGain)", "ReplayGain Normalize")} hint={tt("Samain kerasnya volume antar lagu", "Even out loudness between songs")} checked={!!settings.normalizeVolume} onChange={set("normalizeVolume")} />
-        <SelectRow soon label="ReplayGain Mode" value={settings.replayGainMode || "off"} onChange={set("replayGainMode")}
-          options={[{ value: "off", label: "Off" }, { value: "track", label: tt("Per lagu", "Track") }, { value: "album", label: tt("Per album", "Album") }]} />
-        <SliderRow soon label="ReplayGain Pre-Amp" hint={tt("Atur gain manual (dB)", "Adjust gain manually (dB)")} value={Number(settings.replayGainPreamp) || 0} min={-15} max={15} step={0.5} onChange={set("replayGainPreamp")} format={(v) => `${v > 0 ? "+" : ""}${v}dB`} />
-        <ToggleRow soon label={tt("Audio mono", "Mono Audio")} hint={tt("Gabung kanal kiri & kanan jadi satu", "Combine left and right channels into mono")} checked={!!settings.monoAudio} onChange={set("monoAudio")} />
-        <ToggleRow soon label={tt("Volume eksponensial", "Exponential Volume")} hint={tt("Kurva volume logaritmik biar presisi di volume kecil", "Logarithmic curve for finer low-volume control")} checked={!!settings.exponentialVolume} onChange={set("exponentialVolume")} />
-        <SliderRow soon label={tt("Kecepatan putar", "Playback Speed")} value={Number(settings.playbackSpeed) || 1} min={0.25} max={4} step={0.05} onChange={set("playbackSpeed")} format={(v) => `${v.toFixed(2)}x`} />
-        <ToggleRow soon label={tt("Pertahankan pitch", "Preserve Pitch")} checked={settings.preservePitch !== false} onChange={set("preservePitch")} />
-        <ActionRow soon label={tt("Reset kecepatan", "Reset speed")} buttonText="1.00x" icon={RotateCcw} onAction={() => set("playbackSpeed")(1)} />
         <SliderRow label={tt("Volume awal", "Starting volume")} value={Number(settings.volumeDefault ?? 0.7)} min={0} max={1} step={0.05} onChange={set("volumeDefault")} format={(v) => `${Math.round(v * 100)}%`} />
         <ToggleRow label={tt("Konten eksplisit", "Explicit content")} hint={tt("Tampilkan lagu dengan label eksplisit", "Show songs labeled as explicit")} checked={settings.explicitContent !== false} onChange={set("explicitContent")} />
-      </SettingSection>
-
-      <SettingSection title={tt("DSP Binaural / Spasial", "Binaural / Spatial DSP")} desc={tt("Belum tersedia — rendering HRTF multichannel untuk audio 3D & Atmos disiapkan.", "Not available yet — multichannel HRTF rendering for 3D audio & Atmos is planned.")}>
-        <ToggleRow soon label={tt("Aktifkan DSP", "Enable DSP")} checked={!!settings.dspEnabled} onChange={set("dspEnabled")} />
-        <ToggleRow soon label={tt("Aktif otomatis untuk spasial", "Auto-enable for Spatial Audio")} hint={tt("Aktif saat konten Atmos/3D terdeteksi", "Activate when Atmos or 3D content is detected")} checked={!!settings.dspAutoEnable} onChange={set("dspAutoEnable")} />
-        <SelectRow soon label="Crossfeed" hint={tt("Simulasi speaker di headphone", "Simulate speaker presentation on headphones")} value={settings.crossfeedLevel || "off"} onChange={set("crossfeedLevel")}
-          options={[{ value: "off", label: "Off" }, { value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }]} />
-        <SelectRow soon label="HRTF Preset" hint={tt("Sudut speaker virtual", "Virtual speaker angle")} value={settings.hrtfPreset || "studio"} onChange={set("hrtfPreset")}
-          options={[
-            { value: "intimate", label: tt("Intimate (±22°)", "Intimate (±22°)") },
-            { value: "studio", label: tt("Studio (±30°)", "Studio (±30°)") },
-            { value: "wide", label: tt("Wide (±45°)", "Wide (±45°)") },
-          ]} />
-        <SliderRow soon label={tt("Lebar stereo", "Stereo Width")} hint={tt("0 = mono, 1 = netral, 2 = lebar", "0 = mono, 1 = neutral, 2 = wide")} value={Number(settings.stereoWidth ?? 1)} min={0} max={2} step={0.05} onChange={set("stereoWidth")} format={(v) => v.toFixed(2)} />
       </SettingSection>
 
       <SettingSection title={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><SlidersHorizontal size={16} />{tt("Equalizer", "Equalizer")}</span>}>
@@ -767,140 +702,29 @@ export function SettingsPage() {
     </>
   );
 
-  const renderDownloads = () => (
-    <div className="aivy-tab-sealed">
-      <SealBanner />
-      <SettingSection title={tt("Kualitas & Format", "Quality & Format")}>
-        <SelectRow soon label={tt("Kualitas unduhan", "Download Quality")} value={settings.downloadQuality || "lossless"} onChange={set("downloadQuality")} options={QUALITY_OPTIONS.filter((o) => !o.value.startsWith("eac") && !o.value.startsWith("ac4"))} />
-        <SelectRow soon label={tt("Wadah lossless", "Lossless Container")} value={settings.losslessContainer || "keep"} onChange={set("losslessContainer")}
-          options={[{ value: "keep", label: tt("Jangan diubah", "Don't change") }, { value: "flac", label: "FLAC" }, { value: "alac", label: "ALAC" }, { value: "wav", label: "WAV" }, { value: "aiff", label: "AIFF" }]} />
-        <SelectRow soon label={tt("Metode unduh massal", "Bulk Download Method")} value={settings.bulkDownloadMethod || "zip"} onChange={set("bulkDownloadMethod")}
-          options={[
-            { value: "zip", label: tt("Arsip ZIP", "ZIP Archive") },
-            { value: "folderpicker", label: tt("Pilih folder", "Folder Picker") },
-            { value: "mediafolder", label: tt("Folder media lokal", "Local Media Folder") },
-            { value: "individual", label: tt("File terpisah", "Individual Files") },
-          ]} />
-        <ToggleRow soon label={tt("Ingat folder terakhir", "Remember Last Folder")} hint={tt("Pakai ulang folder yang terakhir dipilih", "Re-use the last chosen directory")} checked={!!settings.rememberLastFolder} onChange={set("rememberLastFolder")} />
-        <ActionRow soon label={tt("Reset folder tersimpan", "Reset Saved Folder")} buttonText={tt("Reset", "Reset")} icon={RotateCcw} onAction={resetSavedFolder} />
-        <ToggleRow soon label={tt("Unduhan tunggal ke folder", "Single Downloads to Folder")} hint={tt("Simpan langsung ke folder terkonfigurasi", "Save individual downloads straight to the configured folder")} checked={!!settings.singleToFolder} onChange={set("singleToFolder")} />
-        <ToggleRow soon label={tt("Paksa ZIP sebagai Blob", "Force ZIP as Blob")} hint={tt("Unduh ZIP di memori kalau streaming ZIP bermasalah", "Download ZIP in memory if ZIP streaming causes issues")} checked={!!settings.forceZipBlob} onChange={set("forceZipBlob")} />
-      </SettingSection>
-
-      <SettingSection title={tt("Metadata & Lirik", "Metadata & Lyrics")}>
-        <ToggleRow soon label={tt("Tulis artist terpisah", "Write Artists Separately")} hint={tt("Butuh dukungan pemutar", "Requires player support")} checked={!!settings.writeArtistsSeparately} onChange={set("writeArtistsSeparately")} />
-        <ToggleRow soon label={tt("Unduh lirik", "Download Lyrics")} hint={tt("Sertakan file .lrc saat mengunduh", "Include .lrc files when downloading")} checked={!!settings.downloadLyrics} onChange={set("downloadLyrics")} />
-        <ToggleRow soon label="Romaji" hint={tt("Konversi lirik Jepang ke Romaji", "Convert Japanese lyrics to Romaji")} checked={!!settings.romajiLyrics} onChange={set("romajiLyrics")} />
-        <SelectRow soon label={tt("Ukuran cover art", "Cover Art Size")} value={String(settings.coverArtSize || "original")} onChange={(v) => set("coverArtSize")(v === "original" ? "original" : Number(v))}
-          options={[{ value: "original", label: tt("Asli", "Original") }, { value: "1280", label: "1280px" }, { value: "640", label: "640px" }, { value: "320", label: "320px" }]} />
-      </SettingSection>
-
-      <SettingSection title={tt("Penamaan File", "Filename Templates")}>
-        <TextRow soon label={tt("Template nama file", "Filename Template")} hint="{discNumber} {trackNumber} {artist} {title} {album}" mono
-          value={settings.filenameTemplate || "{trackNumber}. {artist} - {title}"} onChange={set("filenameTemplate")} />
-        <TextRow soon label={tt("Template folder", "Folder Template")} hint={tt('Gunakan "/" untuk folder bertingkat', 'Use "/" for nested folders')} mono
-          value={settings.folderTemplate || "{albumArtist}/{albumTitle} ({year})"} onChange={set("folderTemplate")} />
-      </SettingSection>
-
-      <SettingSection title={tt("Berkas Tambahan", "Extra Files")}>
-        <ToggleRow soon label="M3U" checked={!!settings.generateM3U} onChange={set("generateM3U")} />
-        <ToggleRow soon label="M3U8" hint="extended" checked={!!settings.generateM3U8} onChange={set("generateM3U8")} />
-        <ToggleRow soon label="CUE" hint={tt("Untuk gapless playback", "For gapless playback")} checked={!!settings.generateCUE} onChange={set("generateCUE")} />
-        <ToggleRow soon label="NFO" hint={tt("Kompatibilitas media center", "Media center compatibility")} checked={!!settings.generateNFO} onChange={set("generateNFO")} />
-        <ToggleRow soon label="JSON" hint={tt("Metadata lengkap", "Rich metadata")} checked={!!settings.generateJSON} onChange={set("generateJSON")} />
-      </SettingSection>
-
-      <SettingSection title={tt("Struktur Folder", "Folder Structure")}>
-        <ToggleRow soon label={tt("Path relatif", "Relative Paths")} checked={!!settings.relativePaths} onChange={set("relativePaths")} />
-        <ToggleRow soon label={tt("Pisahkan per disc", "Separate Discs")} checked={!!settings.separateDiscs} onChange={set("separateDiscs")} />
-        <ToggleRow soon label={tt("Sertakan cover.jpg", "Include Cover File")} checked={settings.includeCoverFile !== false} onChange={set("includeCoverFile")} />
-      </SettingSection>
-    </div>
-  );
-
-  const renderInstances = () => (
-    <div className="aivy-tab-sealed">
-      <SealBanner />
-      <SettingSection title={tt("API Utama", "Primary API")} desc={tt("Arahkan permintaan API ke server milikmu sendiri.", "Route API requests through your own server.")}>
-        <ToggleRow soon label="Dev Mode" checked={!!settings.devMode} onChange={set("devMode")} />
-        <TextRow soon label="Dev Mode API URL" mono value={settings.devModeUrl || ""} onChange={set("devModeUrl")} placeholder="http://localhost:8080" />
-        <ToggleRow soon label={tt("Unified Playback", "Unified Playback")} hint={tt("Satu endpoint untuk semua penyedia sumber audio", "One endpoint resolving all audio providers")} checked={!!settings.unifiedPlayback} onChange={set("unifiedPlayback")} />
-        <TextRow soon label="Unified Playback API URL" mono value={settings.unifiedApiUrl || ""} onChange={set("unifiedApiUrl")} />
-        <TextRow soon label="App API Key" type="password" mono value={settings.appApiKey || ""} onChange={set("appApiKey")} />
-        <ToggleRow soon label={tt("Deezer Fallback", "Deezer Fallback")} hint={tt("Sumber terakhir saat penyedia utama gagal (maks lossless 16-bit)", "Last-resort source when primary providers fail (tops out at 16-bit lossless)")} checked={!!settings.deezerFallback} onChange={set("deezerFallback")} />
-        <TextRow soon label="Deezer Fallback API URL" mono value={settings.deezerFallbackUrl || ""} onChange={set("deezerFallbackUrl")} />
-      </SettingSection>
-
-      <SettingSection title={tt("Manajemen Instance", "Manage Instances")} desc={tt("Kelola dan prioritaskan daftar instance API. Urutan atas = prioritas lebih tinggi.", "Manage and prioritize API instances. Higher in the list = higher priority.")}>
-        {instances.map((inst, idx) => (
-          <div className="aivy-instance-row is-sealed" key={inst.id}>
-            <span className="font-mono" style={{ fontSize: 11, color: "var(--ink-faint)", width: 20 }}>{idx + 1}</span>
-            <input
-              className="aivy-settings-input mono"
-              style={{ flex: 1, width: "auto", maxWidth: "none" }}
-              value={inst.url || ""}
-              placeholder="https://api.example.com"
-              spellCheck={false}
-              disabled
-              readOnly
-              onChange={(e) => updateInstance(inst.id, e.target.value)}
-            />
-            <button className="aivy-icon-btn bare" disabled tabIndex={-1} aria-label={tt("Naikkan prioritas", "Increase priority")}><ArrowUp size={13} /></button>
-            <button className="aivy-icon-btn bare" disabled tabIndex={-1} aria-label={tt("Turunkan prioritas", "Decrease priority")}><ArrowDown size={13} /></button>
-            <button className="aivy-icon-btn bare" disabled tabIndex={-1} aria-label={tt("Hapus instance", "Remove instance")}><Trash2 size={13} /></button>
-          </div>
-        ))}
-        <div className="aivy-settings-row">
-          <div><div className="label">{instances.length ? tt(`${instances.length} instance terdaftar`, `${instances.length} instances configured`) : tt("Belum ada instance tambahan", "No extra instances yet")}</div><div className="hint">{tt("Tes latensi lalu susun sesuai hasilnya", "Test latency and sort by result")}</div></div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="aivy-btn-ghost sm" disabled tabIndex={-1}><Plus size={14} /> {tt("Tambah", "Add")}</button>
-            <button className="aivy-btn-ghost sm" disabled tabIndex={-1}><RefreshCw size={14} /> Refresh</button>
-          </div>
-        </div>
-      </SettingSection>
-
-      <SettingSection title={tt("Database & Auth Kustom", "Custom Database/Auth")}>
-        <TextRow soon label="PocketBase URL" mono value={settings.pocketbaseUrl || ""} onChange={set("pocketbaseUrl")} placeholder="https://pb.example.com" />
-        <TextRow soon label="Appwrite Endpoint" mono value={settings.appwriteEndpoint || ""} onChange={set("appwriteEndpoint")} />
-        <TextRow soon label="Appwrite Project ID" mono value={settings.appwriteProjectId || ""} onChange={set("appwriteProjectId")} />
-        <ActionRow soon
-          label={tt("Kembali ke default", "Reset to Defaults")}
-          buttonText={tt("Reset", "Reset")}
-          icon={RotateCcw}
-          onAction={() => updateSettings({ pocketbaseUrl: "", appwriteEndpoint: "", appwriteProjectId: "" })}
-        />
-      </SettingSection>
-    </div>
-  );
-
   const renderSystem = () => (
     <>
-      <SettingSection title={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Cog size={16} />{tt("Pintasan Papan Ketik", "Keyboard Shortcuts")}</span>} desc={tt("Belum aktif — kustomisasi pintasan disiapkan untuk update berikutnya.", "Not active yet — shortcut customization is planned for a future update.")}>
-        {DEFAULT_SHORTCUTS.map((sc) => (
-          <ShortcutRow
-            key={sc.id}
-            shortcut={sc}
-            override={shortcutOverrides[sc.id]}
-            capturing={capturingShortcut === sc.id}
-            onStartCapture={setCapturingShortcut}
-            onSave={saveShortcutOverride}
-            onClear={clearShortcutOverride}
-            tt={tt}
-            soon
-          />
-        ))}
-        <ActionRow soon label={tt("Reset pintasan", "Reset Shortcuts")} hint={tt("Kembalikan semua pintasan ke bawaan", "Restore all shortcuts to their defaults")} buttonText={tt("Reset", "Reset")} icon={RotateCcw} onAction={resetAllShortcuts} />
-      </SettingSection>
-
       <SettingSection title={t("sectionNotif")}>
         <ToggleRow label={t("settingNotifyInvite")} hint={t("settingNotifyInviteHint")} checked={settings.notifyRoomInvite !== false} onChange={set("notifyRoomInvite")} />
-        <ToggleRow soon label={t("settingNotifyFollower")} hint={t("settingNotifyFollowerHint")} checked={!!settings.notifyNewFollower} onChange={set("notifyNewFollower")} />
+      </SettingSection>
+
+      <SettingSection title="Discord" desc={tt("Tampilkan lagu yang kamu dengar di profil Discord (seperti Spotify). Butuh presence bridge yang berjalan di PC dan Discord desktop yang terbuka.", "Show what you're listening to on your Discord profile (like Spotify). Requires the presence bridge running on your PC and the Discord desktop app open.")}>
+        <ToggleRow label={tt("Status \"Listening to\" di profil", "\"Listening to\" status on profile")} hint={tt("Judul, artis, cover, dan progress lagu", "Song title, artist, cover, and progress")} checked={!!settings.discordPresence} onChange={set("discordPresence")} />
+        <ToggleRow label={tt("Tampilkan lirik di status", "Show lyrics in status")} hint={tt("Baris lirik yang sedang dinyanyikan, berganti sinkron dengan halaman lirik", "The line being sung, changing in sync with the lyrics view")} checked={settings.discordPresenceLyrics !== false} onChange={set("discordPresenceLyrics")} />
+      </SettingSection>
+
+      <SettingSection title={tt("Cookie", "Cookies")}>
+        <ActionRow
+          label={tt("Preferensi cookie", "Cookie preferences")}
+          hint={!cookieConsent ? tt("Belum dipilih", "Not chosen yet")
+            : cookieConsent.preferences && cookieConsent.analytics ? tt("Semua cookie diterima", "All cookies accepted")
+            : !cookieConsent.preferences && !cookieConsent.analytics ? tt("Hanya cookie esensial", "Essential cookies only")
+            : tt("Pilihan kustom", "Custom selection")}
+          buttonText={tt("Atur", "Manage")} icon={Cookie} onAction={openCookieSettings} />
       </SettingSection>
 
       <SettingSection title={tt("Cache & Data", "Cache & Data")}>
         <ActionRow label={tt("Cache", "Cache")} hint={tt("Hapus respons API yang tersimpan", "Clear cached API responses")} buttonText={tt("Bersihkan Cache", "Clear Cache")} onAction={clearCache} />
-        <ToggleRow soon label={tt("Update otomatis", "Auto-Update App")} hint={tt("Muat ulang otomatis saat versi baru tersedia", "Automatically reload when a new version is available")} checked={settings.autoUpdateApp !== false} onChange={set("autoUpdateApp")} />
-        <ToggleRow soon label="Analytics" hint={tt("Kirim data pengguna anonim", "Send anonymous usage data")} checked={!!settings.analytics} onChange={set("analytics")} />
         <ActionRow tone="danger" label={tt("Reset data lokal", "Reset Local Data")} hint={tt("Hapus data tersimpan di browser ini (sync awan aman)", "Clear local storage on this device (cloud sync unaffected)")} buttonText={tt("Reset", "Reset")} onAction={resetLocalData} />
         <ActionRow tone="danger" label={tt("Hapus data awan", "Clear Cloud Data")} hint={tt("Hapus setting tersimpan di server — tidak bisa dibatalkan", "Delete settings stored on the server — cannot be undone")} buttonText={tt("Hapus", "Clear")} onAction={clearCloudData} />
       </SettingSection>
@@ -910,19 +734,6 @@ export function SettingsPage() {
         <ActionRow label={tt("Impor backup", "Import Backup")} hint={tt("Pulihkan setting dari file backup", "Restore settings from a backup file")} buttonText="Import" icon={FileUp} onAction={() => openImport("backup")} />
         <ActionRow label={tt("Ekspor semua setting", "Export All Settings")} buttonText="Export" icon={FileDown} onAction={exportAllSettings} />
         <ActionRow label={tt("Impor setting", "Import Settings")} buttonText="Import" icon={FileUp} onAction={() => openImport("settings")} />
-      </SettingSection>
-
-      <SettingSection title={tt("Konten Diblokir", "Blocked Content")} desc={tt("Belum aktif — artist, album, atau lagu yang diblokir akan difilter dari rekomendasi nanti.", "Not active yet — blocked artists, albums, or tracks will be filtered from recommendations later.")}>
-        <div className={`aivy-settings-row is-sealed`}>
-          <div>
-            <div className="label">
-              {`${blocked.artists?.length || 0} ${t("artistLabel")} · ${blocked.albums?.length || 0} ${t("albumLabel")} · ${blocked.tracks?.length || 0} ${tt("lagu", "tracks")}`}
-            </div>
-            <SoonTag />
-          </div>
-          <Ban size={16} color="var(--ink-faint)" />
-        </div>
-        <ActionRow soon label={tt("Bersihkan semua", "Clear All")} buttonText={tt("Bersihin", "Clear")} tone="danger" onAction={clearBlocked} />
       </SettingSection>
 
       <SettingSection title={t("sectionAccount")}>
@@ -938,10 +749,7 @@ export function SettingsPage() {
   const contentByTab = {
     appearance: renderAppearance,
     interface: renderInterface,
-    scrobble: renderScrobble,
     audio: renderAudio,
-    downloads: renderDownloads,
-    instances: renderInstances,
     system: renderSystem,
   };
 

@@ -3681,7 +3681,7 @@ body.aivy-artist-tinted .aivy-credits-card{ color: var(--ink); }
 .aivy-row.is-no-thumb:hover:not(.is-current) .idx .num{ display: none; }
 .aivy-row.is-no-thumb:hover:not(.is-current) .idx .play{ display: flex; }
 .aivy-am-page.is-cover-page{ --am-hero-h: min(76vh, 740px); }
-.aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center 24%; }
+.aivy-am-media.is-cover :is(video, img, canvas, svg){ object-position: center center; }
 @media (max-width: 860px){
   .aivy-am-page.is-cover-page{ --am-hero-h: min(64vh, 560px); }
 }
@@ -3721,6 +3721,133 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   backdrop-filter: blur(30px) saturate(1.25);
 }
 .aivy-am-media.is-cover .aivy-animated-cover{
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16%, #000 84%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 16%, #000 84%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
 }
+.aivy-explicit-badge.is-hero{
+  width: 20px; height: 20px; font-size: 11px; border-radius: 5px;
+  margin-left: 10px; margin-right: 0; vertical-align: middle;
+  background: rgba(255,255,255,.22); color: #fff;
+}
+
+/* Search filter tabs (Semua / Lagu / Album / Artis) */
+.aivy-search-tabs{
+  display: flex; align-items: center; gap: 8px; overflow-x: auto;
+  padding: 2px 0 14px; margin-bottom: 6px;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.aivy-search-tabs::-webkit-scrollbar{ display: none; }
+.aivy-search-tab{
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  height: 36px; padding: 0 15px; border-radius: var(--radius-pill);
+  border: 1px solid var(--line); background: var(--bg-elev);
+  color: var(--ink-dim); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.aivy-search-tab:hover{ background: var(--bg-elev-2); color: var(--ink); border-color: var(--ink-faint); }
+.aivy-search-tab.active{
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+}
+.aivy-search-tab .cnt{
+  font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rich Artist Profile + Artwork hero card in Search */
+.aivy-search-artist-hero{
+  position: relative; overflow: hidden; border-radius: 18px;
+  border: 1px solid var(--line); background: var(--bg-elev-2);
+  cursor: pointer; isolation: isolate;
+  transition: transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.aivy-search-artist-hero:hover{ border-color: var(--ink-faint); }
+.aivy-search-artist-hero-bg{
+  position: absolute; inset: 0; z-index: 0;
+  background-size: cover; background-position: center 24%;
+  filter: saturate(1.15) brightness(.68);
+  transform: scale(1.03);
+  transition: transform 600ms var(--ease), filter 400ms var(--ease);
+}
+.aivy-search-artist-hero:hover .aivy-search-artist-hero-bg{
+  transform: scale(1.06);
+  filter: saturate(1.2) brightness(.74);
+}
+.aivy-search-artist-hero-scrim{
+  position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(8,8,10,.88) 0%, rgba(8,8,10,.68) 52%, rgba(8,8,10,.38) 100%),
+    linear-gradient(180deg, rgba(8,8,10,.20) 0%, rgba(8,8,10,.84) 100%);
+}
+.aivy-search-artist-hero-body{
+  position: relative; z-index: 2;
+  display: flex; align-items: center; gap: 24px;
+  padding: 26px 28px; color: #fff;
+}
+.aivy-search-artist-hero-avatar{
+  width: 116px; height: 116px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,.28);
+  background: var(--bg-elev-3);
+  box-shadow: 0 14px 32px rgba(0,0,0,.42);
+}
+.aivy-search-artist-hero-avatar :is(img, svg){
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50% !important;
+}
+.aivy-search-artist-hero-info{
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;
+}
+.aivy-search-artist-hero-kicker{
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(255,255,255,.76);
+}
+.aivy-search-artist-hero-name{
+  font-family: var(--font-display); font-size: clamp(22px, 3vw, 32px);
+  font-weight: 800; line-height: 1.12; letter-spacing: -.02em; color: #fff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.aivy-search-artist-hero-audience{
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.8);
+}
+.aivy-search-artist-hero-tags{
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;
+}
+.aivy-search-artist-tag{
+  font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.14); color: rgba(255,255,255,.92);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.aivy-search-artist-hero-bio{
+  margin: 4px 0 0; font-size: 13px; line-height: 1.5;
+  color: rgba(255,255,255,.78); max-width: 68ch;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.aivy-search-artist-hero-actions{
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px;
+}
+.aivy-search-artist-btn{
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 38px; padding: 0 18px; border-radius: 999px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  background: rgba(255,255,255,.14); color: #fff;
+  border: 1px solid rgba(255,255,255,.22);
+  transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.aivy-search-artist-btn:hover{ background: rgba(255,255,255,.24); transform: scale(1.03); }
+.aivy-search-artist-btn.primary{
+  background: #fff; color: #000; border-color: transparent;
+}
+.aivy-search-artist-btn.primary:hover{ background: #f0f0f0; }
+.aivy-search-artist-btn.active{
+  background: rgba(255,255,255,.26); border-color: rgba(255,255,255,.5);
+}
+.aivy-search-artist-btn.ghost{
+  background: transparent; border-color: rgba(255,255,255,.18); color: rgba(255,255,255,.9);
+}
+@media (max-width: 640px){
+  .aivy-search-artist-hero-body{
+    flex-direction: column; align-items: flex-start; gap: 14px; padding: 18px;
+  }
+  .aivy-search-artist-hero-avatar{ width: 84px; height: 84px; }
+  .aivy-search-artist-hero-name{ font-size: 22px; white-space: normal; }
+}

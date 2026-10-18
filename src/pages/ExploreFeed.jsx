@@ -163,7 +163,10 @@ function ExploreCoverCard({ track, list }) {
       {track.cover && <span className="bg" style={{ backgroundImage: `url(${JSON.stringify(track.cover)})` }} />}
       <span className="shade" />
       <span className="play" aria-hidden="true">{isCurrent && isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: 2 }} />}</span>
-      <span className="t">{track.title}</span>
+      <span className="t">
+        {track.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+        {track.title}
+      </span>
       <span className="a">{artistNames(track) || "\u2014"}</span>
       <button type="button" className="more" onClick={openMenu} aria-label={t("menuMore")}>
         <MoreHorizontal size={18} />

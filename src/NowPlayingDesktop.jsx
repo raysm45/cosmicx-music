@@ -677,7 +677,13 @@ function ControlsPanel({ track, tx, onClose, onOpenLyrics }) {
 
       <div className="npd-titlerow">
         <div className="npd-titles">
-          <MarqueeText as="div" className="npd-title" text={track.title} always />
+          <MarqueeText
+            as="div"
+            className="npd-title"
+            text={track.title}
+            prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+            always
+          />
           <button type="button" className="npd-artist" onClick={goArtist}><MarqueeText as="span" text={track.artist?.name || ""} always /></button>
         </div>
         <div className="npd-actions">

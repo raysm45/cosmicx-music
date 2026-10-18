@@ -110,19 +110,22 @@ function AmSongRow({ track, index, list }) {
     </div>
   );
 }
-function AmTile({ cover, seed, title, sub, onClick, onPlay, variant = "square" }) {
+function AmTile({ cover, seed, title, sub, explicit = false, onClick, onPlay, variant = "square" }) {
   return (
     <div className={`aivy-am-tile is-${variant}`} onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => { if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); } }}>
       <div className="art">
-        <SmartCover src={cover} seed={seed} size={240} radius={0} style={{ width: "100%", height: "100%" }} />
+        <SmartCover src={cover} seed={seed} size={280} radius={0} style={{ width: "100%", height: "100%" }} />
         {onPlay && (
           <button className="tile-play" onClick={(e) => { e.stopPropagation(); onPlay(); }} aria-label="Play">
             <Play size={15} fill="currentColor" />
           </button>
         )}
       </div>
-      <div className="t">{title}</div>
+      <div className="t">
+        {explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+        {title}
+      </div>
       {sub ? <div className="s">{sub}</div> : null}
     </div>
   );
@@ -274,6 +277,7 @@ export function ArtistPage() {
       artists: v.artist ? [v.artist] : undefined,
       cover: v.cover || v.thumbnail,
       duration: v.duration || null,
+      explicit: !!v.explicit,
     });
   }, [playSingle, artist]);
 
@@ -291,7 +295,7 @@ export function ArtistPage() {
   const showHeroVideo = heroVideoUrl && !videoBroken;
   const heroLogoUrl = heroInfo?.customName?.url ? Api.appleMusicVideoUrl(heroInfo.customName.url) : null;
   const showLogo = heroLogoUrl && !logoBroken;
-  const hasAbout = !!(artist.bio || artist.tags?.length || artist.listeners);
+  const hasAbout = !!(artist.bio || artist.tags?.length || artist.listeners || artist.audience);
 
   return (
     <div ref={pageRef} className="aivy-view-enter aivy-am-page">
@@ -381,7 +385,10 @@ export function ArtistPage() {
                     {formatReleaseDate(latest.releaseDate, settings.language) && (
                       <div className="date">{formatReleaseDate(latest.releaseDate, settings.language)}</div>
                     )}
-                    <div className="title">{latest.title}</div>
+                    <div className="title">
+                      {latest.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+                      {latest.title}
+                    </div>
                     <div className="sub">
                       {albumKindLabel(latest, t)}
                       {latest.trackCount ? ` \u00b7 ${latest.trackCount} ${t("trackCountLabel")}` : ""}
@@ -412,6 +419,7 @@ export function ArtistPage() {
                     cover={v.thumbnail || v.cover}
                     seed={"mv" + (v.id || v.title)}
                     title={v.title}
+                    explicit={!!v.explicit}
                     sub={[v.views, releaseYear(v.releaseDate || v.year)].filter(Boolean).join(" \u00b7 ")}
                     onClick={() => openMusicVideo(v)}
                     onPlay={() => openMusicVideo(v)}
@@ -431,7 +439,8 @@ export function ArtistPage() {
                     cover={a.cover}
                     seed={"album" + a.id + a.title}
                     title={a.title}
-                    sub={releaseYear(a.releaseDate)}
+                    explicit={!!a.explicit}
+                    sub={[albumKindLabel(a, t), releaseYear(a.releaseDate)].filter(Boolean).join(" \u00b7 ")}
                     onClick={() => navigate("album", { params: { id: a.id } })}
                     onPlay={() => playAlbum(a.id)}
                   />
@@ -469,6 +478,7 @@ export function ArtistPage() {
                     cover={a.image}
                     seed={"artist" + a.id + a.name}
                     title={a.name}
+                    sub={a.audience || ""}
                     onClick={() => navigate("artist", { params: { id: a.id } })}
                   />
                 ))}
@@ -489,6 +499,8 @@ export function ArtistPage() {
               <div className="listeners">
                 {artist.listeners.toLocaleString(settings.language === "en" ? "en-US" : "id-ID")} {t("listenersMonthly")}
               </div>
+            ) : artist.audience ? (
+              <div className="listeners">{artist.audience}</div>
             ) : null}
             {artist.tags?.length > 0 && (
               <div className="aivy-tagrow" style={{ padding: "12px 0 0" }}>
@@ -515,6 +527,7 @@ export function AlbumPage() {
   const { params } = useRouter();
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [artColor, setArtColor] = useState(null);
   const { playList, savedAlbumIds, toggleSaveAlbum } = usePlayer();
   const { navigate } = useRouter();
   const { t, settings } = useUI();
@@ -523,6 +536,7 @@ export function AlbumPage() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setArtColor(null);
     document.getElementById("aivy-content-scroll")?.scrollTo({ top: 0 });
     Api.album(params.id).then((res) => { if (alive) { setAlbum(res); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -540,7 +554,15 @@ export function AlbumPage() {
     });
   }, [album, params.id]);
 
-  const albumTracks = useMemo(() => (filterExplicit(album?.tracks, settings) || []).map((tr) => (album?.cover ? { ...tr, cover: album.cover } : tr)), [album, settings]);
+  const albumCover = album?.cover || album?.tracks?.find((tr) => tr?.cover)?.cover || null;
+  const albumTracks = useMemo(
+    () => (filterExplicit(album?.tracks, settings) || []).map((tr) => ({
+      ...tr,
+      cover: tr.cover || albumCover,
+      album: tr.album || (album ? { id: album.id, title: album.title, cover: albumCover } : null),
+    })),
+    [album, albumCover, settings]
+  );
   const totalMin = Math.round(albumTracks.reduce((s, tr) => s + (tr.duration || 0), 0) / 60);
   const [displayTracks, setDisplayTracks] = useState(albumTracks);
 
@@ -548,12 +570,22 @@ export function AlbumPage() {
     setDisplayTracks(localShuffle ? shuffleArray(albumTracks) : albumTracks);
   }, [albumTracks, localShuffle]);
 
-  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!album, tint: null });
+  const tintFromCover = useArtworkTint(albumCover);
+  const tint = useMemo(() => {
+    if (artColor) {
+      const derived = tintFromHex(artColor);
+      if (derived) return derived;
+    }
+    return tintFromCover;
+  }, [artColor, tintFromCover]);
+
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!album, tint });
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   if (loading) return <div className="aivy-am-fallback"><SkeletonHeroPage rows={7} /></div>;
   if (!album) return <div className="aivy-am-fallback"><ViewNotFound label={t("albumLabel")} /></div>;
   const albumSaved = savedAlbumIds.has(String(album.id));
+  const isAlbumExplicit = !!(album.explicit || album?.tracks?.some((tr) => tr?.explicit));
 
   return (
     <div ref={pageRef} className="aivy-view-enter aivy-am-page is-cover-page">
@@ -564,18 +596,22 @@ export function AlbumPage() {
         media={(
           <>
             <div className="aivy-am-cover-bg" aria-hidden="true">
-              <SmartCover src={album.cover} seed={"album-bg" + album.id + album.title} size={800} radius={0} style={{ width: "100%", height: "100%" }} />
+              <SmartCover src={albumCover} seed={"album-bg" + album.id + album.title} size={800} radius={0} style={{ width: "100%", height: "100%" }} />
             </div>
             <AnimatedCover
-              src={album.cover} seed={"album-bg" + album.id + album.title} size={800} radius={0}
+              src={albumCover} seed={"album-bg" + album.id + album.title} size={800} radius={0}
               song={album.title} artist={album.artist?.name}
               animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+              onColor={setArtColor}
             />
           </>
         )}
       >
-        <div className="aivy-am-kicker">{t("albumLabel")}</div>
-        <h1 className="aivy-am-name">{album.title}</h1>
+        <div className="aivy-am-kicker">{albumKindLabel(album, t)}</div>
+        <h1 className="aivy-am-name">
+          {isAlbumExplicit && <span className="aivy-explicit-badge is-hero" title="Explicit">E</span>}
+          {album.title}
+        </h1>
         <div className="aivy-am-sub">
           {album.artist?.name && (
             <span

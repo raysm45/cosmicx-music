@@ -359,7 +359,7 @@ function TrackMenuSheet({ menu, onClose }) {
         <div className="aivy-trackmenu-head">
           <span className="cover"><SmartCover src={track.cover} seed={track.id + track.title} size={96} radius={6} style={{ width: "100%", height: "100%" }} /></span>
           <div className="txt">
-            <div className="t">{track.title}</div>
+            <div className="t">{track.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}{track.title}</div>
             <div className="a">{artistName || "\u2014"}</div>
           </div>
           <button className={`like ${isLiked ? "on" : ""}`} onClick={() => toggleLike(track)} aria-label={t("like")}>
@@ -779,7 +779,10 @@ function CardTrackBase({ track, list }) {
         <SmartCover src={track.cover} seed={track.id + track.title} size={140} radius={8} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
         <button className="aivy-card-play" onClick={handlePlay} aria-label="Putar">{isCurrent && isPlaying ? <Pause size={16} /> : <Play size={16} />}</button>
       </div>
-      <MarqueeText as="div" className="title" text={track.title} />
+      <MarqueeText
+        as="div" className="title" text={track.title}
+        prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+      />
       <div className="sub">{track.artist?.name}</div>
     </div>
   );
@@ -943,11 +946,14 @@ function CardAlbumBase({ album }) {
   return (
     <div className={`aivy-card ${compact ? "is-compact" : ""} ${blur.className}`} onClick={() => navigate("album", { params: { id: album.id } })} style={{ cursor: "pointer", ...blur.style }}>
       <div className="art-wrap">
-        <SmartCover src={album.cover} seed={"album" + album.id + album.title} size={compact ? 72 : 140} radius={compact ? 6 : 8} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
+        <SmartCover src={album.cover} seed={"album" + album.id + album.title} size={compact ? 96 : 220} radius={compact ? 6 : 8} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
         <button className="aivy-card-play" onClick={handlePlay} aria-label="Putar album"><Play size={compact ? 13 : 16} /></button>
       </div>
-      <div className="title">{album.title}</div>
-      {!compact && <div className="sub">{album.artist?.name}{album.releaseDate ? ` \u00b7 ${String(album.releaseDate).slice(0, 4)}` : ""}</div>}
+      <div className="title">
+        {album.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+        {album.title}
+      </div>
+      {!compact && <div className="sub">{album.artist?.name || album.artistLine || ""}{album.releaseDate ? ` \u00b7 ${String(album.releaseDate).slice(0, 4)}` : ""}</div>}
     </div>
   );
 }
@@ -967,7 +973,7 @@ function CardArtistBase({ artist }) {
         </div>
         <div className="row-meta">
           <div className="title">{artist.name}</div>
-          <div className="sub">{t("artistLabel")}</div>
+          <div className="sub">{artist.audience || t("artistLabel")}</div>
         </div>
       </div>
     );
@@ -975,10 +981,10 @@ function CardArtistBase({ artist }) {
   return (
     <div className={`aivy-card ${blur.className}`} onClick={() => navigate("artist", { params: { id: artist.id } })} style={{ cursor: "pointer", ...blur.style }}>
       <div className="art-wrap round">
-        <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={128} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
+        <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={180} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
       </div>
       <div className="title" style={{ textAlign: "center" }}>{artist.name}</div>
-      <div className="sub" style={{ textAlign: "center" }}>{t("artistLabel")}</div>
+      <div className="sub" style={{ textAlign: "center" }}>{artist.audience || t("artistLabel")}</div>
     </div>
   );
 }
@@ -1263,7 +1269,10 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
               <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={52} radius={settings.noRoundCover ? 0 : 8} />
             </span>
             <div className="meta">
-              <MarqueeText as="span" className="t" text={currentTrack.title} always />
+              <MarqueeText
+                as="span" className="t" text={currentTrack.title} always
+                prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+              />
               <MarqueeText
                 as="span" className="a" text={currentTrack.artist?.name || ""} always
                 onClick={() => currentTrack.artist?.id && navigate("artist", { params: { id: currentTrack.artist.id } })} style={{ cursor: "pointer" }}
@@ -1341,7 +1350,13 @@ export function MiniPlayer({ onExpand }) {
       <span key={`c-${currentTrack.id}`} className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
         <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={40} radius={settings.noRoundCover ? 0 : 6} />
       </span>
-      <div key={`m-${currentTrack.id}`} className="meta"><MarqueeText as="span" className="t" text={currentTrack.title} /><span className="a">{currentTrack.artist?.name}</span></div>
+      <div key={`m-${currentTrack.id}`} className="meta">
+        <MarqueeText
+          as="span" className="t" text={currentTrack.title}
+          prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        />
+        <span className="a">{currentTrack.artist?.name}</span>
+      </div>
       <button className="aivy-icon-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? t("pause") : t("play")}>
         <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
           {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" />}
@@ -1936,6 +1951,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                 <div className="npx-titles" ref={metaRef}>
                   <MarqueeText
                     as="div" className="t" text={currentTrack.title}
+                    prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
                     suffix={<>{isPreviewClip && <span className="badge">{t("preview30")}</span>}{formatLabel && <span className="badge badge-opus">{formatLabel}</span>}</>}
                   />
                   <div
@@ -2149,6 +2165,7 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
             <div className="aivy-optsheet-eyebrow">{t("nowPlaying")}</div>
             <MarqueeText
               as="div" className="t" text={track.title}
+              prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
               suffix={formatLabel ? <span className="badge badge-opus" style={{ marginLeft: 6 }}>{formatLabel}</span> : null}
             />
             <div className="a">{track.artist?.name || "\u2014"}</div>
@@ -2336,7 +2353,10 @@ export function TrackDetailSheet({ open, track, isPreviewClip, onClose }) {
             <SmartCover src={track.cover} seed={track.id + track.title} size={52} radius={10} style={{ width: 52, height: 52 }} />
             <div style={{ minWidth: 0 }}>
               <div className="eyebrow">{t("npDetail")}</div>
-              <MarqueeText as="div" className="ttl" text={track.title} />
+              <MarqueeText
+                as="div" className="ttl" text={track.title}
+                prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+              />
               <div className="sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.artist?.name || "\u2014"}</div>
             </div>
           </div>
@@ -2381,7 +2401,10 @@ export function AlwaysOnDisplay({ open, track, onClose, animated = false, reduce
           animated={animated && open} reduceMotion={reduceMotion} reloadToken={reloadToken}
         />
         <div className="aivy-aod-meta">
-          <MarqueeText as="div" className="t" text={track.title} />
+          <MarqueeText
+            as="div" className="t" text={track.title}
+            prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+          />
           <div className="a">{track.artist?.name || "\u2014"}</div>
         </div>
         <span className={`aivy-aod-dot ${isPlaying ? "is-playing" : ""}`} aria-hidden="true" />
@@ -2788,7 +2811,12 @@ export function QueueTrackMeta({ track }) {
     <div className="aivy-queue-meta">
       <SmartCover src={track.cover} seed={track.id + track.title} size={44} radius={6} style={{ width: 44, height: 44 }} />
       <div className="txt">
-        <MarqueeText as="span" className="t" text={track.title} />
+        <MarqueeText
+          as="span"
+          className="t"
+          text={track.title}
+          prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        />
         <span className="a">{track.artist?.name || "\u2014"}</span>
       </div>
     </div>
@@ -3009,7 +3037,13 @@ function NowPlayingPane() {
         song={currentTrack.title} artist={currentTrack.artist?.name}
         animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
       />
-      <MarqueeText as="div" className="t" text={currentTrack.title} always />
+      <MarqueeText
+        as="div"
+        className="t"
+        text={currentTrack.title}
+        prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        always
+      />
       <MarqueeText as="div" className="a" text={currentTrack.artist?.name || ""} always />
       {isPreviewClip && <div className="eyebrow" style={{ marginTop: 10 }}>{t("officialPreview")}</div>}
       <AboutArtistSection track={currentTrack} glass={isArtistView} />
@@ -3058,7 +3092,7 @@ export function RoomChat() {
 
   const sendSong = (r) => {
     sendChatMessage("", {
-      song: { videoId: r.videoId, title: r.title, artist: typeof r.artist === "string" ? r.artist : (r.artist?.name || null), cover: r.cover || r.thumbnail || null, duration: r.duration || null },
+      song: { videoId: r.videoId, title: r.title, artist: typeof r.artist === "string" ? r.artist : (r.artist?.name || null), cover: r.cover || r.thumbnail || null, duration: r.duration || null, explicit: !!r.explicit },
     });
     setSongQuery("");
     setSongResults([]);
@@ -3075,7 +3109,7 @@ export function RoomChat() {
 
   const confirmAdd = (m) => {
     const s = m.song;
-    addToQueueEnd({ id: s.videoId, videoId: s.videoId, title: s.title, artist: s.artist ? { name: s.artist } : null, cover: s.cover, duration: s.duration });
+    addToQueueEnd({ id: s.videoId, videoId: s.videoId, title: s.title, artist: s.artist ? { name: s.artist } : null, cover: s.cover, duration: s.duration, explicit: !!s.explicit });
     setConfirmSongId(null);
   };
 
@@ -3107,7 +3141,10 @@ export function RoomChat() {
                         <SmartCover src={m.song?.cover} seed={m.song?.videoId || m.id} size={96} radius={8} style={{ width: "100%", height: "100%" }} />
                       </span>
                       <span className="meta">
-                        <span className="t">{m.song?.title}</span>
+                        <span className="t">
+                          {m.song?.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+                          {m.song?.title}
+                        </span>
                         <span className="a">{m.song?.artist || "\u2014"}{sender}</span>
                         {queued && <span className="hint">✓ {t("queuedShort")}</span>}
                       </span>
@@ -3152,7 +3189,13 @@ export function RoomChat() {
           {songResults.map((r) => (
             <button key={r.videoId} type="button" className="aivy-song-panel-row" onClick={() => sendSong(r)}>
               <SmartCover src={r.thumbnail} seed={r.videoId} size={72} radius={5} style={{ width: 36, height: 36 }} />
-              <span className="meta"><span className="t">{r.title}</span><span className="a">{r.artist}</span></span>
+              <span className="meta">
+                <span className="t">
+                  {r.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+                  {r.title}
+                </span>
+                <span className="a">{r.artist}</span>
+              </span>
               <Plus size={15} />
             </button>
           ))}
@@ -3881,7 +3924,13 @@ function SidebarLyricsPanel() {
   return (
     <div className="aivy-sidelyrics">
       <div className="aivy-sidelyrics-head">
-        <MarqueeText as="div" className="t" text={currentTrack.title} always />
+        <MarqueeText
+          as="div"
+          className="t"
+          text={currentTrack.title}
+          prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+          always
+        />
         <MarqueeText as="div" className="a" text={currentTrack.artist?.name || ""} always />
       </div>
       <div className="aivy-sidelyrics-body">
@@ -4063,6 +4112,7 @@ export function LyricsOverlay() {
                 <div className="meta">
                   <MarqueeText
                     as="div" className="t" text={currentTrack.title}
+                    prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
                     suffix={isPreviewClip ? <span className="badge">{t("preview30")}</span> : null}
                   />
                   <div className="a">{currentTrack.artist?.name}</div>

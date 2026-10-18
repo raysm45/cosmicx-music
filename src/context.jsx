@@ -510,6 +510,7 @@ function normalizeTrack(raw) {
       artist: raw.artist || { name: "Perangkat saya" },
       album: null, cover: raw.cover || null,
       duration: raw.duration || null, preview: null,
+      explicit: false,
       source: "local", localUrl: raw.localUrl, fileExt: raw.fileExt || null,
     };
   }
@@ -517,15 +518,19 @@ function normalizeTrack(raw) {
     return {
       id: raw.videoId, videoId: raw.videoId, title: raw.title,
       artist: raw.artist ? (typeof raw.artist === "string" ? { name: raw.artist } : raw.artist) : null,
+      artists: raw.artists || null,
       album: raw.album || null, cover: raw.thumbnail || raw.cover || null,
-      duration: raw.duration || null, preview: null, source: "youtube",
+      duration: raw.duration || null, preview: null,
+      explicit: !!raw.explicit,
+      source: "youtube",
     };
   }
   return {
     id: String(raw.id), videoId: raw.videoId || null, title: raw.title,
-    artist: raw.artist || null, album: raw.album || null,
+    artist: raw.artist || null, artists: raw.artists || null, album: raw.album || null,
     cover: raw.cover || raw.image || raw.banner || null,
     duration: raw.duration || null, preview: raw.preview || null,
+    explicit: !!raw.explicit,
     trackPosition: raw.trackPosition, source: "deezer",
   };
 }
@@ -1226,7 +1231,7 @@ export function PlayerProvider({ children }) {
     if (shuffleOverride !== null && shuffleOverride !== shuffle) setShuffle(shuffleOverride);
     if (authUser && settings.historyEnabled !== false) {
       const t = list[clamp(startIndex, 0, list.length - 1)];
-      Api.addHistory(t.videoId || t.id, { title: t.title, artistName: t.artist?.name || null, artists: trackArtists(t), thumbnail: t.cover, albumId: t.album?.id || null, albumTitle: t.album?.title || null, duration: t.duration }).catch(() => {});
+      Api.addHistory(t.videoId || t.id, { title: t.title, artistName: t.artist?.name || null, artists: trackArtists(t), thumbnail: t.cover, albumId: t.album?.id || null, albumTitle: t.album?.title || null, duration: t.duration, explicit: !!t.explicit }).catch(() => {});
     }
   }, [inRoom, room, buildOrder, shuffle, authUser, settings.historyEnabled, resumeAudioCtx]);
 
@@ -1258,7 +1263,7 @@ export function PlayerProvider({ children }) {
     setPosInOrder(0);
     setIsPlaying(true);
     if (authUser && settings.historyEnabled !== false) {
-      Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration }).catch(() => {});
+      Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit }).catch(() => {});
     }
   }, [inRoom, room, queueList, order, authUser, settings.historyEnabled, resumeAudioCtx]);
 
@@ -1276,7 +1281,7 @@ export function PlayerProvider({ children }) {
     setIsPlaying(true);
     setPlaySource(source);
     if (authUser && settings.historyEnabled !== false) {
-      Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration }).catch(() => {});
+      Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit }).catch(() => {});
     }
 
     const similarArgs = track.source === "deezer"
@@ -1338,7 +1343,7 @@ export function PlayerProvider({ children }) {
     setPosInOrder((p) => p + 1);
     setIsPlaying(true);
     if (authUser && settings.historyEnabled !== false) {
-      Api.addHistory(nextTrack.videoId || nextTrack.id, { title: nextTrack.title, artistName: nextTrack.artist?.name || null, artists: trackArtists(nextTrack), thumbnail: nextTrack.cover, albumId: nextTrack.album?.id || null, albumTitle: nextTrack.album?.title || null, duration: nextTrack.duration }).catch(() => {});
+      Api.addHistory(nextTrack.videoId || nextTrack.id, { title: nextTrack.title, artistName: nextTrack.artist?.name || null, artists: trackArtists(nextTrack), thumbnail: nextTrack.cover, albumId: nextTrack.album?.id || null, albumTitle: nextTrack.album?.title || null, duration: nextTrack.duration, explicit: !!nextTrack.explicit }).catch(() => {});
     }
   }, [authUser, settings.historyEnabled]);
 
@@ -1487,7 +1492,7 @@ export function PlayerProvider({ children }) {
     setLiked((prev) => { const n = new Set(prev); willLike ? n.add(key) : n.delete(key); return n; });
     pushToast(`${willLike ? t("toastAddedLiked") : t("toastRemovedLiked")} — ${track.title}`);
     try {
-      if (willLike) await Api.like(key, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration });
+      if (willLike) await Api.like(key, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit });
       else await Api.unlike(key);
     } catch { pushToast(t("toastLikeFailed")); }
   }, [authUser, liked, pushToast, t]);
@@ -1662,6 +1667,7 @@ export function PlayerProvider({ children }) {
       album: s.album || null,
       cover: s.thumbnail,
       duration: s.duration,
+      explicit: !!s.explicit,
     }));
     setPlaylists((list) => {
       const exists = list.some((pl) => String(pl.id) === String(detail.id));
@@ -1677,7 +1683,7 @@ export function PlayerProvider({ children }) {
     setPlaylists((list) => list.map((pl) => (String(pl.id) === String(playlistId) && !pl.songs?.some((s) => String(s.videoId || s.id) === String(key))
       ? { ...pl, songs: [...(pl.songs || []), track] } : pl)));
     try {
-      await Api.addSong(playlistId, key, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration });
+      await Api.addSong(playlistId, key, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit });
       pushToast(t("toastAddedToPlaylist"));
     } catch { pushToast(t("toastAddToPlaylistFailed")); }
   }, [pushToast, t]);

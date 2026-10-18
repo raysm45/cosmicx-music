@@ -63,12 +63,16 @@ export const Api = {
     const mapped = songs.map((s) => ({
       ...s,
       artist: s.artist?.name ?? (typeof s.artist === "string" ? s.artist : null),
+      artistObj: typeof s.artist === "object" && s.artist ? s.artist : null,
       thumbnail: s.thumbnail ?? s.cover ?? null,
+      cover: s.cover ?? s.thumbnail ?? null,
+      explicit: !!s.explicit,
     }));
     mapped.nextCursor = Array.isArray(res) ? null : res?.nextCursor ?? null;
     mapped.artists = extras?.artists || [];
     mapped.albums = extras?.albums || [];
     mapped.videos = extras?.videos || [];
+    mapped.top = extras?.top || null;
     return mapped;
   },
   suggestLive: async (q, signal) => {

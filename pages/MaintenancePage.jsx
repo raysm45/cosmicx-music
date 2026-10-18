@@ -3,26 +3,26 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 const AUDIO_SRC = "/audio.mp3";
 
 const PALETTE = {
-  ink2: "var(--pm-outline, #14170D)",
-  moss: "var(--pm-moss, #8CA37C)",
-  mossStrong: "var(--pm-moss-strong, #ADC79C)",
-  mossDark: "var(--pm-moss-dark, #4B5A40)",
-  white: "#F4F1E4",
-  offwhite: "#E7E2D0",
-  berry: "var(--pm-berry, #C97B6B)",
-  berryStrong: "var(--pm-berry-strong, #DE9686)",
-  berryDark: "#8A4B3F",
-  gold: "var(--pm-gold, #D3B673)",
-  goldDark: "#B8925A",
-  wood: "#8A6A3C",
-  woodDark: "#5E4527",
-  metal: "#3C4136",
-  metalLight: "#5B6152",
-  screen: "#0E2A22",
-  screenGlow: "#7CD68C",
-  ledRed: "#E0645A",
-  sky: "#8FB6D9",
-  clay: "#B8734F",
+  ink2: "var(--pm-outline, #0D0D0D)",
+  accent: "var(--pm-accent, #9A9A9A)",
+  accentStrong: "var(--pm-accent-strong, #D6D6D6)",
+  accentDark: "var(--pm-accent-dark, #4A4A4A)",
+  white: "#F2F2F2",
+  offwhite: "#DCDCDC",
+  berry: "var(--pm-berry, #8A8A8A)",
+  berryStrong: "var(--pm-berry-strong, #B5B5B5)",
+  berryDark: "#5A5A5A",
+  gold: "var(--pm-gold, #C9C9C9)",
+  goldDark: "#8F8F8F",
+  wood: "#6E6E6E",
+  woodDark: "#484848",
+  metal: "#3A3A3A",
+  metalLight: "#585858",
+  screen: "#141414",
+  screenGlow: "#E6E6E6",
+  ledRed: "#BDBDBD",
+  sky: "#A8A8A8",
+  clay: "#7E7E7E",
 };
 
 function rectCells(x0, y0, w, h, color) {
@@ -112,7 +112,7 @@ function buildTV() {
     rectCells(2, 2, 18, 10, PALETTE.metal),
     rectCells(3, 3, 16, 8, PALETTE.screen),
   ];
-  const noiseColors = [PALETTE.mossStrong, PALETTE.white, PALETTE.screenGlow];
+  const noiseColors = [PALETTE.accentStrong, PALETTE.white, PALETTE.screenGlow];
   const noiseSeed = [
     [5, 4], [11, 5], [15, 5], [7, 7], [13, 8], [9, 9], [17, 6], [6, 9], [14, 4],
   ];
@@ -154,7 +154,7 @@ function buildComputerDesk() {
     rectCells(5, 2, 12, 7, PALETTE.metal),
     rectCells(6, 3, 10, 5, PALETTE.screen),
     rectCells(7, 4, 3, 1, PALETTE.screenGlow),
-    rectCells(7, 6, 6, 1, PALETTE.mossStrong),
+    rectCells(7, 6, 6, 1, PALETTE.accentStrong),
     rectCells(11, 5, 2, 1, PALETTE.screenGlow),
     rectCells(6, 11, 8, 2, PALETTE.metalLight),
     rectCells(7, 17, 8, 3, PALETTE.berry),
@@ -192,10 +192,10 @@ function buildSofa() {
 
 function buildPlantPot() {
   const layers = [
-    rectCells(4, 2, 4, 3, PALETTE.moss),
-    rectCells(1, 4, 4, 3, PALETTE.mossStrong),
-    rectCells(7, 3, 3, 4, PALETTE.moss),
-    rectCells(3, 1, 4, 3, PALETTE.mossStrong),
+    rectCells(4, 2, 4, 3, PALETTE.accent),
+    rectCells(1, 4, 4, 3, PALETTE.accentStrong),
+    rectCells(7, 3, 3, 4, PALETTE.accent),
+    rectCells(3, 1, 4, 3, PALETTE.accentStrong),
     rectCells(2, 8, 8, 6, PALETTE.ink2),
     rectCells(3, 9, 6, 4, PALETTE.clay),
     rectCells(3, 9, 6, 1, PALETTE.berryStrong),
@@ -205,7 +205,7 @@ function buildPlantPot() {
 
 function buildRug() {
   const layers = [
-    rectCells(0, 0, 30, 18, PALETTE.mossDark),
+    rectCells(0, 0, 30, 18, PALETTE.accentDark),
     rectCells(0, 0, 30, 1, PALETTE.gold),
     rectCells(0, 17, 30, 1, PALETTE.gold),
     rectCells(0, 0, 1, 18, PALETTE.gold),
@@ -245,8 +245,8 @@ function buildBody() {
   const cx = 9, cy = 8, rx = 7.2, ry = 6.4;
   const layers = [
     ellipseCells(cx, cy, rx + 0.7, ry + 0.7, PALETTE.ink2),
-    ellipseCells(cx, cy, rx, ry, PALETTE.moss),
-    ellipseCells(cx, cy + 1.6, rx - 2.6, ry - 2.6, PALETTE.mossStrong),
+    ellipseCells(cx, cy, rx, ry, PALETTE.accent),
+    ellipseCells(cx, cy + 1.6, rx - 2.6, ry - 2.6, PALETTE.accentStrong),
   ];
   return { cells: paint(...layers), cols: 18, rows: 15 };
 }
@@ -254,7 +254,7 @@ function buildBody() {
 function buildFoot() {
   const layers = [
     ellipseCells(3, 2, 3, 2, PALETTE.ink2),
-    ellipseCells(3, 2, 2.2, 1.4, PALETTE.mossDark),
+    ellipseCells(3, 2, 2.2, 1.4, PALETTE.accentDark),
   ];
   return { cells: paint(...layers), cols: 6, rows: 4 };
 }
@@ -262,7 +262,7 @@ function buildFoot() {
 function buildArm() {
   const layers = [
     ellipseCells(3, 4, 2.5, 3.8, PALETTE.ink2),
-    ellipseCells(3, 4, 1.8, 3.1, PALETTE.moss),
+    ellipseCells(3, 4, 1.8, 3.1, PALETTE.accent),
   ];
   return { cells: paint(...layers), cols: 6, rows: 8 };
 }
@@ -271,11 +271,11 @@ function buildHead(expression) {
   const cx = 9, cy = 9, rx = 8, ry = 7.2;
   const layers = [
     ellipseCells(cx, cy, rx + 0.7, ry + 0.7, PALETTE.ink2),
-    ellipseCells(cx, cy, rx, ry, PALETTE.moss),
-    ellipseCells(cx, cy + 1.8, rx - 2.4, ry - 3, PALETTE.mossStrong),
-    rectCells(cx - 1, 0, 2, 3, PALETTE.mossStrong),
-    rectCells(cx - 3, 1, 1, 1, PALETTE.moss),
-    rectCells(cx + 2, 1, 1, 1, PALETTE.moss),
+    ellipseCells(cx, cy, rx, ry, PALETTE.accent),
+    ellipseCells(cx, cy + 1.8, rx - 2.4, ry - 3, PALETTE.accentStrong),
+    rectCells(cx - 1, 0, 2, 3, PALETTE.accentStrong),
+    rectCells(cx - 3, 1, 1, 1, PALETTE.accent),
+    rectCells(cx + 2, 1, 1, 1, PALETTE.accent),
   ];
 
   if (expression === "sleep") {
@@ -848,8 +848,8 @@ export function MaintenancePage({ progress: progressProp } = {}) {
 const CSS = `
 .pm-root{
   width:100vw; height:100dvh;
-  background: var(--pm-bg, #12140F);
-  color: var(--pm-ink, #ECE8D9);
+  background: var(--pm-bg, #000000);
+  color: var(--pm-ink, #F2F2F2);
   font-family: var(--pm-font, "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif);
   margin:0; padding:0;
   overflow:hidden;
@@ -862,37 +862,37 @@ const CSS = `
   padding: 18px 22px; pointer-events:none;
 }
 .pm-topbar > *{ pointer-events:auto; }
-.pm-status-dot{ flex-shrink:0; width:7px; height:7px; border-radius:50%; background: var(--pm-gold,#D3B673); animation: pm-pulse 1.8s ease-out infinite; margin-top:3px; }
+.pm-status-dot{ flex-shrink:0; width:7px; height:7px; border-radius:50%; background: var(--pm-gold,#C9C9C9); animation: pm-pulse 1.8s ease-out infinite; margin-top:3px; }
 .pm-music-btn{
   display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600;
-  color: var(--pm-ink-dim,#9BA08A); background:rgba(28,31,22,.85); border:1px solid var(--pm-line,#2A2E20);
+  color: var(--pm-ink-dim,#A3A3A3); background:rgba(20,20,20,.85); border:1px solid var(--pm-line,#262626);
   padding:7px 14px; border-radius:999px; cursor:pointer; transition: color .15s ease, background .15s ease;
   backdrop-filter:blur(6px); margin-left:auto;
 }
-.pm-music-btn:hover{ color: var(--pm-ink,#ECE8D9); background:#232619; }
-.pm-music-icon{ width:8px; height:8px; border-radius:50%; background: var(--pm-moss-strong,#ADC79C); }
+.pm-music-btn:hover{ color: var(--pm-ink,#F2F2F2); background:#1F1F1F; }
+.pm-music-icon{ width:8px; height:8px; border-radius:50%; background: var(--pm-accent-strong,#D6D6D6); }
 .pm-music-btn.is-playing .pm-music-icon{ animation: pm-pulse 1.4s ease-out infinite; }
 
 .pm-progress-panel{
   position:absolute; left:20px; bottom:20px; z-index:30;
   display:flex; align-items:flex-start; gap:10px;
-  background:rgba(21,23,15,.8); backdrop-filter:blur(8px);
-  border:1px solid var(--pm-line,#2A2E20); border-radius:16px;
+  background:rgba(21,21,21,.8); backdrop-filter:blur(8px);
+  border:1px solid var(--pm-line,#262626); border-radius:16px;
   padding:12px 16px; max-width:250px;
   box-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
 .pm-progress-info{ display:flex; flex-direction:column; gap:5px; min-width:0; }
-.pm-progress-label{ font-size:12.5px; font-weight:700; color: var(--pm-ink,#ECE8D9); white-space:nowrap; }
+.pm-progress-label{ font-size:12.5px; font-weight:700; color: var(--pm-ink,#F2F2F2); white-space:nowrap; }
 .pm-progress-track{
   width:150px; height:6px; border-radius:999px; overflow:hidden;
-  background: var(--pm-line,#2A2E20);
+  background: var(--pm-line,#262626);
 }
 .pm-progress-fill{
   display:block; height:100%; border-radius:999px;
-  background: linear-gradient(90deg, var(--pm-moss,#8CA37C), var(--pm-moss-strong,#ADC79C));
+  background: linear-gradient(90deg, var(--pm-accent,#9A9A9A), var(--pm-accent-strong,#D6D6D6));
   width:0%; transition: width 1.1s cubic-bezier(.22,.61,.36,1);
 }
-.pm-progress-pct{ font-size:11px; font-weight:600; color: var(--pm-ink-dim,#9BA08A); font-family: var(--pm-font-mono,"JetBrains Mono",monospace); }
+.pm-progress-pct{ font-size:11px; font-weight:600; color: var(--pm-ink-dim,#A3A3A3); font-family: var(--pm-font-mono, var(--font-body, sans-serif)); }
 
 .pm-scene{
   position:relative; width:100vw; height:100dvh;
@@ -901,16 +901,16 @@ const CSS = `
 }
 .pm-wall{
   position:absolute; inset:0 0 68% 0;
-  background: linear-gradient(180deg, #2A3120 0%, #3C4530 62%, #4B5A40 100%);
+  background: linear-gradient(180deg, #2A2A2A 0%, #3C3C3C 62%, #4B4B4B 100%);
 }
 .pm-wall::before{ content:""; position:absolute; inset:0; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 42px); }
 .pm-wall::after{
   content:""; position:absolute; left:0; right:0; bottom:0; height:16px;
   background: linear-gradient(180deg, #8A6A3C 0%, #5E4527 100%);
-  border-top:2px solid var(--pm-outline,#14170D);
+  border-top:2px solid var(--pm-outline,#141414);
   box-shadow: 0 4px 10px rgba(0,0,0,.4);
 }
-.pm-floor{ position:absolute; inset:32% 0 0 0; background: repeating-linear-gradient(0deg, #262a1c 0 34px, #22261a 34px 68px); border-top:3px solid var(--pm-line,#2A2E20); }
+.pm-floor{ position:absolute; inset:32% 0 0 0; background: repeating-linear-gradient(0deg, #1B1B1B 0 34px, #161616 34px 68px); border-top:3px solid var(--pm-line,#262626); }
 .pm-floor::after{ content:""; position:absolute; inset:0; background-image: repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 1px, transparent 1px 68px); }
 
 .pm-item{ position:absolute; pointer-events:none; filter: drop-shadow(0 6px 8px rgba(0,0,0,.35)); }
@@ -929,24 +929,24 @@ const CSS = `
 .pm-item.is-target .pm-sprite{ filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
 .pm-item.is-target::before{
   content:""; position:absolute; inset:-10px; border-radius:14px;
-  border:2px dashed var(--pm-gold,#D3B673); animation: pm-target-pulse 1s ease-in-out infinite;
+  border:2px dashed var(--pm-gold,#C9C9C9); animation: pm-target-pulse 1s ease-in-out infinite;
 }
 .pm-target-label{
   position:absolute; left:50%; top:-26px; transform:translateX(-50%);
   font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
-  color: var(--pm-gold,#D3B673); background:#191c14; border:1px solid var(--pm-line,#2A2E20);
+  color: var(--pm-gold,#C9C9C9); background:#141414; border:1px solid var(--pm-line,#262626);
   padding:3px 9px; border-radius:999px; white-space:nowrap;
 }
 
 .pm-tv-label{
   position:absolute; left:16%; top:22%; width:60%;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-family: var(--pm-font-mono,"JetBrains Mono",monospace);
-  font-size:7.5px; font-weight:700; letter-spacing:.05em; color:#DDF2CE;
-  text-shadow: 0 0 6px rgba(124,214,140,.65);
+  font-family: var(--pm-font-mono, var(--font-body, sans-serif));
+  font-size:7.5px; font-weight:700; letter-spacing:.05em; color:#F2F2F2;
+  text-shadow: 0 0 6px rgba(255,255,255,.55);
   animation: pm-glitch 3.6s steps(1) infinite;
 }
-.pm-tv-cursor{ width:5px; height:5px; background:#DDF2CE; margin-top:2px; animation: pm-blink 1s steps(1) infinite; }
+.pm-tv-cursor{ width:5px; height:5px; background:#F2F2F2; margin-top:2px; animation: pm-blink 1s steps(1) infinite; }
 
 .pm-wind{ position:absolute; left:100%; top:6%; width:220px; height:60px; pointer-events:none; }
 .pm-wind-streak{
@@ -964,7 +964,7 @@ const CSS = `
 .pm-smoke{ position:absolute; left:38%; top:-6%; width:40px; height:120px; pointer-events:none; }
 .pm-smoke-puff{
   position:absolute; left:0; bottom:0; width:7px; height:7px; border-radius:2px;
-  background: rgba(185,188,176,.55); opacity:0;
+  background: rgba(185,185,185,.55); opacity:0;
   animation: pm-smoke-rise 4.6s ease-in infinite;
 }
 .pm-smoke-puff-1{ left:5px; }
@@ -985,11 +985,11 @@ const CSS = `
 
 .pm-led-flicker{ animation: pm-led-flicker 3.8s steps(1) infinite; }
 @keyframes pm-led-flicker{
-  0%, 55%{ fill:#7CD68C; }
+  0%, 55%{ fill:#E6E6E6; }
   60%{ fill:#F4F1E4; }
   64%{ fill:#E0645A; }
   68%{ fill:#F4F1E4; }
-  72%, 100%{ fill:#7CD68C; }
+  72%, 100%{ fill:#E6E6E6; }
 }
 
 .pm-char{
@@ -1033,8 +1033,8 @@ const CSS = `
 
 .pm-zzz{
   position:absolute; top:-14px; right:-6px; display:flex; gap:1px;
-  font-family: var(--pm-font-mono,"JetBrains Mono",monospace); font-weight:700; font-size:10px;
-  color: var(--pm-moss-strong,#ADC79C); transform: rotate(-90deg);
+  font-family: var(--pm-font-mono, var(--font-body, sans-serif)); font-weight:700; font-size:10px;
+  color: var(--pm-accent-strong,#D6D6D6); transform: rotate(-90deg);
 }
 .pm-zzz span{ display:inline-block; animation: pm-zzz-float 2.4s ease-in infinite; opacity:0; }
 .pm-zzz span:nth-child(2){ animation-delay:.5s; }
@@ -1047,17 +1047,17 @@ const CSS = `
 
 .pm-bubble{
   position:absolute; transform: translate(-50%, -168%);
-  background:#191c14; border:1px solid var(--pm-line,#2A2E20); color: var(--pm-ink,#ECE8D9);
+  background:#141414; border:1px solid var(--pm-line,#262626); color: var(--pm-ink,#F2F2F2);
   font-size:11.5px; font-weight:600; white-space:nowrap; padding:5px 11px; border-radius:999px;
   box-shadow: 0 6px 18px rgba(0,0,0,.32); pointer-events:none; animation: pm-bubble-in .16s ease;
   z-index: 1000;
 }
 .pm-bubble::after{
   content:""; position:absolute; left:50%; bottom:-5px; transform: translateX(-50%) rotate(45deg);
-  width:8px; height:8px; background:#191c14; border-right:1px solid var(--pm-line,#2A2E20); border-bottom:1px solid var(--pm-line,#2A2E20);
+  width:8px; height:8px; background:#141414; border-right:1px solid var(--pm-line,#262626); border-bottom:1px solid var(--pm-line,#262626);
 }
 .pm-bubble.is-sad{ color:#B9D3EA; }
-.pm-bubble.is-happy{ color: var(--pm-moss-strong,#ADC79C); }
+.pm-bubble.is-happy{ color: var(--pm-accent-strong,#D6D6D6); }
 
 @keyframes pm-pulse{
   0%{ box-shadow: 0 0 0 0 rgba(211,182,115,.55); } 70%{ box-shadow: 0 0 0 8px rgba(211,182,115,0); } 100%{ box-shadow:0 0 0 0 rgba(211,182,115,0); }

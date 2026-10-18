@@ -17,6 +17,7 @@ function normalizeLikedRows(rows) {
     album: r.album || null,
     cover: r.thumbnail,
     duration: r.duration,
+    explicit: !!r.explicit,
   }));
 }
 

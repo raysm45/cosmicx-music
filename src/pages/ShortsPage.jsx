@@ -93,7 +93,12 @@ function ShortCard({ track, muted, onToggleMute }) {
 
       <div className="aivy-short-overlay">
         <div className="aivy-short-meta">
-          <MarqueeText as="div" className="t" text={track.title} />
+          <MarqueeText
+            as="div"
+            className="t"
+            text={track.title}
+            prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+          />
           <div className="a" onClick={() => track.artist?.id && navigate("artist", { params: { id: track.artist.id } })}>
             {track.artist?.name || "\u2014"}
           </div>

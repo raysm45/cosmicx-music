@@ -1,9 +1,10 @@
 import React, { useMemo, useRef } from "react";
-import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc } from "lucide-react";
+import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
-import { TrackRow, ViewNotFound, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur } from "../components.jsx";
+import { TrackRow, ViewNotFound, ViewLoading, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur, shareLink } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
+import { useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 import { Api } from "../lib/api.js";
 
 function normalizeLikedRows(rows) {
@@ -16,6 +17,7 @@ function normalizeLikedRows(rows) {
     album: r.album || null,
     cover: r.thumbnail,
     duration: r.duration,
+    explicit: !!r.explicit,
   }));
 }
 
@@ -94,6 +96,65 @@ function LibArtistCard({ artist }) {
   );
 }
 
+function LibTabs({ tabs, value, onChange }) {
+  const trackRef = useRef(null);
+  const btnRefs = useRef({});
+  const [pos, setPos] = React.useState({ x: 0, w: 0 });
+  const [ready, setReady] = React.useState(false);
+  const sig = tabs.map((tb) => `${tb.id}:${tb.label}`).join("|");
+
+  const measure = React.useCallback(() => {
+    const el = btnRefs.current[value];
+    if (!el) return;
+    setPos((p) => (p.x === el.offsetLeft && p.w === el.offsetWidth ? p : { x: el.offsetLeft, w: el.offsetWidth }));
+  }, [value]);
+
+  React.useLayoutEffect(() => {
+    measure();
+    const track = trackRef.current;
+    if (!track || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(track);
+    Object.values(btnRefs.current).forEach((b) => b && ro.observe(b));
+    return () => ro.disconnect();
+  }, [measure, sig]);
+  React.useEffect(() => {
+    const id = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <div className="aivy-lib-tabs-wrap">
+      <div
+        ref={trackRef}
+        className="aivy-lib-tabs"
+        role="tablist"
+        data-ready={ready ? "1" : "0"}
+        style={{ "--ind-x": `${pos.x}px`, "--ind-w": `${pos.w}px` }}
+      >
+        <span className="aivy-lib-tabs-ind" aria-hidden="true" />
+        {tabs.map((tb) => {
+          const Icon = tb.Icon;
+          const active = value === tb.id;
+          return (
+            <button
+              key={tb.id}
+              ref={(node) => { btnRefs.current[tb.id] = node; }}
+              role="tab"
+              aria-selected={active}
+              className={`aivy-lib-tab ${active ? "active" : ""}`}
+              onClick={() => onChange(tb.id)}
+            >
+              {Icon && <span className="ic"><Icon size={15} /></span>}
+              <span className="lb">{tb.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function LibraryPage() {
   const { playlists, liked, localTracks, playList, setPlaylistDetail, followedArtists, savedAlbums } = usePlayer();
   const { t, authUser } = useUI();
@@ -146,11 +207,11 @@ export function LibraryPage() {
   const hasAnything = allSongs.length > 0 || playlists.length > 0;
 
   const tabs = [
-    { id: "all", label: "Semua" },
-    { id: "songs", label: "Lagu" },
-    { id: "artists", label: t("artistLabel") },
-    { id: "albums", label: t("albumLabel") },
-    { id: "playlists", label: t("playlistLabel") },
+    { id: "all", label: "Semua", Icon: LayoutGrid },
+    { id: "songs", label: "Lagu", Icon: Music2 },
+    { id: "artists", label: t("artistLabel"), Icon: Mic2 },
+    { id: "albums", label: t("albumLabel"), Icon: Disc },
+    { id: "playlists", label: t("playlistLabel"), Icon: ListMusic },
   ];
 
   const jumpTiles = [
@@ -298,11 +359,7 @@ export function LibraryPage() {
           <Link to="libraryImport" className="aivy-btn-ghost"><Youtube size={15} /> Import dari YouTube</Link>
         </div>
       </div>
-      <div className="aivy-lib-tabs" role="tablist">
-        {tabs.map((tb) => (
-          <button key={tb.id} role="tab" aria-selected={tab === tb.id} className={`aivy-chip ${tab === tb.id ? "active" : ""}`} onClick={() => setTab(tb.id)}>{tb.label}</button>
-        ))}
-      </div>
+      <LibTabs tabs={tabs} value={tab} onChange={setTab} />
       {tab === "all" && renderAll()}
       {tab === "songs" && renderSongs()}
       {tab === "artists" && renderArtists()}
@@ -498,7 +555,22 @@ export function PlaylistPage() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const searchRef = React.useRef(null);
-  const pl = playlists.find((p) => String(p.id) === String(params.id));
+  const isRemote = !!params.id && !/^\d+$/.test(String(params.id));
+  const [remote, setRemote] = React.useState({ id: null, data: null, status: "idle" });
+  React.useEffect(() => {
+    if (!isRemote) return undefined;
+    let alive = true;
+    setRemote({ id: params.id, data: null, status: "loading" });
+    Api.ytPlaylist(params.id)
+      .then((data) => { if (alive) setRemote({ id: params.id, data, status: "ok" }); })
+      .catch(() => { if (alive) setRemote({ id: params.id, data: null, status: "error" }); });
+    return () => { alive = false; };
+  }, [params.id, isRemote]);
+  const remoteReady = isRemote && remote.id === params.id;
+  const remoteLoading = isRemote && (!remoteReady || remote.status === "loading");
+  const pl = isRemote
+    ? (remoteReady ? remote.data : null)
+    : playlists.find((p) => String(p.id) === String(params.id));
   const [displaySongs, setDisplaySongs] = React.useState(pl?.songs || []);
   const [localShuffle, setLocalShuffle] = React.useState(false);
 
@@ -507,7 +579,7 @@ export function PlaylistPage() {
   }, [pl?.songs, localShuffle]);
 
   React.useEffect(() => {
-    if (!params.id) return;
+    if (!params.id || isRemote) return;
     import("../lib/api.js").then(({ Api }) =>
       Api.playlist(params.id)
         .then((detail) => setPlaylistDetail(detail))
@@ -518,80 +590,79 @@ export function PlaylistPage() {
   React.useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
   React.useEffect(() => { setSearchOpen(false); setQuery(""); }, [params.id]);
 
-  if (!pl) return <ViewNotFound label={t("playlistLabel")} />;
-  const isOwner = !!authUser && String(authUser.id) === String(pl.user_id);
-  const cover = pl.cover_thumbnail ?? pl.songs?.[0]?.cover ?? null;
+  const isOwner = !!authUser && String(authUser.id) === String(pl?.user_id);
+  const cover = pl?.cover_thumbnail ?? pl?.songs?.[0]?.cover ?? null;
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!pl, tint: null });
+
+  if (!pl) {
+    if (remoteLoading) return <div className="aivy-am-fallback"><ViewLoading /></div>;
+    return <div className="aivy-am-fallback"><ViewNotFound label={t("playlistLabel")} /></div>;
+  }
   const q = query.trim().toLowerCase();
   const visibleSongs = q
     ? (displaySongs || []).filter((s) => s.title?.toLowerCase().includes(q) || s.artist?.name?.toLowerCase().includes(q))
     : displaySongs;
 
   return (
-    <div className="aivy-view-enter aivy-playlist-page">
-      {cover && (
-        <div className="aivy-playlist-banner">
-          <SmartCover src={cover} seed={"banner-pl" + pl.id} size={800} radius={0} style={{ width: "100%", height: "100%" }} />
-          <div className="aivy-playlist-banner-fade" />
-        </div>
-      )}
-      <div className={`aivy-hero ${cover ? "aivy-playlist-hero" : ""}`}>
-        <div className="art" style={{ position: "relative" }}>
-          {cover ? <SmartCover src={cover} seed={"pl" + pl.id} size={176} radius={16} style={{ width: 176, height: 176 }} /> : (
-            <div style={{ width: 176, height: 176, borderRadius: "var(--radius-lg)", background: "var(--bg-elev-2)", display: "flex", alignItems: "center", justifyContent: "center" }}><LibraryIcon size={40} color="var(--ink-faint)" /></div>
+    <div ref={pageRef} className="aivy-view-enter aivy-am-page is-cover-page aivy-playlist-page">
+      <ImmersiveHero
+        mediaRef={mediaRef}
+        heroRef={heroRef}
+        coverStyle
+        media={<SmartCover src={cover} seed={"banner-pl" + pl.id} size={800} radius={0} style={{ width: "100%", height: "100%" }} />}
+      >
+        <div className="aivy-am-kicker">
+          {t("playlistLabel")}
+          {pl.is_public !== undefined && (
+            <span className="aivy-playlist-visibility">
+              {pl.is_public ? <Globe size={12} /> : <Lock size={12} />} {pl.is_public ? t("publicLabel") : t("privateLabel")}
+            </span>
           )}
+        </div>
+        <h1 className="aivy-am-name">{pl.name}</h1>
+        <div className="aivy-am-sub"><span>{pl.songs?.length || 0} {t("songsCount")}</span></div>
+        <div className="aivy-am-actions">
           {isOwner && (
-            <button className="aivy-cover-edit-btn" onClick={() => setCoverPickerOpen(true)} aria-label={t("changeCoverBtn")} title={t("changeCoverBtn")}>
-              <ImagePlus size={16} />
+            <button className="aivy-am-ghost" onClick={() => setEditOpen(true)} aria-label={t("editPlaylistBtn")} title={t("editPlaylistBtn")}>
+              <Pencil size={17} />
             </button>
           )}
-        </div>
-        <div className="aivy-hero-meta">
-          <div className="eyebrow">
-            {t("playlistLabel")}
-            {pl.is_public !== undefined && (
-              <span className="aivy-playlist-visibility" style={{ marginLeft: 6 }}>
-                · {pl.is_public ? <Globe size={12} /> : <Lock size={12} />} {pl.is_public ? t("publicLabel") : t("privateLabel")}
-              </span>
-            )}
-          </div>
-          <h1 className="font-display">{pl.name}</h1>
-          <div className="stats"><span>{pl.songs?.length || 0} {t("songsCount")}</span></div>
-        </div>
-      </div>
-      <div className="aivy-hero-actions">
-        {isOwner && (
-          <button className="aivy-icon-btn-solid" onClick={() => setEditOpen(true)} aria-label={t("editPlaylistBtn")} title={t("editPlaylistBtn")}>
-            <Pencil size={16} />
-          </button>
-        )}
-        {pl.songs?.length > 0 && <button className="aivy-play-btn is-hero" style={{ width: 52, height: 52 }} onClick={() => playList(pl.songs, 0, { type: "library", label: pl.name }, localShuffle)} aria-label={t("playAll")}><Play size={22} fill="currentColor" /></button>}
-        {pl.songs?.length > 0 && (
-          <button className={`aivy-icon-btn-solid ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((s) => !s)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}>
-            <Shuffle size={18} />
-          </button>
-        )}
+          {pl.songs?.length > 0 && (
+            <button className={`aivy-am-ghost ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((v) => !v)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}>
+              <Shuffle size={18} />
+            </button>
+          )}
+          {pl.songs?.length > 0 && <button className="aivy-am-cta" onClick={() => playList(pl.songs, 0, { type: "library", label: pl.name }, localShuffle)} aria-label={t("playAll")} title={t("playAll")}><Play size={25} fill="currentColor" /></button>}
         <button
-          className="aivy-icon-btn"
-          style={{ width: 40, height: 40 }}
+          className="aivy-am-ghost"
           aria-label={t("playlistMenuLabel")}
           title={t("playlistMenuLabel")}
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             const hasSongs = pl.songs?.length > 0;
-            openContextMenu(r.left, r.bottom + 6, [
-              ...(hasSongs ? [{ label: t("findInPlaylistBtn"), icon: <Search size={15} />, onSelect: () => setSearchOpen(true) }] : []),
-              ...(hasSongs ? [{ label: t("playAfterThisBtn"), icon: <ListPlus size={15} />, onSelect: () => playAllNext(pl.songs) }] : []),
-              ...(hasSongs ? [{ label: t("addToQueueBtn"), icon: <ListMusic size={15} />, onSelect: () => addAllToQueueEnd(pl.songs) }] : []),
-              ...(hasSongs ? [{ label: t("saveToPlaylistBtn"), icon: <LibraryIcon size={15} />, onSelect: () => openAddToPlaylist(pl.songs) }] : []),
-              ...(isOwner ? [{ label: t("changeCoverBtn"), icon: <ImagePlus size={15} />, onSelect: () => setCoverPickerOpen(true) }] : []),
-              { label: t("sharePlaylistBtn"), icon: <Share2 size={15} />, onSelect: () => { navigator.clipboard?.writeText(window.location.href); pushToast(t("playlistLinkCopied")); } },
-              ...(isOwner ? [{ divider: true }, { label: t("deletePlaylistBtn"), icon: <X size={15} />, onSelect: () => setConfirmDelete(true) }] : []),
-            ]);
+            const items = [
+              ...(hasSongs ? [{ label: t("findInPlaylistBtn"), icon: <Search size={20} />, onSelect: () => setSearchOpen(true) }] : []),
+              ...(hasSongs ? [{ label: t("playAfterThisBtn"), icon: <ListMusic size={20} />, onSelect: () => playAllNext(pl.songs) }] : []),
+              ...(hasSongs ? [{ label: t("addToQueueBtn"), icon: <ListPlus size={20} />, onSelect: () => addAllToQueueEnd(pl.songs) }] : []),
+              ...(hasSongs ? [{ label: t("saveToPlaylistBtn"), icon: <LibraryIcon size={20} />, onSelect: () => openAddToPlaylist(pl.songs) }] : []),
+              ...(isOwner ? [{ label: t("changeCoverBtn"), icon: <ImagePlus size={20} />, onSelect: () => setCoverPickerOpen(true) }] : []),
+              { label: t("sharePlaylistBtn"), icon: <Share2 size={20} />, onSelect: () => { shareLink({ title: pl.name, text: pl.name, url: window.location.href }).then((res) => { if (res === "copied") pushToast(t("playlistLinkCopied")); }); } },
+              ...(isOwner ? [{ label: t("deletePlaylistBtn"), icon: <X size={20} />, danger: true, onSelect: () => setConfirmDelete(true) }] : []),
+            ];
+            items.sheet = {
+              cover, seed: "pl" + pl.id, title: pl.name,
+              subtitle: `${pl.songs?.length || 0} ${t("songsCount")}`,
+            };
+            openContextMenu(r.left, r.bottom + 6, items);
           }}
         >
           <MoreHorizontal size={18} />
         </button>
-      </div>
+        </div>
+      </ImmersiveHero>
+
+      <div className="aivy-am-body is-tracklist">
+        <div className="aivy-am-body-inner">
       {searchOpen && (
         <div className="aivy-field" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ position: "relative", flex: 1 }}>
@@ -609,6 +680,23 @@ export function PlaylistPage() {
           <button className="aivy-icon-btn sm" onClick={() => { setSearchOpen(false); setQuery(""); }} aria-label={t("close")}><X size={17} /></button>
         </div>
       )}
+          {pl.songs?.length > 0 ? (
+            visibleSongs.length > 0 ? (
+              <FlipList
+                items={visibleSongs}
+                getKey={(tr) => tr.id}
+                renderItem={(tr) => (
+                  <TrackRow track={tr} index={pl.songs.indexOf(tr)} list={pl.songs} showAlbum onRemove={isOwner ? () => removeFromPlaylist(pl.id, tr.id) : undefined} removeLabel={t("removeFromThisPlaylist")} queueMode="context" source={{ type: "library", label: pl.name }} shuffleOverride={localShuffle} />
+                )}
+              />
+            ) : (
+              <div className="aivy-empty"><div className="title">{t("findInPlaylistNoResults")}</div></div>
+            )
+          ) : (
+            <div className="aivy-empty"><div className="title">{t("playlistEmpty")}</div><div className="sub">{t("playlistEmptySub")}</div></div>
+          )}
+        </div>
+      </div>
       {isOwner && coverPickerOpen && <PlaylistCoverModal pl={pl} onClose={() => setCoverPickerOpen(false)} />}
       {isOwner && editOpen && <PlaylistEditModal pl={pl} onClose={() => setEditOpen(false)} />}
       <ConfirmDialog
@@ -619,21 +707,6 @@ export function PlaylistPage() {
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => { setConfirmDelete(false); deletePlaylist(pl.id); navigate("library"); }}
       />
-      {pl.songs?.length > 0 ? (
-        visibleSongs.length > 0 ? (
-          <FlipList
-            items={visibleSongs}
-            getKey={(tr) => tr.id}
-            renderItem={(tr) => (
-              <TrackRow track={tr} index={pl.songs.indexOf(tr)} list={pl.songs} showAlbum onRemove={isOwner ? () => removeFromPlaylist(pl.id, tr.id) : undefined} removeLabel={t("removeFromThisPlaylist")} queueMode="context" source={{ type: "library", label: pl.name }} shuffleOverride={localShuffle} />
-            )}
-          />
-        ) : (
-          <div className="aivy-empty"><div className="title">{t("findInPlaylistNoResults")}</div></div>
-        )
-      ) : (
-        <div className="aivy-empty"><div className="title">{t("playlistEmpty")}</div><div className="sub">{t("playlistEmptySub")}</div></div>
-      )}
     </div>
   );
 }
@@ -773,13 +846,22 @@ export function ImportPage() {
   const [result, setResult] = React.useState(null);
   const progressTimer = React.useRef(null);
 
+  const switchSource = (tab) => {
+    if (tab === sourceTab) return;
+    setSourceTab(tab);
+    setUrl("");
+    setResolveError(null);
+  };
+
   const handleResolve = async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
     setResolving(true);
     setResolveError(null);
     try {
-      const data = await Api.resolveYoutubeImport(trimmed);
+      const data = sourceTab === "spotify"
+        ? await Api.resolveSpotifyImport(trimmed)
+        : await Api.resolveYoutubeImport(trimmed);
       setResolved(data);
       setNewName(data.title || "Playlist Impor");
       setStep(2);
@@ -809,7 +891,7 @@ export function ImportPage() {
     setCommitError(null);
     startFakeProgress();
     try {
-      const body = { songs: resolved.songs, sourceTitle: resolved.title };
+      const body = { songs: resolved.songs, sourceTitle: resolved.title, source: sourceTab };
       if (targetMode === "existing") body.playlistId = selectedPlaylistId;
       else body.newPlaylistName = (newName || resolved.title || "Playlist Impor").trim();
 
@@ -837,44 +919,55 @@ export function ImportPage() {
       {step === 1 && (
         <div>
           <div className="aivy-import-tabs">
-            <button className={`aivy-import-tab ${sourceTab === "youtube" ? "active" : ""}`} onClick={() => setSourceTab("youtube")}>
+            <button className={`aivy-import-tab ${sourceTab === "youtube" ? "active" : ""}`} onClick={() => switchSource("youtube")}>
               <Youtube size={20} color="var(--berry-strong)" />
               <span className="name">YouTube</span>
             </button>
-            <button className="aivy-import-tab locked" disabled>
-              <Music2 size={20} color="var(--ink-faint)" />
+            <button className={`aivy-import-tab ${sourceTab === "spotify" ? "active" : ""}`} onClick={() => switchSource("spotify")}>
+              <Music2 size={20} color="var(--accent-strong)" />
               <span className="name">Spotify</span>
-              <span className="badge">Coming soon</span>
             </button>
           </div>
 
-          {sourceTab === "youtube" && (
-            <>
-              <input
-                className="aivy-input"
-                placeholder="Tempel link playlist YouTube di sini..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && url.trim()) handleResolve(); }}
-              />
-              {resolveError && <div className="aivy-import-error">{resolveError}</div>}
+          <input
+            className="aivy-input"
+            placeholder={sourceTab === "spotify" ? "Tempel link playlist Spotify di sini..." : "Tempel link playlist YouTube di sini..."}
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && url.trim() && !resolving) handleResolve(); }}
+          />
+          {resolveError && <div className="aivy-import-error">{resolveError}</div>}
 
-              <div className="aivy-import-tutorial">
-                <div className="head"><ClipboardList size={15} color="var(--accent-strong)" /> Cara salin link playlist YouTube</div>
-                <ol>
-                  <li>Buka aplikasi atau situs YouTube, lalu buka playlist yang mau diimpor.</li>
-                  <li>Ketuk tombol "Bagikan" (ikon panah / titik tiga di atas playlist).</li>
-                  <li>Pilih "Salin link", lalu tempel link-nya di kotak di atas.</li>
-                </ol>
+          {sourceTab === "youtube" ? (
+            <div className="aivy-import-tutorial">
+              <div className="head"><ClipboardList size={15} color="var(--accent-strong)" /> Cara salin link playlist YouTube</div>
+              <ol>
+                <li>Buka aplikasi atau situs YouTube, lalu buka playlist yang mau diimpor.</li>
+                <li>Ketuk tombol "Bagikan" (ikon panah / titik tiga di atas playlist).</li>
+                <li>Pilih "Salin link", lalu tempel link-nya di kotak di atas.</li>
+              </ol>
+            </div>
+          ) : (
+            <div className="aivy-import-tutorial">
+              <div className="head"><ClipboardList size={15} color="var(--accent-strong)" /> Cara salin link playlist Spotify</div>
+              <ol>
+                <li>Buka playlist di aplikasi atau situs Spotify. Pastikan playlist-nya publik.</li>
+                <li>Ketuk titik tiga, pilih "Bagikan", lalu "Salin link playlist".</li>
+                <li>Tempel link-nya di kotak di atas.</li>
+              </ol>
+              <div className="sub" style={{ fontSize: 12.5, marginTop: 8, color: "var(--ink-faint)" }}>
+                Yang terbaca maksimal sekitar 100 lagu pertama. Tiap lagu dicocokkan ke YouTube Music, jadi proses ini bisa makan waktu setengah menit. Playlist buatan Spotify (Daily Mix, dll) belum didukung.
               </div>
-
-              <div className="aivy-import-actions">
-                <button className="aivy-btn-primary" disabled={!url.trim() || resolving} onClick={handleResolve}>
-                  {resolving ? <><Loader2 size={15} className="aivy-spin" /> Memuat...</> : <>Lanjutkan <ArrowRight size={15} /></>}
-                </button>
-              </div>
-            </>
+            </div>
           )}
+
+          <div className="aivy-import-actions">
+            <button className="aivy-btn-primary" disabled={!url.trim() || resolving} onClick={handleResolve}>
+              {resolving
+                ? <><Loader2 size={15} className="aivy-spin" /> {sourceTab === "spotify" ? "Mencocokkan lagu..." : "Memuat..."}</>
+                : <>Lanjutkan <ArrowRight size={15} /></>}
+            </button>
+          </div>
         </div>
       )}
 
@@ -891,6 +984,19 @@ export function ImportPage() {
               <div className="sub">{resolved.author ? `oleh ${resolved.author} · ` : ""}{formatSongCount(resolved.count)}</div>
             </div>
           </div>
+
+          {resolved.unmatched?.length > 0 && (
+            <details className="aivy-import-tutorial" style={{ marginBottom: 12 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13.5 }}>
+                {resolved.unmatched.length} lagu nggak ketemu di YouTube Music dan akan dilewati
+              </summary>
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 12.5, color: "var(--ink-faint)" }}>
+                {resolved.unmatched.map((u, i) => (
+                  <li key={i}>{u.title}{u.artist ? ` — ${u.artist}` : ""}</li>
+                ))}
+              </ul>
+            </details>
+          )}
 
           <div
             className={`aivy-import-option ${targetMode === "existing" ? "active" : ""} ${playlists.length === 0 ? "" : ""}`}

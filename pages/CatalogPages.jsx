@@ -4,93 +4,42 @@ import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { TrackRow, ViewNotFound, SkeletonHeroPage, filterExplicit, FlipList, shuffleArray, useTrackMenuItems, HoverRail, MusicVideoView, MarqueeText } from "../components.jsx";
-import { SmartCover } from "../lib/brand.jsx";
+import { SmartCover, AnimatedCover } from "../lib/brand.jsx";
 import { setSeo, SITE_URL } from "../lib/seo.js";
+import { useArtworkTint, tintFromHex, useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 
-const TOP_SONGS_PREVIEW = 15;
+const TOP_SONGS_LIMIT = 12;
 
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h = 0, s = 0;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h *= 60;
+function appleWide(url, w = 1080) {
+  if (!url || typeof url !== "string") return url;
+  const h = w;
+  if (/\{w\}x\{h\}/.test(url)) {
+    return url.replace(/\{w\}x\{h\}(?:\{c\})?\.\{f\}/, `${w}x${h}sr.webp`).replace(/\{w\}x\{h\}/, `${w}x${h}`);
   }
-  return [h, s, l];
+  const m = url.match(/^(https?:\/\/[^?#]*mzstatic\.com\/image\/thumb\/.+\/)\d+x\d+[a-z]*\.(?:jpg|jpeg|png|webp)((?:[?#].*)?)$/i);
+  if (!m) return url;
+  return `${m[1]}${w}x${h}sr.webp${m[2] || ""}`;
 }
-function useArtworkTint(src) {
-  const [tint, setTint] = useState(null);
-  useEffect(() => {
-    if (!src) { setTint(null); return undefined; }
-    let alive = true;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      if (!alive) return;
-      try {
-        const canvas = document.createElement("canvas");
-        const size = 28;
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(img, 0, 0, size, size);
-        const data = ctx.getImageData(0, 0, size, size).data;
-        let r = 0, g = 0, b = 0, w = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          if (data[i + 3] < 32) continue;
-          const mx = Math.max(data[i], data[i + 1], data[i + 2]);
-          const mn = Math.min(data[i], data[i + 1], data[i + 2]);
-          const weight = 0.35 + (mx - mn) / 255;
-          r += data[i] * weight; g += data[i + 1] * weight; b += data[i + 2] * weight; w += weight;
-        }
-        if (!w) return;
-        const [h, s] = rgbToHsl(r / w, g / w, b / w);
-        if (alive) setTint(tintFromHsl(h, s * 100));
-      } catch {
-        if (alive) setTint(FALLBACK_TINT);
-      }
-    };
-    img.onerror = () => { if (alive) setTint(FALLBACK_TINT); };
-    img.src = src;
-    return () => { alive = false; };
-  }, [src]);
-  return tint;
-}
-function tintFromHsl(h, satPct) {
-  const hue = Math.round(h);
-  const s = Math.round(Math.min(52, Math.max(22, satPct)));
-  return {
-    bg: `hsl(${hue} ${s}% 15%)`,
-    accent: `hsl(${hue} ${Math.min(72, s + 24)}% 78%)`,
-    accentInk: `hsl(${hue} ${Math.min(60, s + 10)}% 12%)`,
+
+function pickHeroRenditions(hero) {
+  if (!hero) return [];
+  let nativeHls = false;
+  try { nativeHls = document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== ""; } catch {}
+  const playable = (r) => r && r.url && (nativeHls || !/\.m3u8(\?|$)/i.test(r.url));
+  const bw = (r) => r.bandwidth || 0;
+  const rank = (r) => {
+    const [pw, ph] = String(r.resolution || "").split("x").map(Number);
+    const w = r.width || pw || 0;
+    const h = r.height || ph || 0;
+    if (!w || !h) return 1e9;
+    const m = Math.max(w, h);
+    return (Math.abs(w - h) > 8 ? 100000 : 0) + Math.abs(m - 1080) + (m > 1080 ? 500 : 0);
   };
-}
-const FALLBACK_TINT = tintFromHsl(230, 30);
-function hexToRgb(hex) {
-  const m = String(hex || "").trim().replace("#", "");
-  if (!/^[0-9a-fA-F]{6}$/.test(m)) return null;
-  return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)];
-}
-function tintFromHex(hex) {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return null;
-  const [h, sat] = rgbToHsl(rgb[0], rgb[1], rgb[2]);
-  return tintFromHsl(h, sat * 100);
-}
-function pickHeroRendition(hero) {
-  if (!hero) return null;
-  const conn = typeof navigator !== "undefined" ? navigator.connection : null;
-  const slow = conn && (conn.saveData || /2g/.test(conn.effectiveType || ""));
-  if (slow) {
-    const list = [...(hero.renditions || [])].sort((a, b) => (a.bandwidth || 0) - (b.bandwidth || 0));
-    return list[0] || hero.fastVideo || hero.video || null;
-  }
-  return hero.fastVideo || hero.video || null;
+  const isPick = (r) => (/_gr280_/.test(r.url || "") && rank(r) === 0 ? 1 : 0);
+  const ranked = [...(hero.renditions || [])].filter(playable).sort((a, b) => isPick(b) - isPick(a) || rank(a) - rank(b) || bw(a) - bw(b));
+  const list = [...ranked, hero.video, hero.fastVideo].filter(playable);
+  const seen = new Set();
+  return list.filter((r) => (seen.has(r.url) ? false : (seen.add(r.url), true)));
 }
 
 function releaseYear(value) {
@@ -161,19 +110,22 @@ function AmSongRow({ track, index, list }) {
     </div>
   );
 }
-function AmTile({ cover, seed, title, sub, onClick, onPlay, variant = "square" }) {
+function AmTile({ cover, seed, title, sub, explicit = false, onClick, onPlay, variant = "square" }) {
   return (
     <div className={`aivy-am-tile is-${variant}`} onClick={onClick} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => { if (onClick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); } }}>
       <div className="art">
-        <SmartCover src={cover} seed={seed} size={240} radius={0} style={{ width: "100%", height: "100%" }} />
+        <SmartCover src={cover} seed={seed} size={280} radius={0} style={{ width: "100%", height: "100%" }} />
         {onPlay && (
           <button className="tile-play" onClick={(e) => { e.stopPropagation(); onPlay(); }} aria-label="Play">
             <Play size={15} fill="currentColor" />
           </button>
         )}
       </div>
-      <div className="t">{title}</div>
+      <div className="t">
+        {explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+        {title}
+      </div>
       {sub ? <div className="s">{sub}</div> : null}
     </div>
   );
@@ -194,7 +146,6 @@ export function ArtistPage() {
   const [loading, setLoading] = useState(true);
   const { followedArtistIds, toggleFollowArtist } = usePlayer();
   const favorite = !!artist?.id && followedArtistIds.has(String(artist.id));
-  const [showAllSongs, setShowAllSongs] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [videoModal, setVideoModal] = useState(null);
   const [heroVideoUrl, setHeroVideoUrl] = useState(null);
@@ -203,11 +154,22 @@ export function ArtistPage() {
   const [heroInfo, setHeroInfo] = useState(null);
   const [logoBroken, setLogoBroken] = useState(false);
   const [videoBroken, setVideoBroken] = useState(false);
-  const mediaRef = useRef(null);
-  const pageRef = useRef(null);
-  const heroRef = useRef(null);
   const heroVideoRef = useRef(null);
-
+  const heroQueueRef = useRef([]);
+  const heroTriedRef = useRef([]);
+  const heroSettledRef = useRef(false);
+  const handleHeroMeta = useCallback(() => {
+    heroSettledRef.current = true;
+  }, []);
+  const handleHeroVideoError = useCallback(() => {
+    const q = heroQueueRef.current;
+    if (q.length > 1) {
+      q.shift();
+      setHeroVideoUrl(Api.appleMusicVideoUrl(q[0]));
+    } else {
+      setVideoBroken(true);
+    }
+  }, []);
   useEffect(() => {
     const el = heroVideoRef.current;
     if (!el) return undefined;
@@ -225,21 +187,13 @@ export function ArtistPage() {
   const { t, settings } = useUI();
 
   useEffect(() => {
-    document.body.classList.add("aivy-artist-immersive");
-    return () => {
-      document.body.classList.remove("aivy-artist-immersive");
-      document.body.style.removeProperty("--artist-bg");
-      document.body.style.removeProperty("--artist-accent");
-      document.body.style.removeProperty("--artist-accent-ink");
-    };
-  }, []);
-
-  useEffect(() => {
     let alive = true;
     setLoading(true);
-    setShowAllSongs(false);
     setAboutOpen(false);
     setVideoBroken(false);
+    heroQueueRef.current = [];
+    heroTriedRef.current = [];
+    heroSettledRef.current = false;
     setHeroVideoUrl(null);
     setHeroArtwork(null);
     setHeroInfo(null);
@@ -254,10 +208,10 @@ export function ArtistPage() {
           .then((h) => {
             if (!alive) return;
             setHeroInfo(h);
-            const chosen = pickHeroRendition(h);
-            if (chosen?.url) setHeroVideoUrl(Api.appleMusicVideoUrl(chosen.url));
+            heroQueueRef.current = pickHeroRenditions(h).map((r) => r.url);
+            if (heroQueueRef.current[0]) setHeroVideoUrl(Api.appleMusicVideoUrl(heroQueueRef.current[0]));
             const poster = h?.previewFrame?.url || h?.artwork?.url;
-            if (poster) setHeroArtwork(poster);
+            if (poster) setHeroArtwork(appleWide(poster));
             if (h?.artwork?.bgColor) setHeroBgColor(h.artwork.bgColor);
           })
           .catch(() => {});
@@ -277,7 +231,7 @@ export function ArtistPage() {
     });
   }, [artist, params.id]);
 
-  const posterImg = heroArtwork || artist?.banner || artist?.image || null;
+  const posterImg = heroArtwork || appleWide(artist?.banner || artist?.image) || null;
   const tintSource = artist?.image || artist?.banner || artist?.albums?.[0]?.cover || null;
   const tintFromArt = useArtworkTint(tintSource);
   const tint = useMemo(() => {
@@ -285,56 +239,7 @@ export function ArtistPage() {
     const derived = tintFromHex(heroBgColor);
     return derived || tintFromArt;
   }, [heroBgColor, tintFromArt]);
-  useEffect(() => {
-    if (!tint) return undefined;
-    document.body.style.setProperty("--artist-bg", tint.bg);
-    document.body.style.setProperty("--artist-accent", tint.accent);
-    document.body.style.setProperty("--artist-accent-ink", tint.accentInk);
-    return undefined;
-  }, [tint]);
-  useEffect(() => {
-    if (!artist) return undefined;
-    const scroller = document.getElementById("aivy-content-scroll");
-    if (!scroller) return undefined;
-    let raf = 0;
-    let lastBlurStep = -1;
-    let lastProgStep = -1;
-
-    const BLUR_STEPS = 14;
-    const apply = () => {
-      raf = 0;
-      const heroH = heroRef.current?.offsetHeight || Math.round((window.innerHeight || 800) * 0.78);
-      const top = scroller.scrollTop;
-      const shift = Math.min(top, heroH);
-      const progress = Math.min(1, top / Math.max(1, heroH * 0.82));
-      const step = Math.round(progress * BLUR_STEPS) / BLUR_STEPS;
-      if (mediaRef.current) {
-        mediaRef.current.style.setProperty("--am-shift", `${-shift}px`);
-        const blurStep = Math.round(progress * BLUR_STEPS);
-        if (blurStep !== lastBlurStep) {
-          lastBlurStep = blurStep;
-          mediaRef.current.style.setProperty("--am-blur", `${(step * 26).toFixed(1)}px`);
-        }
-        mediaRef.current.style.setProperty("--am-zoom", (1 + progress * 0.06).toFixed(4));
-      }
-      if (pageRef.current) {
-        const progStep = Math.round(progress * BLUR_STEPS);
-        if (progStep !== lastProgStep) {
-          lastProgStep = progStep;
-          pageRef.current.style.setProperty("--am-progress", step.toFixed(3));
-        }
-      }
-    };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
-    apply();
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      scroller.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [artist]);
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!artist, tint });
 
   useEffect(() => {
     if (!aboutOpen) return undefined;
@@ -372,6 +277,7 @@ export function ArtistPage() {
       artists: v.artist ? [v.artist] : undefined,
       cover: v.cover || v.thumbnail,
       duration: v.duration || null,
+      explicit: !!v.explicit,
     });
   }, [playSingle, artist]);
 
@@ -385,12 +291,11 @@ export function ArtistPage() {
   if (loading) return <div className="aivy-am-fallback"><SkeletonHeroPage round rows={5} /></div>;
   if (!artist) return <div className="aivy-am-fallback"><ViewNotFound label={t("artistLabel")} /></div>;
 
-  const songs = showAllSongs ? topTracks : topTracks.slice(0, TOP_SONGS_PREVIEW);
- 
+  const songs = topTracks.slice(0, TOP_SONGS_LIMIT);
   const showHeroVideo = heroVideoUrl && !videoBroken;
   const heroLogoUrl = heroInfo?.customName?.url ? Api.appleMusicVideoUrl(heroInfo.customName.url) : null;
   const showLogo = heroLogoUrl && !logoBroken;
-  const hasAbout = !!(artist.bio || artist.tags?.length || artist.listeners);
+  const hasAbout = !!(artist.bio || artist.tags?.length || artist.listeners || artist.audience);
 
   return (
     <div ref={pageRef} className="aivy-view-enter aivy-am-page">
@@ -405,14 +310,15 @@ export function ArtistPage() {
             autoPlay muted loop playsInline
             preload="auto"
             disablePictureInPicture
-            onError={() => setVideoBroken(true)}
+            onError={handleHeroVideoError}
+            onLoadedMetadata={handleHeroMeta}
             onCanPlay={(e) => { e.currentTarget.dataset.ready = "1"; }}
           />
         ) : (
           <SmartCover src={posterImg} seed={"artist-bg" + artist.id + artist.name} size={1600} radius={0} style={{ width: "100%", height: "100%" }} />
         )}
         {}
-        <div className="aivy-am-media-blur" />
+        <div className="aivy-am-media-blur"><i /><i /><i /><i /></div>
         <div className="aivy-am-media-scrim" />
       </div>
 
@@ -441,7 +347,7 @@ export function ArtistPage() {
             </button>
             <button
               className="aivy-am-cta"
-              onClick={() => topTracks.length && playList(topTracks, 0)}
+              onClick={() => songs.length && playList(songs, 0)}
               aria-label={t("playAll")}
               title={t("playAll")}
             >
@@ -479,7 +385,10 @@ export function ArtistPage() {
                     {formatReleaseDate(latest.releaseDate, settings.language) && (
                       <div className="date">{formatReleaseDate(latest.releaseDate, settings.language)}</div>
                     )}
-                    <div className="title">{latest.title}</div>
+                    <div className="title">
+                      {latest.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+                      {latest.title}
+                    </div>
                     <div className="sub">
                       {albumKindLabel(latest, t)}
                       {latest.trackCount ? ` \u00b7 ${latest.trackCount} ${t("trackCountLabel")}` : ""}
@@ -491,12 +400,9 @@ export function ArtistPage() {
 
             {songs.length > 0 && (
               <section className="aivy-am-block">
-                <AmSectionHead
-                  title={t("topSongs")}
-                  onClick={topTracks.length > TOP_SONGS_PREVIEW ? () => setShowAllSongs((s) => !s) : undefined}
-                />
+                <AmSectionHead title={t("topSongs")} />
                 <div className="aivy-am-songgrid">
-                  {songs.map((tr, i) => <AmSongRow key={tr.id} track={tr} index={i} list={topTracks} />)}
+                  {songs.map((tr, i) => <AmSongRow key={tr.id} track={tr} index={i} list={songs} />)}
                 </div>
               </section>
             )}
@@ -513,6 +419,7 @@ export function ArtistPage() {
                     cover={v.thumbnail || v.cover}
                     seed={"mv" + (v.id || v.title)}
                     title={v.title}
+                    explicit={!!v.explicit}
                     sub={[v.views, releaseYear(v.releaseDate || v.year)].filter(Boolean).join(" \u00b7 ")}
                     onClick={() => openMusicVideo(v)}
                     onPlay={() => openMusicVideo(v)}
@@ -532,7 +439,8 @@ export function ArtistPage() {
                     cover={a.cover}
                     seed={"album" + a.id + a.title}
                     title={a.title}
-                    sub={releaseYear(a.releaseDate)}
+                    explicit={!!a.explicit}
+                    sub={[albumKindLabel(a, t), releaseYear(a.releaseDate)].filter(Boolean).join(" \u00b7 ")}
                     onClick={() => navigate("album", { params: { id: a.id } })}
                     onPlay={() => playAlbum(a.id)}
                   />
@@ -570,6 +478,7 @@ export function ArtistPage() {
                     cover={a.image}
                     seed={"artist" + a.id + a.name}
                     title={a.name}
+                    sub={a.audience || ""}
                     onClick={() => navigate("artist", { params: { id: a.id } })}
                   />
                 ))}
@@ -590,6 +499,8 @@ export function ArtistPage() {
               <div className="listeners">
                 {artist.listeners.toLocaleString(settings.language === "en" ? "en-US" : "id-ID")} {t("listenersMonthly")}
               </div>
+            ) : artist.audience ? (
+              <div className="listeners">{artist.audience}</div>
             ) : null}
             {artist.tags?.length > 0 && (
               <div className="aivy-tagrow" style={{ padding: "12px 0 0" }}>
@@ -616,6 +527,7 @@ export function AlbumPage() {
   const { params } = useRouter();
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [artColor, setArtColor] = useState(null);
   const { playList, savedAlbumIds, toggleSaveAlbum } = usePlayer();
   const { navigate } = useRouter();
   const { t, settings } = useUI();
@@ -624,6 +536,8 @@ export function AlbumPage() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setArtColor(null);
+    document.getElementById("aivy-content-scroll")?.scrollTo({ top: 0 });
     Api.album(params.id).then((res) => { if (alive) { setAlbum(res); setLoading(false); } }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [params.id]);
@@ -640,7 +554,15 @@ export function AlbumPage() {
     });
   }, [album, params.id]);
 
-  const albumTracks = useMemo(() => filterExplicit(album?.tracks, settings) || [], [album, settings]);
+  const albumCover = album?.cover || album?.tracks?.find((tr) => tr?.cover)?.cover || null;
+  const albumTracks = useMemo(
+    () => (filterExplicit(album?.tracks, settings) || []).map((tr) => ({
+      ...tr,
+      cover: tr.cover || albumCover,
+      album: tr.album || (album ? { id: album.id, title: album.title, cover: albumCover } : null),
+    })),
+    [album, albumCover, settings]
+  );
   const totalMin = Math.round(albumTracks.reduce((s, tr) => s + (tr.duration || 0), 0) / 60);
   const [displayTracks, setDisplayTracks] = useState(albumTracks);
 
@@ -648,34 +570,74 @@ export function AlbumPage() {
     setDisplayTracks(localShuffle ? shuffleArray(albumTracks) : albumTracks);
   }, [albumTracks, localShuffle]);
 
-  if (loading) return <SkeletonHeroPage rows={7} />;
-  if (!album) return <ViewNotFound label={t("albumLabel")} />;
+  const tintFromCover = useArtworkTint(albumCover);
+  const tint = useMemo(() => {
+    if (artColor) {
+      const derived = tintFromHex(artColor);
+      if (derived) return derived;
+    }
+    return tintFromCover;
+  }, [artColor, tintFromCover]);
+
+  const { mediaRef, pageRef, heroRef } = useImmersiveHero({ ready: !!album, tint });
+  const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  if (loading) return <div className="aivy-am-fallback"><SkeletonHeroPage rows={7} /></div>;
+  if (!album) return <div className="aivy-am-fallback"><ViewNotFound label={t("albumLabel")} /></div>;
   const albumSaved = savedAlbumIds.has(String(album.id));
+  const isAlbumExplicit = !!(album.explicit || album?.tracks?.some((tr) => tr?.explicit));
 
   return (
-    <div className="aivy-view-enter">
-      <div className="aivy-hero">
-        <div className="art"><SmartCover src={album.cover} seed={"album" + album.id + album.title} size={176} radius={16} style={{ width: 176, height: 176 }} /></div>
-        <div className="aivy-hero-meta">
-          <div className="eyebrow">{t("albumLabel")}</div>
-          <h1 className="font-display">{album.title}</h1>
-          <div className="stats">
-            <span onClick={() => navigate("artist", { params: { id: album.artist.id } })} style={{ cursor: "pointer", color: "var(--ink)", fontWeight: 600 }}>{album.artist?.name}</span>
-            <span>{album.releaseDate ? `\u00b7 ${String(album.releaseDate).slice(0, 4)}` : ""}</span>
-            <span>{`\u00b7 ${albumTracks.length} ${t("trackCountLabel")}, ${totalMin} ${t("minutesLabel")}`}</span>
-          </div>
+    <div ref={pageRef} className="aivy-view-enter aivy-am-page is-cover-page">
+      <ImmersiveHero
+        mediaRef={mediaRef}
+        heroRef={heroRef}
+        coverStyle
+        media={(
+          <>
+            <div className="aivy-am-cover-bg" aria-hidden="true">
+              <SmartCover src={albumCover} seed={"album-bg" + album.id + album.title} size={800} radius={0} style={{ width: "100%", height: "100%" }} />
+            </div>
+            <AnimatedCover
+              src={albumCover} seed={"album-bg" + album.id + album.title} size={800} radius={0}
+              song={album.title} artist={album.artist?.name}
+              animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+              onColor={setArtColor}
+            />
+          </>
+        )}
+      >
+        <div className="aivy-am-kicker">{albumKindLabel(album, t)}</div>
+        <h1 className="aivy-am-name">
+          {isAlbumExplicit && <span className="aivy-explicit-badge is-hero" title="Explicit">E</span>}
+          {album.title}
+        </h1>
+        <div className="aivy-am-sub">
+          {album.artist?.name && (
+            <span
+              className={album.artist.id ? "is-link" : undefined}
+              onClick={album.artist.id ? () => navigate("artist", { params: { id: album.artist.id } }) : undefined}
+            >{album.artist.name}</span>
+          )}
+          {album.releaseDate ? <span>{String(album.releaseDate).slice(0, 4)}</span> : null}
+          <span>{`${albumTracks.length} ${t("trackCountLabel")}, ${totalMin} ${t("minutesLabel")}`}</span>
+        </div>
+        <div className="aivy-am-actions">
+          <button className={`aivy-am-ghost ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((v) => !v)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}><Shuffle size={18} /></button>
+          <button className="aivy-am-cta" onClick={() => playList(albumTracks, 0, null, localShuffle)} aria-label={t("playAlbum")} title={t("playAlbum")}><Play size={25} fill="currentColor" /></button>
+          <button className={`aivy-am-ghost ${albumSaved ? "active" : ""}`} onClick={() => toggleSaveAlbum(album)} aria-label={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")} aria-pressed={albumSaved} title={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")}><Heart size={18} fill={albumSaved ? "currentColor" : "none"} /></button>
+        </div>
+      </ImmersiveHero>
+
+      <div className="aivy-am-body is-tracklist">
+        <div className="aivy-am-body-inner">
+          <FlipList
+            items={displayTracks}
+            getKey={(tr) => tr.id}
+            renderItem={(tr) => <TrackRow track={tr} index={albumTracks.indexOf(tr)} list={albumTracks} queueMode="context" shuffleOverride={localShuffle} showThumb={false} />}
+          />
         </div>
       </div>
-      <div className="aivy-hero-actions">
-        <button className="aivy-play-btn is-hero" style={{ width: 52, height: 52 }} onClick={() => playList(albumTracks, 0, null, localShuffle)} aria-label={t("playAlbum")}><Play size={22} fill="currentColor" /></button>
-        <button className={`aivy-icon-btn-solid ${localShuffle ? "active" : ""}`} onClick={() => setLocalShuffle((s) => !s)} aria-label={t("shuffle")} aria-pressed={localShuffle} title={t("shuffle")}><Shuffle size={18} /></button>
-        <button className={`aivy-icon-btn-solid ${albumSaved ? "active" : ""}`} onClick={() => toggleSaveAlbum(album)} aria-label={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")} aria-pressed={albumSaved} title={albumSaved ? t("removeAlbumBtn") : t("saveAlbumBtn")}><Heart size={18} fill={albumSaved ? "currentColor" : "none"} /></button>
-      </div>
-      <FlipList
-        items={displayTracks}
-        getKey={(tr) => tr.id}
-        renderItem={(tr) => <TrackRow track={tr} index={albumTracks.indexOf(tr)} list={albumTracks} queueMode="context" shuffleOverride={localShuffle} />}
-      />
     </div>
   );
 }

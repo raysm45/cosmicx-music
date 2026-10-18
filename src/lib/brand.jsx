@@ -173,12 +173,16 @@ export function CoverArt({ seed, size = 160, radius = 14, style = {} }) {
 
 const THUMB_BUCKETS = [128, 256, 384, 512, 720];
 
-export function sizedThumb(src, px) {
+export function sizedThumb(src, px = 256) {
   if (!src || typeof src !== "string") return src;
+  const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const want = Math.max(120, Math.round((px || 256) * dpr));
+  if (/googleusercontent\.com|ggpht\.com/i.test(src)) {
+    const target = Math.min(1200, Math.max(want, 320));
+    return src.replace(/=w\d+-h\d+([^&?\s]*)$/, (_, tail) => `=w${target}-h${target}${tail || ""}`);
+  }
   const m = src.match(/^(.*\/vi\/[\w-]{11})(?:\?(.*))?$/);
   if (!m) return src;
-  const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
-  const want = px * dpr;
   const w = THUMB_BUCKETS.find((b) => b >= want) || THUMB_BUCKETS[THUMB_BUCKETS.length - 1];
   const params = new URLSearchParams(m[2] || "");
   params.set("w", String(w));
@@ -198,7 +202,7 @@ export function SmartCover({ src, seed, size = 160, radius = 14, style = {}, alt
   );
 }
 
-const ARTWORK_CACHE_KEY = "aivy_cache_artwork_v1";
+const ARTWORK_CACHE_KEY = "aivy_cache_artwork_v2";
 const ARTWORK_CACHE_TTL = 1000 * 60 * 60 * 12;
 
 const artworkMemCache = new Map();
@@ -259,6 +263,7 @@ function pickVideoSrc(artwork) {
 
   const animated = artwork.animated || null;
   const video = artwork.video || null;
+  if (video) return video;
   if (animated && /\.m3u8(\?|$)/i.test(animated)) return animated;
   return video || animated;
 }
@@ -306,7 +311,6 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
   useEffect(() => {
     if (!videoEl || !src) return undefined;
     if (!isM3u8 || supportsNativeHls()) {
-      console.log("[animatedArtwork] playing via native <video> src", { isM3u8, native: supportsNativeHls(), src });
       videoEl.src = src;
       videoEl.load();
       return () => { videoEl.removeAttribute("src"); videoEl.load(); };
@@ -317,10 +321,8 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
     loadHlsJs().then((Hls) => {
       if (cancelled) return;
       if (!Hls.isSupported()) {
-        console.warn("[animatedArtwork] hls.js loaded but Hls.isSupported() is false, falling back to native src", { src });
         videoEl.src = src; videoEl.load(); return;
       }
-      console.log("[animatedArtwork] playing via hls.js", { src });
       hls = new Hls({
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
@@ -333,34 +335,34 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         const levels = hls.levels || [];
         if (!levels.length) return;
+        const isAvc = (l) => {
+          const c = String(l?.videoCodec || l?.attrs?.CODECS || "").toLowerCase();
+          if (!c) return true;
+          return c.includes("avc1") && !c.includes("dvh1") && !c.includes("hvc1") && !c.includes("hev1");
+        };
         const rank = (l) => {
           const w = l.width || 0;
           const h = l.height || 0;
-          if (!w || !h) return Infinity;
+          const codecPenalty = isAvc(l) ? 0 : 1000000;
+          if (!w || !h) return codecPenalty + 500000;
           const m = Math.max(w, h);
-          return (Math.abs(w - h) > 8 ? 100000 : 0) + Math.abs(m - 1080) + (m > 1080 ? 500 : 0);
+          return codecPenalty + (Math.abs(w - h) > 8 ? 100000 : 0) + Math.abs(m - 1080) + (m > 1080 ? 500 : 0);
         };
         let top = 0;
-        if (levels.some((l) => l.width && l.height)) {
-          levels.forEach((l, i) => {
-            const a = rank(l);
-            const b = rank(levels[top]);
-            if (a < b || (a === b && (l.bitrate || 0) > (levels[top].bitrate || 0))) top = i;
-          });
-        } else {
-          levels.forEach((l, i) => { if ((l.bitrate || 0) > (levels[top].bitrate || 0)) top = i; });
-        }
+        levels.forEach((l, i) => {
+          const a = rank(l);
+          const b = rank(levels[top]);
+          if (a < b || (a === b && (l.bitrate || 0) > (levels[top].bitrate || 0))) top = i;
+        });
         hls.startLevel = top;
         hls.currentLevel = top;
       });
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        console.error("[animatedArtwork] hls.js error", { src, fatal: data?.fatal, type: data?.type, details: data?.details });
         if (data?.fatal) onError?.(data);
       });
       hls.loadSource(src);
       hls.attachMedia(videoEl);
-    }).catch((err) => {
-      console.error("[animatedArtwork] failed to load hls.js, falling back to native video src", err);
+    }).catch(() => {
       if (!cancelled) { videoEl.src = src; videoEl.load(); }
     });
 
@@ -411,7 +413,6 @@ function useAnimatedArtwork(song, artist, enabled, reloadToken = 0, onReloadResu
         if (forceReload) onReloadResultRef.current?.(hasAnimation ? "success" : "not_found");
       })
       .catch((err) => {
-        console.error("[animatedArtwork] failed to fetch artwork for", song, artist, err);
         if (alive) setStatus("error");
         if (forceReload) onReloadResultRef.current?.(err?.status === 429 ? "rate_limited" : "error");
       });
@@ -427,14 +428,23 @@ export function AnimatedCover({
   const [videoReady, setVideoReady] = useState(false);
   const [videoEl, setVideoEl] = useState(null);
   const [playbackFailed, setPlaybackFailed] = useState(false);
+  const [useAltSource, setUseAltSource] = useState(false);
   const [errorDetail, setErrorDetail] = useState("");
   const [showErrorDetail, setShowErrorDetail] = useState(false);
-  const { artwork, status } = useAnimatedArtwork(song, artist, animated && !reduceMotion, reloadToken, onReloadResult);
+  const needArtwork = (animated && !reduceMotion) || !src;
+  const { artwork, status } = useAnimatedArtwork(song, artist, needArtwork, reloadToken, onReloadResult);
   const onColorRef = useRef(onColor);
   onColorRef.current = onColor;
 
-  const videoSrc = pickVideoSrc(artwork);
+  useEffect(() => { setUseAltSource(false); }, [artwork]);
+
+  const primarySrc = animated && !reduceMotion ? pickVideoSrc(artwork) : null;
+  const altSrc = animated && !reduceMotion
+    ? (primarySrc === artwork?.video ? artwork?.animated : artwork?.video) || null
+    : null;
+  const videoSrc = useAltSource && altSrc ? altSrc : primarySrc;
   const isM3u8 = !!videoSrc && /\.m3u8(\?|$)/i.test(videoSrc);
+  const coverSrc = src || artwork?.static || null;
   const activeRef = useRef(active);
   activeRef.current = active;
 
@@ -443,10 +453,14 @@ export function AnimatedCover({
     if (artwork?.color?.css) onColorRef.current?.(artwork.color.css);
   }, [artwork?.color?.css]);
 
-  const handleHlsFatalError = useRef((data) => {
+  const handleHlsFatalError = (data) => {
+    if (!useAltSource && altSrc && altSrc !== videoSrc) {
+      setUseAltSource(true);
+      return;
+    }
     setPlaybackFailed(true);
     setErrorDetail(`hls: ${data?.type || "?"} / ${data?.details || "?"}`);
-  }).current;
+  };
   useHlsSource(videoEl, videoSrc, isM3u8, handleHlsFatalError);
 
   useEffect(() => {
@@ -457,7 +471,6 @@ export function AnimatedCover({
       const p = videoEl.play?.();
       if (p && typeof p.catch === "function") {
         p.catch((err) => {
-          console.error("[animatedArtwork] video.play() rejected", { song, artist }, err);
           setPlaybackFailed(true);
           setErrorDetail(`play() ditolak: ${err?.name || ""} ${err?.message || err}`);
         });
@@ -466,12 +479,12 @@ export function AnimatedCover({
     const onReady = () => { setVideoReady(true); tryPlay(); };
     const MEDIA_ERROR_LABELS = { 1: "dibatalkan", 2: "gagal jaringan", 3: "gagal decode/format", 4: "format/URL tidak didukung" };
     const onError = () => {
+      if (!useAltSource && altSrc && altSrc !== videoSrc) {
+        setUseAltSource(true);
+        return;
+      }
       const mediaError = videoEl.error;
       const label = MEDIA_ERROR_LABELS[mediaError?.code] || "unknown";
-      console.error("[animatedArtwork] <video> failed to load/play", {
-        song, artist, videoSrc, isM3u8,
-        code: mediaError?.code, message: mediaError?.message,
-      });
       setPlaybackFailed(true);
       setErrorDetail(`video error ${mediaError?.code ?? "?"} (${label}): ${videoSrc}`);
     };
@@ -491,7 +504,7 @@ export function AnimatedCover({
       videoEl.removeEventListener("error", onError);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [videoEl, videoSrc, isM3u8, song, artist, src]);
+  }, [videoEl, videoSrc, isM3u8, song, artist, coverSrc, useAltSource, altSrc]);
 
   useEffect(() => {
     const v = videoEl;
@@ -512,21 +525,13 @@ export function AnimatedCover({
       style={{ position: "relative", overflow: "hidden", borderRadius: radius, ...style }}
     >
       <SmartCover
-        src={src} seed={seed} size={size} radius={radius} alt={alt}
+        src={coverSrc} seed={seed} size={size} radius={radius} alt={alt}
         style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}
       />
       {animated && !reduceMotion && (status === "loading" || (videoSrc && !videoReady && !playbackFailed)) && (
         <div className="aivy-animated-cover-loading" aria-hidden="true">
           <span className="dot" /><span className="dot" /><span className="dot" />
         </div>
-      )}
-      {playbackFailed && (
-        <button
-          type="button"
-          className="aivy-animated-cover-loading is-error"
-          onClick={(e) => { e.stopPropagation(); setShowErrorDetail((v) => !v); }}
-          title={errorDetail}
-        >!</button>
       )}
       {playbackFailed && showErrorDetail && (
         <div className="aivy-animated-cover-errbox" onClick={(e) => e.stopPropagation()}>
@@ -542,7 +547,7 @@ export function AnimatedCover({
           playsInline
           autoPlay={active}
           preload="auto"
-          poster={src || undefined}
+          poster={coverSrc || undefined}
           disablePictureInPicture
           aria-hidden="true"
           style={{
@@ -554,4 +559,4 @@ export function AnimatedCover({
       )}
     </div>
   );
-  }
+}

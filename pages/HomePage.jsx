@@ -1,12 +1,15 @@
-﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Play, RefreshCw } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Play, RefreshCw, Heart, MoreHorizontal } from "lucide-react";
 import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
-import { CardTrack, CardAlbum, CardArtist, filterExplicit, useTrackMenuItems } from "../components.jsx";
-import { SmartCover } from "../lib/brand.jsx";
+import { CardTrack, CardAlbum, CardArtist, filterExplicit, useTrackMenuItems, HoverRail, MarqueeText } from "../components.jsx";
+import { FeedTabs } from "./FeedPages.jsx";
+import { ExploreFeed } from "./ExploreFeed.jsx";
+import { SmartCover, sizedThumb } from "../lib/brand.jsx";
+import { DonationBanner } from "../DonationBanner.jsx";
 
-import { uid, formatDuration } from "../lib/utils.js";
+import { formatDuration } from "../lib/utils.js";
 
 function greetingSubKey() {
   const h = new Date().getHours();
@@ -26,6 +29,39 @@ function useDiscoverRow(seed, limit = 12, type = null, enabled = true) {
     Api.discover(seed, 0, limit, type).then((res) => { if (alive) setItems(res.items || []); }).catch(() => { if (alive) setItems([]); });
     return () => { alive = false; };
   }, [seed, limit, type, enabled]);
+  return items;
+}
+const RECO_COUNT = 9;
+
+const RECO_TRACK_COUNT = 12;
+const RECO_TRACK_FETCH = 30;
+
+function isCompleteTrack(tr) {
+  return !!(tr && tr.id && tr.title && tr.artist?.name && tr.duration > 0);
+}
+
+function fillTo(primary, extra, n = RECO_COUNT) {
+  const seen = new Set();
+  const out = [];
+  for (const it of [...(primary || []), ...(extra || [])]) {
+    if (!it || seen.has(it.id)) continue;
+    seen.add(it.id);
+    out.push(it);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+function useForYouTyped(type, count, nonce) {
+  const { authUser } = useUI();
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    Api.forYou(`home-${type}-${nonce}`, 0, count, type)
+      .then((res) => { if (alive) setItems(res.items || []); })
+      .catch(() => { if (alive) setItems([]); });
+    return () => { alive = false; };
+  }, [authUser, type, count, nonce]);
   return items;
 }
 
@@ -58,19 +94,23 @@ function SkeletonSongRow() {
 function SkeletonSongGrid({ count = 6 }) {
   return <>{Array.from({ length: count }).map((_, i) => <SkeletonSongRow key={i} />)}</>;
 }
+function RowWrap({ scroll, children }) {
+  return scroll
+    ? <HoverRail>{children}</HoverRail>
+    : <div className="aivy-grid">{children}</div>;
+}
 
 function Row({ title, items, render, scroll = false, action = null, skeleton = 8 }) {
-  const wrapClass = scroll ? "aivy-hrow aivy-scroll" : "aivy-grid";
   if (items === null) return (
     <section className="aivy-section"><div className="aivy-section-head"><h2 className="aivy-section-title">{title}</h2>{action}</div>
-      <div className={wrapClass}><SkeletonCardGrid count={scroll ? 6 : skeleton} /></div>
+      <RowWrap scroll={scroll}><SkeletonCardGrid count={scroll ? 6 : skeleton} /></RowWrap>
     </section>
   );
   if (!items.length) return null;
   return (
     <section className="aivy-section">
       <div className="aivy-section-head"><h2 className="aivy-section-title">{title}</h2>{action}</div>
-      <div className={wrapClass}>{items.map(render)}</div>
+      <RowWrap scroll={scroll}>{items.map(render)}</RowWrap>
     </section>
   );
 }
@@ -82,13 +122,15 @@ function mapHistoryRow(row) {
     artists: row.artists || null,
     album: row.album || null,
     cover: row.thumbnail || null, duration: row.duration || null,
+    explicit: !!row.explicit,
   };
 }
 
-function SongListRow({ track, list }) {
-  const { currentTrack, isPlaying, togglePlay, playList } = usePlayer();
-  const { openContextMenu } = useUI();
+function SongListRow({ track, list, eager = false }) {
+  const { currentTrack, isPlaying, togglePlay, playList, liked, toggleLike } = usePlayer();
+  const { openContextMenu, t } = useUI();
   const isCurrent = currentTrack && currentTrack.id === track.id;
+  const isLiked = liked.has(String(track.videoId || track.id));
   const items = useTrackMenuItems(track);
   const handlePlay = () => {
     if (isCurrent) { togglePlay(); return; }
@@ -102,11 +144,20 @@ function SongListRow({ track, list }) {
       onContextMenu={(e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); }}
     >
       <span className="cover">
-        <SmartCover src={track.cover} seed={track.id + track.title} size={80} radius={6} style={{ width: "100%", height: "100%" }} />
+        <SmartCover src={track.cover} seed={track.id + track.title} size={80} radius={6} priority={eager} style={{ width: "100%", height: "100%" }} />
       </span>
       <span className="meta">
-        <span className="t">{track.title}</span>
+        <MarqueeText
+          as="span"
+          className="t"
+          text={track.title}
+          prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        />
         <span className="a">{track.artist?.name || "\u2014"}</span>
+      </span>
+      <span className="acts">
+        <button className="aivy-icon-btn sm" onClick={(e) => { e.stopPropagation(); openContextMenu(e.clientX, e.clientY, items); }} aria-label={t("menuMore")}><MoreHorizontal size={16} /></button>
+        <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); toggleLike(track); }} aria-label={t("like")}><Heart size={16} fill={isLiked ? "currentColor" : "none"} /></button>
       </span>
       <span className="dur font-mono">{formatDuration(track.duration)}</span>
     </div>
@@ -118,7 +169,6 @@ export function HomePage() {
   const subKey = useMemo(greetingSubKey, []);
   const { liked, history: sessionHistory, playRadio, currentTrack } = usePlayer();
   const { navigate } = useRouter();
-  const [homeTab, setHomeTab] = useState("home");
   const [savedHistory, setSavedHistory] = useState(null);
   useEffect(() => {
     let alive = true;
@@ -133,193 +183,131 @@ export function HomePage() {
 
   const [trendingSeed, setTrendingSeed] = useState("trending-" + new Date().toDateString());
   const [albumSeed, setAlbumSeed] = useState("fresh-" + Math.floor(Date.now() / 3600000));
-  const trending = useDiscoverRow(trendingSeed, 12, "track");
+  const [recoNonce, setRecoNonce] = useState(0);
+  const [albumNonce, setAlbumNonce] = useState(0);
+  const trending = useDiscoverRow(trendingSeed, RECO_TRACK_FETCH, "track");
   const fresh = useDiscoverRow(albumSeed, 12, "album");
   const moodCalm = useDiscoverRow("mood-santai", 12, "artist");
-  const trendingTracks = useMemo(() => filterExplicit(trending || [], settings).slice(0, 12), [trending, settings]);
-  const freshAlbums = useMemo(() => (fresh || []).slice(0, 12), [fresh]);
-  const artists = useMemo(() => (moodCalm || []).slice(0, 12), [moodCalm]);
+  const forYouAlbumsRaw = useForYouTyped("album", RECO_COUNT, `${recoNonce}-${albumNonce}`);
+  const forYouArtistsRaw = useForYouTyped("artist", RECO_COUNT, recoNonce);
+  const forYouTracksRaw = useForYouTyped("track", RECO_TRACK_FETCH, recoNonce);
 
-  const hotTracks = useDiscoverRow("hot-new-tracks", 12, "track", homeTab === "hot");
-  const hotAlbums = useDiscoverRow("hot-new-albums", 24, "album", homeTab === "hot");
-  const showEditorsPicks = !!settings.showEditorsPicks;
-  const picksSeedBase = settings.editorsPicksSource === "alt" ? "editors-pick-alt-" : "editors-pick-";
-  const pickAlbumsRaw = useDiscoverRow(picksSeedBase + new Date().toDateString(), 24, "album", homeTab === "picks" && showEditorsPicks);
-  const pickAlbums = useMemo(() => {
-    if (!pickAlbumsRaw) return pickAlbumsRaw;
-    if (!settings.shuffleEditorsPicks) return pickAlbumsRaw;
-    const arr = [...pickAlbumsRaw];
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }, [pickAlbumsRaw, settings.shuffleEditorsPicks]);
-  const aotyAlbums = useDiscoverRow("aoty-" + new Date().getFullYear(), 24, "album", homeTab === "aoty");
+  const recoTracks = useMemo(() => {
+    if (forYouTracksRaw === null) return null;
+    const mine = filterExplicit(forYouTracksRaw, settings);
+    const mineOk = mine.filter(isCompleteTrack);
+    if (mineOk.length >= RECO_TRACK_COUNT) return fillTo(mineOk, null, RECO_TRACK_COUNT);
+    if (trending === null) return null;
+    const pop = filterExplicit(trending, settings);
+    const strict = fillTo(mineOk, pop.filter(isCompleteTrack), RECO_TRACK_COUNT);
+    if (strict.length >= RECO_TRACK_COUNT) return strict;
+    return fillTo(strict, [...mine, ...pop], RECO_TRACK_COUNT);
+  }, [forYouTracksRaw, trending, settings]);
+  const recoAlbums = useMemo(() => {
+    if (forYouAlbumsRaw === null) return null;
+    const own = fillTo(forYouAlbumsRaw, null);
+    if (own.length >= RECO_COUNT) return own;
+    if (fresh === null) return null;
+    return fillTo(own, fresh);
+  }, [forYouAlbumsRaw, fresh]);
+  const recoArtists = useMemo(() => {
+    if (forYouArtistsRaw === null) return null;
+    const own = fillTo(forYouArtistsRaw, null);
+    if (own.length >= RECO_COUNT) return own;
+    if (moodCalm === null) return null;
+    return fillTo(own, moodCalm);
+  }, [forYouArtistsRaw, moodCalm]);
 
   const bgCover = currentTrack?.cover || (!nothingPlayed && playedHistory[0]?.cover) || null;
 
-  const seedRef = useRef(uid("home-seed"));
-  const [items, setItems] = useState([]);
-  const [cursor, setCursor] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const sentinelRef = useRef(null);
-  const seenIds = useRef(new Set());
-
-  const loadMore = useCallback(async () => {
-    if (loading || done) return;
-    setLoading(true);
-    try {
-      const res = await Api.discover(seedRef.current, cursor, 18);
-      const fresh = (res.items || []).filter((it) => {
-        const key = `${it.type}:${it.id}`;
-        if (seenIds.current.has(key)) return false;
-        seenIds.current.add(key);
-        return true;
-      });
-      setItems((prev) => [...prev, ...fresh]);
-      setCursor(res.nextCursor);
-      if (!res.items || res.items.length === 0) setDone(true);
-    } catch { setDone(true); }
-    setLoading(false);
-  }, [cursor, loading, done]);
-
-  useEffect(() => { loadMore(); }, []);
-
-  useEffect(() => { if (homeTab === "picks" && !showEditorsPicks) setHomeTab("home"); }, [homeTab, showEditorsPicks]);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) loadMore(); }, { rootMargin: "600px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [loadMore]);
-
-  const visibleItems = useMemo(() => items.filter((i) => i.type !== "track" || settings.explicitContent !== false || !i.explicit), [items, settings.explicitContent]);
-  const exploreTracks = useMemo(() => visibleItems.filter((i) => i.type === "track"), [visibleItems]);
+  const recoLoading = recoTracks === null;
 
   const startRadio = () => {
-    if (!trendingTracks.length) return;
-    playRadio(trendingTracks[0]);
+    if (!recoTracks?.length) return;
+    playRadio(recoTracks[0]);
     pushToast(t("toastPlayingFullSong"));
   };
 
   return (
     <div className="aivy-view-enter aivy-home">
-      {bgCover && <div className="aivy-home-bg" style={{ backgroundImage: `url(${bgCover})` }} aria-hidden="true" />}
+      {bgCover && <div className="aivy-home-bg" style={{ backgroundImage: `url(${sizedThumb(bgCover, 160)})` }} aria-hidden="true" />}
       <div className="aivy-home-inner">
-        <div className="aivy-home-tabs">
-          {[["home", t("tabHome")], ["hot", t("tabHotNew")], ...(showEditorsPicks ? [["picks", t("tabEditorsPicks")]] : []), ["aoty", t("tabAoty")]].map(([id, label]) => (
-            <button key={id} className={homeTab === id ? "active" : ""} onClick={() => setHomeTab(id)}>{label}</button>
-          ))}
-        </div>
+        <FeedTabs active="home" />
 
-        {homeTab === "home" && (
-          <>
-            {nothingPlayed && (
-              <div className="aivy-home-welcome">
-                <h1 className="font-display">{t("homeWelcome")}</h1>
-                <p>{t("homeWelcomeEmpty")}</p>
-              </div>
-            )}
-
-            {settings.showRecommendedSongs !== false && (
-              <section className="aivy-section" style={{ marginTop: 0 }}>
-                <div className="aivy-section-head">
-                  <div className="aivy-home-head-left">
-                    <h2 className="aivy-section-title">{t("recoSongs")}</h2>
-                    {trendingTracks.length > 0 && (
-                      <button className="aivy-chip" onClick={startRadio}>
-                        <Play size={11} /> {t("startInfiniteRadio")}
-                      </button>
-                    )}
-                  </div>
-                  <button className="aivy-icon-btn bare" onClick={() => setTrendingSeed("trending-" + Date.now())} aria-label="Refresh" title="Refresh">
-                    <RefreshCw size={15} />
-                  </button>
-                </div>
-                <div className="aivy-songlist-grid">
-                  {trending === null
-                    ? <SkeletonSongGrid count={6} />
-                    : trendingTracks.map((tr) => <SongListRow key={tr.id} track={tr} list={trendingTracks} />)}
-                </div>
-              </section>
-            )}
-
-            {settings.showRecommendedAlbums !== false && (
-              <Row
-                title={t("recoAlbums")}
-                items={fresh === null ? null : freshAlbums}
-                action={
-                  <button className="aivy-icon-btn bare" onClick={() => setAlbumSeed("fresh-" + Date.now())} aria-label="Refresh" title="Refresh">
-                    <RefreshCw size={15} />
-                  </button>
-                }
-                render={(a) => <CardAlbum key={a.id} album={a} />}
-              />
-            )}
-
-            {settings.showRecommendedArtists !== false && (
-              <Row title={t("recoArtists")} items={moodCalm === null ? null : artists} render={(a) => <CardArtist key={a.id} artist={a} />} />
-            )}
-
-            {settings.showJumpBackIn !== false && (playedHistory === null || playedHistory.length > 0) ? (
-              <Row scroll title={t("rowContinueListening")} items={playedHistory === null ? null : playedHistory.slice(0, 12)} render={(tr) => <CardTrack key={tr.id} track={tr} list={playedHistory} />} />
-            ) : null}
-
-            <section className="aivy-section">
-              <div className="aivy-section-head"><h2 className="aivy-section-title">{t("listeningParties")}</h2></div>
-              <div className="aivy-parties-cta">
-                <p>{t("partiesSub")}</p>
-                <div className="acts">
-                  <button className="aivy-btn-primary" onClick={() => navigate("roomLobby")}>{t("createRoom")}</button>
-                  <button className="aivy-btn-ghost" onClick={() => navigate("roomLobby")}>{t("joinRoom")}</button>
-                </div>
-              </div>
-            </section>
-
-            <section className="aivy-section">
-              <div className="aivy-section-head"><h2 className="aivy-section-title">{t("rowExplore")}</h2></div>
-              <div className="aivy-grid">
-                {visibleItems.map((item, i) => {
-                  if (item.type === "track") return <CardTrack key={`t-${item.id}-${i}`} track={item} list={exploreTracks} />;
-                  if (item.type === "album") return <CardAlbum key={`a-${item.id}-${i}`} album={item} />;
-                  return <CardArtist key={`ar-${item.id}-${i}`} artist={item} />;
-                })}
-              </div>
-          <div ref={sentinelRef} style={{ display: "flex", justifyContent: "center", padding: "26px 0" }}>
-            {loading && <SkeletonCardGrid count={4} />}
-            {done && items.length > 0 && <span className="eyebrow">{t("exploreEnd")}</span>}
+        {nothingPlayed && (
+          <div className="aivy-home-welcome">
+            <h1 className="font-display">{t("homeWelcome")}</h1>
+            <p>{t("homeWelcomeEmpty")}</p>
           </div>
-            </section>
-          </>
         )}
 
-        {homeTab === "hot" && (
-          <>
-            <section className="aivy-section" style={{ marginTop: 0 }}>
-              <div className="aivy-section-head"><h2 className="aivy-section-title">{t("tabHotNew")}</h2></div>
-              <div className="aivy-songlist-grid">
-                {hotTracks === null
-                  ? <SkeletonSongGrid count={6} />
-                  : (hotTracks || []).map((tr) => <SongListRow key={tr.id} track={tr} list={hotTracks} />)}
+        {settings.showRecommendedSongs !== false && (
+          <section className="aivy-section" style={{ marginTop: 0 }}>
+            <div className="aivy-section-head">
+              <div className="aivy-home-head-left">
+                <h2 className="aivy-section-title">{t("recoSongs")}</h2>
+                {recoTracks?.length > 0 && (
+                  <button className="aivy-chip" onClick={startRadio}>
+                    <Play size={11} /> {t("startInfiniteRadio")}
+                  </button>
+                )}
               </div>
-            </section>
-            <Row title={t("recoAlbums")} items={hotAlbums} render={(a) => <CardAlbum key={a.id} album={a} />} />
-          </>
+              <button
+                className="aivy-icon-btn bare"
+                onClick={() => { setRecoNonce((n) => n + 1); setTrendingSeed("trending-" + Date.now()); }}
+                aria-label="Refresh"
+                title="Refresh"
+              >
+                <RefreshCw size={15} />
+              </button>
+            </div>
+            <div className="aivy-songlist-grid">
+              {recoLoading
+                ? <SkeletonSongGrid count={RECO_TRACK_COUNT} />
+                : recoTracks.map((tr, i) => <SongListRow key={tr.id} track={tr} list={recoTracks} eager={i < 6} />)}
+            </div>
+          </section>
         )}
 
-        {homeTab === "picks" && showEditorsPicks && (
-          <Row title={t("tabEditorsPicks")} items={pickAlbums} render={(a) => <CardAlbum key={a.id} album={a} />} />
+        {settings.showRecommendedAlbums !== false && (
+          <Row
+            scroll
+            title={t("recoAlbums")}
+            items={recoAlbums}
+            action={
+              <button className="aivy-icon-btn bare" onClick={() => { setAlbumSeed("fresh-" + Date.now()); setAlbumNonce((n) => n + 1); }} aria-label="Refresh" title="Refresh">
+                <RefreshCw size={15} />
+              </button>
+            }
+            render={(a) => <CardAlbum key={a.id} album={a} />}
+          />
         )}
 
-        {homeTab === "aoty" && (
-          <Row title={t("tabAoty")} items={aotyAlbums} render={(a) => <CardAlbum key={a.id} album={a} />} />
+        {settings.showRecommendedArtists !== false && (
+          <Row scroll title={t("recoArtists")} items={recoArtists} render={(a) => <CardArtist key={a.id} artist={a} />} />
         )}
+
+        {settings.showJumpBackIn !== false && (playedHistory === null || playedHistory.length > 0) ? (
+          <Row scroll title={t("rowContinueListening")} items={playedHistory === null ? null : playedHistory.slice(0, 12)} render={(tr) => <CardTrack key={tr.id} track={tr} list={playedHistory} />} />
+        ) : null}
+
+        <section className="aivy-section">
+          <div className="aivy-section-head"><h2 className="aivy-section-title">{t("listeningParties")}</h2></div>
+          <div className="aivy-parties-cta">
+            <p>{t("partiesSub")}</p>
+            <div className="acts">
+              <button className="aivy-btn-primary" onClick={() => navigate("roomLobby")}>{t("createRoom")}</button>
+              <button className="aivy-btn-ghost" onClick={() => navigate("roomLobby")}>{t("joinRoom")}</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="aivy-section">
+          <DonationBanner />
+        </section>
+
+        <ExploreFeed />
       </div>
     </div>
   );
 }
-

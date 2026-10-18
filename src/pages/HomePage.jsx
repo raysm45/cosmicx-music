@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Play, RefreshCw, Heart, MoreHorizontal } from "lucide-react";
 import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
@@ -122,6 +122,7 @@ function mapHistoryRow(row) {
     artists: row.artists || null,
     album: row.album || null,
     cover: row.thumbnail || null, duration: row.duration || null,
+    explicit: !!row.explicit,
   };
 }
 
@@ -146,7 +147,12 @@ function SongListRow({ track, list, eager = false }) {
         <SmartCover src={track.cover} seed={track.id + track.title} size={80} radius={6} priority={eager} style={{ width: "100%", height: "100%" }} />
       </span>
       <span className="meta">
-        <MarqueeText as="span" className="t" text={track.title} />
+        <MarqueeText
+          as="span"
+          className="t"
+          text={track.title}
+          prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        />
         <span className="a">{track.artist?.name || "\u2014"}</span>
       </span>
       <span className="acts">

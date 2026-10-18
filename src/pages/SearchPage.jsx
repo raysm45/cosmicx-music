@@ -1,18 +1,73 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, X, Clock, TrendingUp, ArrowLeft, ArrowUpLeft, Mic, Music2, Smile, Globe, ChevronRight } from "lucide-react";
+import { Search, X, Clock, TrendingUp, ArrowLeft, ArrowUpLeft, Mic, Music2, Smile, Globe, ChevronRight, Play, Check, UserPlus, Disc, Mic2 } from "lucide-react";
 import { Api } from "../lib/api.js";
-import { useUI } from "../context.jsx";
+import { useUI, usePlayer } from "../context.jsx";
 import { useRouter } from "../router.jsx";
-import { TrackRow, HoverRail, SkeletonList } from "../components.jsx";
+import { TrackRow, HoverRail, SkeletonList, CardAlbum, CardArtist, filterExplicit } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
+import { loadArtistProfile, peekArtistProfile } from "../lib/artistProfile.js";
 import { useAnimatedList } from "../lib/useAnimatedList.js";
-import { usePlayer } from "../context.jsx";
 import {
   debounce, isRelevantArtistMatch, cleanTrackTitleForLyrics,
   getRecentSearchThumbs, saveRecentSearchThumb, removeRecentSearchThumb, clearRecentSearchThumbs,
 } from "../lib/utils.js";
 
 const GENRE_SHORTCUTS = ["Pop", "Hip-Hop", "R&B", "Indie", "Rock", "Electronic", "Jazz", "Dangdut", "K-Pop", "Reggae", "Klasik", "Akustik"];
+
+function appleWide(url, w = 1080) {
+  if (!url || typeof url !== "string") return url;
+  const h = w;
+  if (/\{w\}x\{h\}/.test(url)) {
+    return url.replace(/\{w\}x\{h\}(?:\{c\})?\.\{f\}/, `${w}x${h}sr.webp`).replace(/\{w\}x\{h\}/, `${w}x${h}`);
+  }
+  const m = url.match(/^(https?:\/\/[^?#]*mzstatic\.com\/image\/thumb\/.+\/)\d+x\d+[a-z]*\.(?:jpg|jpeg|png|webp)((?:[?#].*)?)$/i);
+  if (!m) return url;
+  return `${m[1]}${w}x${h}sr.webp${m[2] || ""}`;
+}
+
+function formatListenersCount(n, en = false) {
+  const num = Number(n);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  if (num >= 1_000_000) {
+    const val = (num / 1_000_000).toFixed(1).replace(/\.0$/, "");
+    return en ? `${val}M monthly listeners` : `${val.replace(".", ",")} jt pendengar bulanan`;
+  }
+  if (num >= 1_000) {
+    const val = Math.round(num / 1_000);
+    return en ? `${val}K monthly listeners` : `${val} rb pendengar bulanan`;
+  }
+  return en ? `${num} monthly listeners` : `${num} pendengar bulanan`;
+}
+
+function mergeAlbums(...lists) {
+  const out = [];
+  const seenIds = new Set();
+  const seenKeys = new Set();
+  for (const list of lists) {
+    for (const raw of list || []) {
+      if (!raw || (!raw.id && !raw.title)) continue;
+      const idKey = raw.id ? String(raw.id).trim().toLowerCase() : "";
+      const artistName = typeof raw.artist === "string"
+        ? raw.artist
+        : (raw.artist?.name || raw.artistLine || "");
+      const titleKey = `${String(raw.title || "").trim().toLowerCase()}|${String(artistName).trim().toLowerCase()}`;
+      if ((idKey && seenIds.has(idKey)) || (raw.title && seenKeys.has(titleKey))) continue;
+      if (idKey) seenIds.add(idKey);
+      if (raw.title) seenKeys.add(titleKey);
+      out.push({
+        ...raw,
+        id: raw.id || titleKey,
+        title: raw.title || "Album",
+        artist: typeof raw.artist === "string" ? { name: raw.artist } : (raw.artist || (artistName ? { name: artistName } : null)),
+        artistLine: raw.artistLine || artistName || "",
+        cover: raw.cover || raw.thumbnail || null,
+        releaseDate: raw.releaseDate || raw.year || null,
+        explicit: !!raw.explicit,
+      });
+    }
+  }
+  return out;
+}
 
 function renderLiveText(text, needle) {
   const i = needle ? text.toLowerCase().indexOf(needle) : -1;
@@ -32,7 +87,7 @@ const EMPTY_LIVE = { q: "", suggestions: [], titles: [] };
 export function SearchPage() {
   const { authUser, settings, t } = useUI();
   const { navigate, back } = useRouter();
-  const { playRadio } = usePlayer();
+  const { playRadio, playList, followedArtistIds, toggleFollowArtist } = usePlayer();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -47,6 +102,12 @@ export function SearchPage() {
   const [checkingLyrics, setCheckingLyrics] = useState(false);
   const [artistHit, setArtistHit] = useState(null);
   const [artistHits, setArtistHits] = useState([]);
+  const [albumHits, setAlbumHits] = useState([]);
+  const [topResult, setTopResult] = useState(null);
+  const [activeTab, setActiveTab] = useState("all");
+  const [topArtistDetail, setTopArtistDetail] = useState(null);
+  const [topArtistHero, setTopArtistHero] = useState(null);
+  const [artistProfiles, setArtistProfiles] = useState({});
   const [genresOpen, setGenresOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
@@ -55,10 +116,10 @@ export function SearchPage() {
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
 
+  const en = settings.language === "en";
   const tt = useMemo(() => {
-    const en = settings.language === "en";
     return (idText, enText) => (en ? enText : idText);
-  }, [settings.language]);
+  }, [en]);
 
   const debouncedSuggest = useRef(debounce((q) => {
     if (!authUser || settings.searchHistoryEnabled === false) return;
@@ -110,16 +171,21 @@ export function SearchPage() {
   const prefetchResults = (q) => {
     const key = q.trim().toLowerCase();
     if (!key || resultCacheRef.current.has(key)) return;
-    const entry = { results: null, artist: null, promise: null };
+    const entry = { results: null, artist: null, albums: null, promise: null };
     resultCacheRef.current.set(key, entry);
     if (resultCacheRef.current.size > 30) resultCacheRef.current.delete(resultCacheRef.current.keys().next().value);
     entry.promise = Promise.all([
       Api.search(q.trim()).catch(() => null),
       Api.artistQuick(q.trim()).catch(() => null),
-    ]).then(([res, artist]) => {
-      if (!res) { resultCacheRef.current.delete(key); return; }
-      entry.results = res;
+      Api.albumSearch(q.trim()).catch(() => []),
+    ]).then(([res, artist, albums]) => {
+      if (!res && (!albums || !albums.length) && !artist) {
+        resultCacheRef.current.delete(key);
+        return;
+      }
+      entry.results = res || [];
       entry.artist = artist;
+      entry.albums = Array.isArray(albums) ? albums : [];
     });
   };
 
@@ -142,7 +208,11 @@ export function SearchPage() {
     const onPop = () => {
       const q = new URLSearchParams(window.location.search).get("q") || "";
       setQuery(q);
-      if (q.trim()) doSearch(q); else { setResults([]); setHasSearched(false); setSearching(false); setArtistHit(null); setArtistHits([]); }
+      if (q.trim()) doSearch(q);
+      else {
+        setResults([]); setHasSearched(false); setSearching(false);
+        setArtistHit(null); setArtistHits([]); setAlbumHits([]); setTopResult(null);
+      }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -155,13 +225,24 @@ export function SearchPage() {
     window.history.replaceState({}, "", url.pathname + url.search);
   };
 
-  const applyResults = (trimmed, res, artist) => {
+  const applyResults = (trimmed, res, artist, extraAlbums = []) => {
     setSearching(false);
-    setArtistHit(artist && isRelevantArtistMatch(artist.name, trimmed) ? artist : null);
+    const top = res?.top || null;
+    setTopResult(top);
+    const matchedQuickArtist = artist && isRelevantArtistMatch(artist.name, trimmed) ? artist : null;
+    const topArtistCandidate = top?.kind === "artist" ? top : null;
+    setArtistHit(matchedQuickArtist || topArtistCandidate || null);
     setResults(res || []);
-    setNoResults(!res || res.length === 0);
     setNextCursor(res?.nextCursor || null);
     setArtistHits(Array.isArray(res?.artists) ? res.artists : []);
+    const mergedAlbums = mergeAlbums(
+      top?.kind === "album" ? [top] : [],
+      Array.isArray(res?.albums) ? res.albums : [],
+      extraAlbums
+    );
+    setAlbumHits(mergedAlbums);
+    const hasAny = (res && res.length > 0) || mergedAlbums.length > 0 || !!(matchedQuickArtist || topArtistCandidate) || (Array.isArray(res?.artists) && res.artists.length > 0);
+    setNoResults(!hasAny);
     if (res && res[0] && res[0].videoId) {
       saveRecentSearchThumb(trimmed, res[0]);
       setRecentThumbs(getRecentSearchThumbs());
@@ -170,7 +251,11 @@ export function SearchPage() {
 
   const doSearch = async (q) => {
     const trimmed = q.trim();
-    if (!trimmed) { setResults([]); setHasSearched(false); setSearching(false); setArtistHit(null); setArtistHits([]); setNextCursor(null); return; }
+    if (!trimmed) {
+      setResults([]); setHasSearched(false); setSearching(false);
+      setArtistHit(null); setArtistHits([]); setAlbumHits([]); setTopResult(null); setNextCursor(null);
+      return;
+    }
     const seq = ++requestSeqRef.current;
     setHasSearched(true);
     setNoResults(false);
@@ -180,17 +265,22 @@ export function SearchPage() {
     let entry = resultCacheRef.current.get(key);
     if (!entry) { prefetchResults(trimmed); entry = resultCacheRef.current.get(key); }
 
-    if (entry?.results) { applyResults(trimmed, entry.results, entry.artist); return; }
+    if (entry?.results) { applyResults(trimmed, entry.results, entry.artist, entry.albums); return; }
     setResults([]);
     setArtistHit(null);
     setArtistHits([]);
+    setAlbumHits([]);
+    setTopResult(null);
     setNextCursor(null);
     setSearching(true);
 
     try {
       await entry?.promise;
       if (seq !== requestSeqRef.current) return;
-      if (entry?.results) { applyResults(trimmed, entry.results, entry.artist); return; }
+      if (entry?.results || entry?.albums?.length || entry?.artist) {
+        applyResults(trimmed, entry.results || [], entry.artist, entry.albums || []);
+        return;
+      }
       setSearching(false);
       setResults([]);
       setNoResults(true);
@@ -222,12 +312,13 @@ export function SearchPage() {
   };
 
   useEffect(() => {
+    if (activeTab !== "all" && activeTab !== "songs") return undefined;
     const el = sentinelRef.current;
-    if (!el) return;
+    if (!el) return undefined;
     const io = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) loadMoreResults(); }, { rootMargin: "600px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [nextCursor, loadingMore, searchedQuery]);
+  }, [nextCursor, loadingMore, searchedQuery, activeTab]);
 
   const onChangeQuery = (val) => {
     setQuery(val);
@@ -236,7 +327,8 @@ export function SearchPage() {
       debouncedSuggest.cancel?.();
       debouncedPrefetch.cancel?.();
       stopLive();
-      setSuggestions([]); setResults([]); setHasSearched(false); setSearching(false); setNextCursor(null); setArtistHits([]);
+      setSuggestions([]); setResults([]); setHasSearched(false); setSearching(false);
+      setNextCursor(null); setArtistHit(null); setArtistHits([]); setAlbumHits([]); setTopResult(null);
       setLiveData(EMPTY_LIVE);
       return;
     }
@@ -357,30 +449,114 @@ export function SearchPage() {
   }, [liveItems, liveNeedle, liveData.q, query]);
 
   const { containerRef: liveBoxRef, rendered: liveRendered } = useAnimatedList(liveRows, { exitMs: 120, moveMs: 220, enterMs: 180, stagger: 14 });
+
   const allArtists = useMemo(() => {
     const out = [];
     const seenIds = new Set();
     const seenNames = new Set();
-    for (const a of [artistHit, ...artistHits].filter(Boolean)) {
+    const candidates = [
+      artistHit,
+      topResult?.kind === "artist" ? topResult : null,
+      ...artistHits,
+    ];
+    // Also extract artists from song results if artistHits is sparse
+    for (const r of results.slice(0, 12)) {
+      const aObj = r?.artist && typeof r.artist === "object" ? r.artist : (r?.artist ? { name: r.artist } : null);
+      if (aObj?.name && isRelevantArtistMatch(aObj.name, searchedQuery)) {
+        candidates.push(aObj);
+      }
+      if (Array.isArray(r?.artists)) {
+        for (const ar of r.artists) {
+          if (ar?.name && isRelevantArtistMatch(ar.name, searchedQuery)) candidates.push(ar);
+        }
+      }
+    }
+    for (const a of candidates.filter(Boolean)) {
       const idKey = String(a.id || "").toLowerCase();
       const nameKey = String(a.name || "").trim().toLowerCase();
       if (!idKey && !nameKey) continue;
       if ((idKey && seenIds.has(idKey)) || (nameKey && seenNames.has(nameKey))) continue;
       if (idKey) seenIds.add(idKey);
       if (nameKey) seenNames.add(nameKey);
-      out.push(a);
+      const cached = artistProfiles[idKey || nameKey] || peekArtistProfile(a) || null;
+      out.push({
+        ...a,
+        id: a.id || cached?.id || a.name,
+        image: a.image || a.avatar || cached?.avatar || cached?.image || null,
+        banner: a.banner || cached?.banner || null,
+        audience: a.audience || cached?.audience || (cached?.listeners ? formatListenersCount(cached.listeners, en) : null),
+      });
     }
     return out;
-  }, [artistHit, artistHits]);
+  }, [artistHit, topResult, artistHits, results, searchedQuery, artistProfiles, en]);
+
   const topArtist = allArtists[0] || null;
-  const otherArtists = allArtists.slice(1, 12);
+  const otherArtists = allArtists.slice(1, 16);
+
+  // Enrich topArtist with full artist profile + Apple Music editorial artwork
+  useEffect(() => {
+    if (!topArtist) {
+      setTopArtistDetail(null);
+      setTopArtistHero(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setTopArtistDetail(null);
+    setTopArtistHero(null);
+    const idOrName = topArtist.id || topArtist.name;
+    Api.artist(idOrName)
+      .then((detail) => {
+        if (cancelled || !detail) return;
+        setTopArtistDetail(detail);
+        if (Array.isArray(detail.albums) && detail.albums.length > 0 && isRelevantArtistMatch(detail.name || topArtist.name, searchedQuery)) {
+          setAlbumHits((prev) => mergeAlbums(prev, detail.albums));
+        }
+      })
+      .catch(() => {});
+    if (topArtist.name) {
+      Api.appleMusicHero(topArtist.name)
+        .then((hero) => {
+          if (!cancelled && hero) setTopArtistHero(hero);
+        })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [topArtist?.id, topArtist?.name, searchedQuery]);
+
+  // Enrich all artists with profile avatars & audience in the background
+  useEffect(() => {
+    if (!allArtists.length) return undefined;
+    let cancelled = false;
+    allArtists.slice(0, 12).forEach((a) => {
+      const k = String(a.id || a.name || "").toLowerCase();
+      if (!k || (a.image && a.audience)) return;
+      loadArtistProfile(a).then((prof) => {
+        if (cancelled || !prof) return;
+        setArtistProfiles((prev) => (prev[k] ? prev : { ...prev, [k]: prof }));
+      });
+    });
+    return () => { cancelled = true; };
+  }, [allArtists.length, searchedQuery]);
 
   const openArtist = (a) => {
     if (!a) return;
     navigate("artist", { params: { id: a.id || a.name } });
   };
 
-  const list = results.map((r) => (r.videoId ? { id: r.videoId, videoId: r.videoId, title: r.title, cover: r.cover || r.thumbnail, duration: r.duration || null, artist: typeof r.artist === "string" ? { name: r.artist } : (r.artist || null), artists: r.artists || null, album: r.album || null } : r));
+  const list = useMemo(() => {
+    const mapped = results.map((r) => (r.videoId ? {
+      id: r.videoId,
+      videoId: r.videoId,
+      title: r.title,
+      cover: r.cover || r.thumbnail,
+      duration: r.duration || null,
+      artist: typeof r.artist === "string" ? { name: r.artist } : (r.artist || null),
+      artists: r.artists || null,
+      album: r.album || null,
+      explicit: !!r.explicit,
+    } : r));
+    return filterExplicit(mapped, settings);
+  }, [results, settings]);
 
   useEffect(() => {
     if (!results.length) { setLyricsMap({}); setCheckingLyrics(false); return; }
@@ -414,6 +590,137 @@ export function SearchPage() {
     return [...list].sort((a, b) => (lyricsMap[a.id] ? 0 : 1) - (lyricsMap[b.id] ? 0 : 1));
   }, [list, lyricsMap, checkingLyrics]);
 
+  const visibleAlbums = useMemo(() => {
+    if (settings.explicitContent === false) return albumHits.filter((a) => !a.explicit);
+    return albumHits;
+  }, [albumHits, settings.explicitContent]);
+
+  const heroArtist = useMemo(() => {
+    if (!topArtist) return null;
+    const d = topArtistDetail;
+    const avatar = d?.avatar || d?.image || topArtist.image || topArtistHero?.static || null;
+    const artworkBanner = appleWide(
+      topArtistHero?.editorialStatic || d?.banner || topArtist.banner || topArtistHero?.static || avatar,
+      1080
+    );
+    const audience = d?.audience || topArtist.audience || (d?.listeners ? formatListenersCount(d.listeners, en) : null);
+    const bio = d?.bio
+      ? String(d.bio).replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
+      : null;
+    const tags = Array.isArray(d?.tags) ? d.tags.filter(Boolean).slice(0, 4) : [];
+    const topTracks = filterExplicit(Array.isArray(d?.topTracks) ? d.topTracks : [], settings);
+    return {
+      ...topArtist,
+      id: d?.id || topArtist.id || topArtist.name,
+      name: d?.name || topArtist.name,
+      image: avatar,
+      banner: artworkBanner,
+      audience,
+      bio,
+      tags,
+      topTracks,
+    };
+  }, [topArtist, topArtistDetail, topArtistHero, en, settings]);
+
+  const handlePlayArtist = (e, artistObj) => {
+    e?.stopPropagation();
+    const tracks = artistObj?.topTracks?.length
+      ? artistObj.topTracks
+      : sortedList.filter((tr) => isRelevantArtistMatch(tr.artist?.name || "", artistObj?.name || ""));
+    if (tracks.length) {
+      playList(tracks, 0);
+    } else if (sortedList.length) {
+      playList(sortedList, 0);
+    }
+  };
+
+  const renderArtistHeroCard = () => {
+    if (!heroArtist) return null;
+    const isFollowing = !!heroArtist.id && followedArtistIds.has(String(heroArtist.id));
+    return (
+      <section className="aivy-section" style={{ marginTop: 0 }}>
+        <div className="aivy-section-head">
+          <h2 className="aivy-section-title">{tt("Profil & Artwork Artis", "Artist Profile & Artwork")}</h2>
+        </div>
+        <div
+          className="aivy-search-artist-hero"
+          onClick={() => openArtist(heroArtist)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter") openArtist(heroArtist); }}
+        >
+          {heroArtist.banner && (
+            <div
+              className="aivy-search-artist-hero-bg"
+              style={{ backgroundImage: `url(${JSON.stringify(heroArtist.banner)})` }}
+            />
+          )}
+          <div className="aivy-search-artist-hero-scrim" />
+          <div className="aivy-search-artist-hero-body">
+            <div className="aivy-search-artist-hero-avatar">
+              <SmartCover
+                src={heroArtist.image}
+                seed={"artist" + (heroArtist.id || heroArtist.name)}
+                size={220}
+                radius={999}
+                style={{ width: "100%", height: "100%", borderRadius: "50%" }}
+              />
+            </div>
+            <div className="aivy-search-artist-hero-info">
+              <div className="aivy-search-artist-hero-kicker">
+                <Mic2 size={12} />
+                <span>{t("artistLabel")}</span>
+              </div>
+              <div className="aivy-search-artist-hero-name">{heroArtist.name}</div>
+              {heroArtist.audience && (
+                <div className="aivy-search-artist-hero-audience">{heroArtist.audience}</div>
+              )}
+              {heroArtist.tags?.length > 0 && (
+                <div className="aivy-search-artist-hero-tags">
+                  {heroArtist.tags.map((tag) => (
+                    <span key={tag} className="aivy-search-artist-tag">{tag}</span>
+                  ))}
+                </div>
+              )}
+              {heroArtist.bio && (
+                <p className="aivy-search-artist-hero-bio">{heroArtist.bio}</p>
+              )}
+              <div className="aivy-search-artist-hero-actions" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="aivy-search-artist-btn primary"
+                  onClick={(e) => handlePlayArtist(e, heroArtist)}
+                >
+                  <Play size={15} fill="currentColor" />
+                  <span>{t("play")}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`aivy-search-artist-btn ${isFollowing ? "active" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFollowArtist({ id: heroArtist.id, name: heroArtist.name, image: heroArtist.image });
+                  }}
+                >
+                  {isFollowing ? <Check size={15} /> : <UserPlus size={15} />}
+                  <span>{isFollowing ? t("following") : t("follow")}</span>
+                </button>
+                <button
+                  type="button"
+                  className="aivy-search-artist-btn ghost"
+                  onClick={(e) => { e.stopPropagation(); openArtist(heroArtist); }}
+                >
+                  <span>{t("openArtistProfile")}</span>
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   return (
     <div className="aivy-view-enter">
       <div className="aivy-search-head-v2">
@@ -436,6 +743,53 @@ export function SearchPage() {
           </div>
         </div>
       </div>
+
+      {hasSearched && !searching && (
+        <div className="aivy-search-tabs" role="tablist" aria-label={tt("Filter pencarian", "Search filters")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "all"}
+            className={`aivy-search-tab ${activeTab === "all" ? "active" : ""}`}
+            onClick={() => setActiveTab("all")}
+          >
+            {tt("Semua", "All")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "songs"}
+            className={`aivy-search-tab ${activeTab === "songs" ? "active" : ""}`}
+            onClick={() => setActiveTab("songs")}
+          >
+            <Music2 size={14} />
+            <span>{tt("Lagu", "Songs")}</span>
+            {sortedList.length > 0 && <span className="cnt">{sortedList.length}</span>}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "albums"}
+            className={`aivy-search-tab ${activeTab === "albums" ? "active" : ""}`}
+            onClick={() => setActiveTab("albums")}
+          >
+            <Disc size={14} />
+            <span>{tt("Album", "Albums")}</span>
+            {visibleAlbums.length > 0 && <span className="cnt">{visibleAlbums.length}</span>}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "artists"}
+            className={`aivy-search-tab ${activeTab === "artists" ? "active" : ""}`}
+            onClick={() => setActiveTab("artists")}
+          >
+            <Mic2 size={14} />
+            <span>{t("artistLabel")}</span>
+            {allArtists.length > 0 && <span className="cnt">{allArtists.length}</span>}
+          </button>
+        </div>
+      )}
 
       {query.trim() && !hasSearched && (
         <div className="aivy-live-title-list" role="listbox" aria-label={t("searchPlaceholder")}>
@@ -532,62 +886,130 @@ export function SearchPage() {
         </div>
       )}
 
-      {hasSearched && topArtist && (
-        <section className="aivy-section" style={{ marginTop: 0 }}>
-          <div className="aivy-section-head"><h2 className="aivy-section-title">{t("artistLabel")}</h2></div>
-          <div
-            className="aivy-search-artist-top"
-            onClick={() => openArtist(topArtist)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter") openArtist(topArtist); }}
-          >
-            <span className="art">
-              <SmartCover src={topArtist.image} seed={"artist" + (topArtist.id || topArtist.name)} size={208} radius={999} style={{ width: "100%", height: "100%" }} />
-            </span>
-            <span style={{ minWidth: 0 }}>
-              <span className="n" style={{ display: "block" }}>{topArtist.name}</span>
-              <span className="r" style={{ display: "block" }}>{t("openArtistProfile")}</span>
-            </span>
-            <ChevronRight className="go" size={22} />
-          </div>
-        </section>
-      )}
+      {hasSearched && !searching && activeTab === "all" && (
+        <>
+          {renderArtistHeroCard()}
 
-      {hasSearched && otherArtists.length > 0 && (
-        <section className="aivy-section">
-          <div className="aivy-section-head"><h2 className="aivy-section-title">{t("similarArtists")}</h2></div>
-          <HoverRail>
-            {otherArtists.map((a) => (
-              <div
-                key={a.id || a.name}
-                className="aivy-artist-hit"
-                onClick={() => openArtist(a)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter") openArtist(a); }}
-              >
-                <span className="art">
-                  <SmartCover src={a.image} seed={"artist" + (a.id || a.name)} size={116} radius={999} style={{ width: "100%", height: "100%" }} />
-                </span>
-                <span style={{ minWidth: 0 }}>
-                  <span className="n" style={{ display: "block" }}>{a.name}</span>
-                  <span className="r" style={{ display: "block" }}>{t("artistLabel")}</span>
-                </span>
+          {visibleAlbums.length > 0 && (
+            <section className="aivy-section">
+              <div className="aivy-section-head">
+                <h2 className="aivy-section-title">{tt("Album", "Albums")}</h2>
+                {visibleAlbums.length > 4 && (
+                  <button type="button" className="aivy-lib-section-link" onClick={() => setActiveTab("albums")}>
+                    {tt("Lihat semua", "See all")}
+                  </button>
+                )}
               </div>
+              <HoverRail>
+                {visibleAlbums.slice(0, 12).map((alb) => (
+                  <CardAlbum key={alb.id || alb.title} album={alb} />
+                ))}
+              </HoverRail>
+            </section>
+          )}
+
+          {otherArtists.length > 0 && (
+            <section className="aivy-section">
+              <div className="aivy-section-head">
+                <h2 className="aivy-section-title">{t("similarArtists")}</h2>
+                {allArtists.length > 3 && (
+                  <button type="button" className="aivy-lib-section-link" onClick={() => setActiveTab("artists")}>
+                    {tt("Lihat semua", "See all")}
+                  </button>
+                )}
+              </div>
+              <HoverRail>
+                {otherArtists.map((a) => (
+                  <div
+                    key={a.id || a.name}
+                    className="aivy-artist-hit"
+                    onClick={() => openArtist(a)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter") openArtist(a); }}
+                  >
+                    <span className="art">
+                      <SmartCover src={a.image} seed={"artist" + (a.id || a.name)} size={116} radius={999} style={{ width: "100%", height: "100%" }} />
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="n" style={{ display: "block" }}>{a.name}</span>
+                      <span className="r" style={{ display: "block" }}>{a.audience || t("artistLabel")}</span>
+                    </span>
+                  </div>
+                ))}
+              </HoverRail>
+            </section>
+          )}
+
+          {sortedList.length > 0 && (
+            <section className="aivy-section">
+              <div className="aivy-section-head">
+                <h2 className="aivy-section-title">{tt("Lagu", "Songs")}</h2>
+                {sortedList.length > 6 && (
+                  <button type="button" className="aivy-lib-section-link" onClick={() => setActiveTab("songs")}>
+                    {tt("Lihat semua", "See all")}
+                  </button>
+                )}
+              </div>
+              <div>
+                {sortedList.map((tr, i) => (
+                  <TrackRow key={`${tr.id}-${i}`} track={tr} index={i} list={sortedList} queueMode="radio" source={{ type: "search" }} />
+                ))}
+                {nextCursor && <div ref={sentinelRef} style={{ height: 1 }} />}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {hasSearched && !searching && activeTab === "songs" && (
+        sortedList.length > 0 ? (
+          <div>
+            {sortedList.map((tr, i) => (
+              <TrackRow key={`${tr.id}-${i}`} track={tr} index={i} list={sortedList} queueMode="radio" source={{ type: "search" }} />
             ))}
-          </HoverRail>
-        </section>
+            {nextCursor && <div ref={sentinelRef} style={{ height: 1 }} />}
+          </div>
+        ) : (
+          <div className="aivy-empty"><Music2 size={34} color="var(--ink-faint)" /><div className="title">{t("noResults")}</div><div className="sub">{t("noResultsSub")}</div></div>
+        )
       )}
 
-      {hasSearched && sortedList.length > 0 && (
-        <div>
-          {sortedList.map((tr, i) => <TrackRow key={`${tr.id}-${i}`} track={tr} index={i} list={sortedList} queueMode="radio" source={{ type: "search" }} />)}
-          {nextCursor && <div ref={sentinelRef} style={{ height: 1 }} />}
-        </div>
+      {hasSearched && !searching && activeTab === "albums" && (
+        visibleAlbums.length > 0 ? (
+          <section className="aivy-section" style={{ marginTop: 0 }}>
+            <div className="aivy-grid">
+              {visibleAlbums.map((alb) => (
+                <CardAlbum key={alb.id || alb.title} album={alb} />
+              ))}
+            </div>
+          </section>
+        ) : (
+          <div className="aivy-empty"><Disc size={34} color="var(--ink-faint)" /><div className="title">{tt("Tidak ada album ditemukan", "No albums found")}</div><div className="sub">{t("noResultsSub")}</div></div>
+        )
       )}
 
-      {hasSearched && !searching && noResults && sortedList.length === 0 && (
+      {hasSearched && !searching && activeTab === "artists" && (
+        allArtists.length > 0 ? (
+          <>
+            {renderArtistHeroCard()}
+            <section className="aivy-section">
+              <div className="aivy-section-head">
+                <h2 className="aivy-section-title">{tt("Semua Artis", "All Artists")}</h2>
+              </div>
+              <div className="aivy-grid">
+                {allArtists.map((a) => (
+                  <CardArtist key={a.id || a.name} artist={a} />
+                ))}
+              </div>
+            </section>
+          </>
+        ) : (
+          <div className="aivy-empty"><Mic2 size={34} color="var(--ink-faint)" /><div className="title">{tt("Tidak ada artis ditemukan", "No artists found")}</div><div className="sub">{t("noResultsSub")}</div></div>
+        )
+      )}
+
+      {hasSearched && !searching && noResults && sortedList.length === 0 && visibleAlbums.length === 0 && allArtists.length === 0 && (
         <div className="aivy-empty"><Search size={34} color="var(--ink-faint)" /><div className="title">{t("noResults")}</div><div className="sub">{t("noResultsSub")}</div></div>
       )}
 

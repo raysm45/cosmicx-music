@@ -5,7 +5,7 @@ import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 import { SmartCover, StarLoader } from "../lib/brand.jsx";
 import { uid } from "../lib/utils.js";
-import { filterExplicit } from "../components.jsx";
+import { filterExplicit, MarqueeText } from "../components.jsx";
 
 function useActiveOnScreen(threshold = 0.65) {
   const ref = useRef(null);
@@ -93,7 +93,12 @@ function ShortCard({ track, muted, onToggleMute }) {
 
       <div className="aivy-short-overlay">
         <div className="aivy-short-meta">
-          <div className="t">{track.title}</div>
+          <MarqueeText
+            as="div"
+            className="t"
+            text={track.title}
+            prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+          />
           <div className="a" onClick={() => track.artist?.id && navigate("artist", { params: { id: track.artist.id } })}>
             {track.artist?.name || "\u2014"}
           </div>

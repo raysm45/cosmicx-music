@@ -223,7 +223,10 @@ export function RoomPage() {
             </div>
             <div className="meta">
               <span className="eyebrow">{t("nowPlaying")}</span>
-              <div className="t">{roomTrack.title}</div>
+              <div className="t">
+                {roomTrack.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+                {roomTrack.title}
+              </div>
               <div className="a">
                 {roomTrack.artist?.name || roomTrack.artist || "\u2014"}
                 {roomTrack.addedBy?.username ? ` · ${t("by")} ${roomTrack.addedBy.username}` : ""}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AlertTriangle } from "lucide-react";
-import { StarLoader } from "../lib/brand.jsx";
+import { AlertTriangle, Search, Mic, Users, ListMusic } from "lucide-react";
+import { StarLoader, CosmicLogoMark, useIsHalloween } from "../lib/brand.jsx";
 import { useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
 
@@ -11,6 +11,18 @@ const LOGIN_ERRORS = {
   user_not_found: "Akun kamu tidak ditemukan setelah proses masuk. Coba ulangi beberapa saat lagi.",
   login_failed: "Terjadi gangguan saat menghubungkan akunmu. Silakan coba lagi sebentar lagi.",
 };
+
+const SHOWCASE = [
+  { icon: Search, title: "Cari cepat", desc: "Temukan lagu, artis, dan album dalam hitungan detik." },
+  { icon: Mic, title: "Lirik sinkron", desc: "Lirik jalan baris demi baris, ikut lagu yang diputar." },
+  { icon: Users, title: "Dengerin bareng", desc: "Buat ruang, ajak teman, dan putar lagu yang sama secara real-time." },
+  { icon: ListMusic, title: "Koleksi pribadi", desc: "Simpan playlist dan lagu favorit, atau impor dari YouTube." },
+];
+
+const EQ_BARS = Array.from({ length: 72 }, (_, i) => ({
+  i,
+  h: +(0.22 + 0.78 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.55))).toFixed(2),
+}));
 
 function GoogleGlyph({ size = 18 }) {
   return (
@@ -169,11 +181,63 @@ function CosmicMark() {
   );
 }
 
+// ---- Login NORMAL: ivory + champagne (mengikuti desain cosmicx music) ----
+const WAVES = Array.from({ length: 9 }, (_, i) =>
+  `M-80 ${300 + i * 6} C260 ${150 + i * 9}, 520 ${620 - i * 7}, 900 ${470 + i * 5} S1380 ${360 + i * 6}, 1700 ${540 + i * 4}`);
+
+function SoftLogin({ errorCode, pending, authChecked, onGoogle, onDiscord }) {
+  return (
+    <div className="lx-stage">
+      <svg className="lx-waves" viewBox="0 0 1600 800" preserveAspectRatio="none" aria-hidden="true">
+        {WAVES.map((d, i) => <path key={i} d={d} />)}
+      </svg>
+      <main className="lx-grid">
+        <section className="lx-brand">
+          <div className="lx-lockup">
+            <CosmicLogoMark size={88} gradient className="lx-mark" />
+            <h1 className="lx-name">cosmicx music</h1>
+          </div>
+          <p className="lx-tag">A clean space for music, made to feel cosmic.</p>
+          <p className="lx-url"><i aria-hidden="true" />music.cosmicx.fun</p>
+        </section>
+
+        <section className="lx-card" aria-labelledby="lx-welcome">
+          <div className="lx-halo" aria-hidden="true" />
+          <h2 id="lx-welcome">Selamat datang</h2>
+          <p className="lx-lead">Masuk untuk lanjut mendengarkan.</p>
+          {errorCode && (
+            <div className="lx-error" role="alert">
+              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>{LOGIN_ERRORS[errorCode] || LOGIN_ERRORS.login_failed}</span>
+            </div>
+          )}
+          {!authChecked ? (
+            <div className="lx-loading"><StarLoader size={30} color="#1c1814" /></div>
+          ) : (
+            <div className="lx-actions">
+              <button className="lx-btn lx-btn-primary" type="button" onClick={onGoogle} disabled={!!pending}>
+                {pending === "google" ? <StarLoader size={18} color="#fcfaf6" /> : <GoogleGlyph size={18} />}
+                Lanjutkan dengan Google
+              </button>
+              <button className="lx-btn lx-btn-outline" type="button" onClick={onDiscord} disabled={!!pending}>
+                {pending === "discord" ? <StarLoader size={18} color="#1c1814" /> : <DiscordGlyph size={18} />}
+                Lanjutkan dengan Discord
+              </button>
+            </div>
+          )}
+          <p className="lx-foot">Dengan melanjutkan, kamu menyetujui Ketentuan &amp; Privasi.</p>
+        </section>
+      </main>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const { authUser, authChecked, login, loginGoogle } = useUI();
   const { navigate } = useRouter();
   const [errorCode, setErrorCode] = useState(null);
   const [pending, setPending] = useState(null);
+  const halloween = useIsHalloween();
 
   useEffect(() => {
     if (authChecked && authUser) navigate("home", { replace: true });
@@ -190,12 +254,43 @@ export function LoginPage() {
   const handleGoogle = () => { setPending("google"); loginGoogle(); };
   const handleDiscord = () => { setPending("discord"); login(); };
 
+  // Event (Halloween) tetap pakai tampilan & logo event; hari biasa pakai desain ivory baru.
+  if (!halloween) {
+    return <SoftLogin errorCode={errorCode} pending={pending} authChecked={authChecked} onGoogle={handleGoogle} onDiscord={handleDiscord} />;
+  }
+
   return (
     <div className="cx-stage">
+      <div className="cx-backdrop" aria-hidden="true">
+        <div className="cx-eq">
+          {EQ_BARS.map((b) => <i key={b.i} style={{ "--i": b.i, "--h": b.h }} />)}
+        </div>
+      </div>
+
       <div className="cx-frame">
-        <CosmicMark />
+        <div className="cx-hero">
+          <CosmicMark />
+
+          <div className="cx-pitch">
+            <h1 className="cx-headline">Semua musikmu, satu tempat.</h1>
+            <p className="cx-sub">Cari, putar, dan dengarkan bareng teman, lengkap dengan lirik yang jalan sendiri.</p>
+            <ul className="cx-features">
+              {SHOWCASE.map(({ icon: Icon, title, desc }) => (
+                <li key={title}>
+                  <span className="cx-feat-ic"><Icon size={18} strokeWidth={1.75} /></span>
+                  <span className="cx-feat-txt"><b>{title}</b><span>{desc}</span></span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
 
         <div className="cx-bottom-group">
+          <div className="cx-card-head">
+            <h2>Selamat datang</h2>
+            <p>Masuk untuk lanjut mendengarkan.</p>
+          </div>
+
           {errorCode && (
             <div className="cx-error" role="alert">
               <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
