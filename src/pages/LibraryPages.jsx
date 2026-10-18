@@ -1,9 +1,9 @@
 import React, { useMemo, useRef } from "react";
-import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, Loader2, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid, List } from "lucide-react";
+import { Heart, Play, Library as LibraryIcon, Youtube, Music2, ListMusic, ArrowLeft, ArrowRight, Check, ClipboardList, PlusCircle, ImagePlus, X, RotateCcw, Pencil, MoreHorizontal, Shuffle, Share2, Globe, Lock, Search, ListPlus, FolderSearch, Trash2, FolderOpen, Mic2, Disc, LayoutGrid, List } from "lucide-react";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter, Link } from "../router.jsx";
 import { TrackRow, ViewNotFound, ViewLoading, ConfirmDialog, CustomSelect, FlipList, CardAlbum, shuffleArray, thumbBlur, shareLink } from "../components.jsx";
-import { SmartCover } from "../lib/brand.jsx";
+import { SmartCover, StarLoader } from "../lib/brand.jsx";
 import { useImmersiveHero, ImmersiveHero } from "../lib/immersive.jsx";
 import { Api } from "../lib/api.js";
 
@@ -615,7 +615,7 @@ function PlaylistEditModal({ pl, onClose }) {
         </label>
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
           <button className="aivy-btn-primary" style={{ flex: 1 }} disabled={!name.trim() || saving} onClick={handleSave}>
-            {saving ? <Loader2 size={15} className="aivy-spin" /> : t("save")}
+            {saving ? <StarLoader size={20} color="currentColor" /> : t("save")}
           </button>
           <button className="aivy-btn-ghost" onClick={onClose}>{t("cancel")}</button>
         </div>
@@ -827,7 +827,7 @@ export function LibraryLocalPage() {
             </button>
           )}
           <button className="aivy-btn-primary" onClick={handlePick} disabled={localScan.scanning}>
-            {localScan.scanning ? <><Loader2 size={15} className="aivy-spin" /> Memindai...</> : <><FolderSearch size={15} /> {localTracks.length ? "Pindai ulang" : "Pindai folder musik"}</>}
+            {localScan.scanning ? <><StarLoader size={20} color="currentColor" /> Memindai...</> : <><FolderSearch size={15} /> {localTracks.length ? "Pindai ulang" : "Pindai folder musik"}</>}
           </button>
         </div>
       </div>
@@ -846,7 +846,7 @@ export function LibraryLocalPage() {
 
       {localScan.scanning && (
         <div className="aivy-import-tutorial" style={{ marginBottom: 16 }}>
-          <div className="head"><Loader2 size={15} className="aivy-spin" color="var(--accent-strong)" /> Memindai {localScan.checked} / {localScan.total} file...</div>
+          <div className="head"><StarLoader size={20} /> Memindai {localScan.checked} / {localScan.total} file...</div>
           <div className="sub" style={{ fontSize: 13, marginTop: 4 }}>{localScan.found} lagu ditemukan sejauh ini (file di bawah 1 menit dilewati).</div>
         </div>
       )}
@@ -1044,7 +1044,7 @@ export function ImportPage() {
           <div className="aivy-import-actions">
             <button className="aivy-btn-primary" disabled={!url.trim() || resolving} onClick={handleResolve}>
               {resolving
-                ? <><Loader2 size={15} className="aivy-spin" /> {sourceTab === "spotify" ? "Mencocokkan lagu..." : "Memuat..."}</>
+                ? <><StarLoader size={20} color="currentColor" /> {sourceTab === "spotify" ? "Mencocokkan lagu..." : "Memuat..."}</>
                 : <>Lanjutkan <ArrowRight size={15} /></>}
             </button>
           </div>
@@ -1135,7 +1135,7 @@ export function ImportPage() {
         <div>
           {committing || (!result && !commitError) ? (
             <div className="aivy-import-progress-wrap">
-              <Loader2 size={34} className="aivy-spin" color="var(--accent-strong)" />
+              <StarLoader size={48} />
               <div style={{ marginTop: 14, fontWeight: 600 }}>Mengimpor {resolved ? formatSongCount(resolved.count) : "lagu"}...</div>
               <div className="sub" style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 4 }}>Jangan tutup halaman ini dulu ya.</div>
               <div className="aivy-import-progress-track"><div className="aivy-import-progress-fill" style={{ width: `${progress}%` }} /></div>

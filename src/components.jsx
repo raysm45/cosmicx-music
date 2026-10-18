@@ -2195,7 +2195,7 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
                 onClick={item.onSelect} disabled={item.busy}
               >
                 {item.icon}<span>{item.label}</span>
-                {item.busy && <span className="aivy-actionsheet-spinner" aria-hidden="true" />}
+                {item.busy && <span className="aivy-actionsheet-spinner" aria-hidden="true"><StarLoader size={20} color="currentColor" /></span>}
               </button>
             ))}
           </div>
@@ -3633,7 +3633,7 @@ export function TopBar({ isMobile }) {
 }
 
 export function ViewLoading() {
-  return <div className="aivy-empty" style={{ paddingTop: 90 }}><StarLoader size={40} /></div>;
+  return <div className="aivy-empty" style={{ paddingTop: 90 }}><StarLoader size={56} /></div>;
 }
 export function ViewNotFound({ label }) {
   const { t } = useUI();
@@ -4654,7 +4654,7 @@ export function MusicVideoView({ video, onClose, onAudioPlay }) {
               />
               {status === "loading" && (
                 <div className="aivy-mv-loading">
-                  <div className="aivy-mv-spinner" />
+                  <StarLoader size={52} color="#fff" />
                   <span>{t("loadingVideo")}</span>
                 </div>
               )}

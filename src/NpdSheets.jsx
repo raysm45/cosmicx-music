@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Speaker, Check, Search, Loader2, ChevronRight, AudioLines } from "lucide-react";
+import { Speaker, Check, Search, ChevronRight, AudioLines } from "lucide-react";
+import { StarLoader } from "./lib/brand.jsx";
 import { usePlayer, useUI } from "./context.jsx";
 import { VolumeControl, useTrackAudioInfo } from "./components.jsx";
 
@@ -344,7 +345,7 @@ export function LyricsProviderSheet({ tx, onClose }) {
               onClick={() => pick(p, close)}
             >
               <span className="npd-row-ico">
-                {busy === p.key ? <Loader2 size={18} className="npd-spin" /> : p.status === "current" ? <Check size={18} /> : <Search size={18} />}
+                {busy === p.key ? <StarLoader size={22} color="currentColor" /> : p.status === "current" ? <Check size={18} /> : <Search size={18} />}
               </span>
               <span className="npd-row-txt">
                 <span className="t">{p.label}</span>

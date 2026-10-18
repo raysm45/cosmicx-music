@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useId, useSyncExternalStore } from "react";
 import { hashStr } from "./utils.js";
 import { Api } from "./api.js";
+import CosmicLoader from "./CosmicLoader.jsx";
 
 export const TENDRIL_PATH =
   "M17.15,16.06 C17.4,16.09 17.75,16.25 17.86,16.33 C18.07,16.51 18.26,16.72 18.41,16.98 " +
@@ -80,39 +81,12 @@ export function StarMark({ size = 22, color = "currentColor", className = "", lo
   );
 }
 
-export function TendrilSpinner({ size = 28, color = "currentColor", spin = true }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" className={spin ? "aivy-spin" : ""} aria-hidden="true" focusable="false">
-      <path d={TENDRIL_PATH} fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeDasharray="86" strokeDashoffset="0" />
-    </svg>
-  );
+export function TendrilSpinner({ size = 28, color = "currentColor" }) {
+  return <CosmicLoader size={size} color={color} />;
 }
 
 export function StarLoader({ size = 48, color = "var(--accent-strong)", label }) {
-  const halloween = useIsHalloween();
-  if (halloween) {
-    return (
-      <div className="aivy-starloader aivy-pumpkin-loader" style={{ width: size, height: size }} role="status" aria-label={label || "Memuat"}>
-        <img src={`${HALLOWEEN_BASE}/decor/pumpkin.png`} width={size} height={size} alt="" draggable="false" style={{ display: "block", objectFit: "contain" }} />
-      </div>
-    );
-  }
-  const stars = [
-    { x: 3, y: 5, delay: "0s", scale: 0.36 },
-    { x: 16, y: 2, delay: "-0.45s", scale: 0.52 },
-    { x: 9, y: 17, delay: "-0.9s", scale: 0.42 },
-  ];
-  return (
-    <div className="aivy-starloader" style={{ width: size, height: size }} role="status" aria-label={label || "Memuat"}>
-      <svg viewBox="0 0 32 32" width={size} height={size} style={{ overflow: "visible" }} aria-hidden="true" focusable="false">
-        {stars.map((s, i) => (
-          <g key={i} className="aivy-twinkle" style={{ animationDelay: s.delay }}>
-            <path d={STAR_PATH} fill={color} transform={`translate(${s.x},${s.y}) scale(${s.scale})`} />
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
+  return <CosmicLoader size={size} color={color} label={label} />;
 }
 
 const DUOTONES = [
@@ -530,7 +504,7 @@ export function AnimatedCover({
       />
       {animated && !reduceMotion && (status === "loading" || (videoSrc && !videoReady && !playbackFailed)) && (
         <div className="aivy-animated-cover-loading" aria-hidden="true">
-          <span className="dot" /><span className="dot" /><span className="dot" />
+          <StarLoader size={20} color="#fff" />
         </div>
       )}
       {playbackFailed && showErrorDetail && (

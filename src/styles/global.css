@@ -3967,3 +3967,15 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 @media (prefers-reduced-motion: reduce){
   .lib2 *, .lib2 *::after{ transition: none !important; }
 }
+
+/* =========================================================
+   Loader logo 3D (CosmicLoader)
+   ========================================================= */
+.cx-loader{ position: relative; display: inline-block; flex: none; line-height: 0; vertical-align: middle; }
+.cx-loader canvas{ position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity var(--dur-base) var(--ease); }
+.cx-loader.is-ready canvas{ opacity: 1; }
+.cx-loader-fallback{ position: absolute; inset: 0; width: 100%; height: 100%; opacity: .6; animation: cx-loader-pulse 1.6s ease-in-out infinite; transition: opacity var(--dur-base) var(--ease); }
+.cx-loader.is-ready .cx-loader-fallback{ opacity: 0; animation: none; }
+@keyframes cx-loader-pulse{ 0%, 100%{ transform: scale(.72) rotate(0deg); opacity: .4; } 50%{ transform: scale(.96) rotate(45deg); opacity: .9; } }
+@media (prefers-reduced-motion: reduce){ .cx-loader-fallback{ animation: none; } }
+.aivy-actionsheet-spinner{ width: auto; height: auto; border: 0; border-radius: 0; animation: none; display: flex; align-items: center; }
