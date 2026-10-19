@@ -95,3 +95,41 @@ export function setPreferredAudioFormat(format) {
 export function getPreferredAudioFormat() {
   return preferredFormat;
 }
+
+// ===========================================================================
+// Info audio terpadu: bentuk lama (yt-dlp) & baru (engine FLAC) menjadi satu
+// bentuk yang dipakai seluruh UI (badge, pipeline, detail teknis).
+// ===========================================================================
+export function unifyAudioInfoFields(raw) {
+  const f =
+    raw && typeof raw === "object" && raw.format && typeof raw.format === "object"
+      ? raw.format
+      : null;
+  if (!f) return null;
+  return {
+    codec: f.codec || f.codecFamily || null,
+    container: f.container || null,
+    mimeType: f.mimeType || null,
+    lossless: f.lossless === true,
+    sampleRateHz: f.sampleRateHz || f.sampleRate || null,
+    bitsPerSample: f.bitsPerSample || null,
+    channels: f.channels || null,
+    durationSec: f.durationSec || null,
+    bitrateKbps: f.bitrateKbps || null,
+    filesizeBytes: f.filesizeBytes || f.bytes || f.storedBytes || null,
+    filesizeIsEstimate: !!f.filesizeIsEstimate,
+    itag: f.itag || null,
+    sha256: f.sha256 || null,
+    status: f.status || null,
+    verified: f.verified === true,
+    flac: f.lossless === true || (f.codec || "").toString().toLowerCase() === "flac",
+  };
+}
+
+/** Teks badge kompak: "FLAC · 44.1k/16" — hanya bila datanya ada. */
+export function formatBadgeText(baseLabel, f) {
+  if (!f || !f.flac || !f.sampleRateHz) return baseLabel;
+  const khz = String((f.sampleRateHz / 1000).toFixed(1)).replace(/\.0$/, "");
+  const bits = f.bitsPerSample ? `/${f.bitsPerSample}` : "";
+  return `${baseLabel} \u00b7 ${khz}k${bits}`;
+}

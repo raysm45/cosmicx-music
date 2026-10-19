@@ -3,6 +3,7 @@ import { Speaker, Check, Search, ChevronRight, AudioLines } from "lucide-react";
 import { StarLoader } from "./lib/brand.jsx";
 import { usePlayer, useUI } from "./context.jsx";
 import { VolumeControl, useTrackAudioInfo } from "./components.jsx";
+import { unifyAudioInfoFields } from "./lib/audioFormat.js";
 
 export const NPD_LYRICS_ID = "aivy-am-lyrics-npd";
 const DASH = "\u2014";
@@ -216,7 +217,7 @@ export function AudioPipelineCard({ track, tx, onClose }) {
   const { audioFormat, getAudioContext, outputDevice } = usePlayer();
   const { settings } = useUI();
   const info = useTrackAudioInfo(track);
-  const format = info && info !== "unavailable" ? info.format : null;
+  const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
   const ctx = getAudioContext();
   const af = audioFormat && audioFormat !== "unavailable" ? audioFormat : null;
 
@@ -235,15 +236,23 @@ export function AudioPipelineCard({ track, tx, onClose }) {
   let resampler = DASH;
   if (srcRate && outRate) resampler = srcRate === outRate ? tx("Tanpa konversi", "No conversion") : `${khz(srcRate)} \u2192 ${khz(outRate)}`;
 
+  // Baris khusus FLAC lossless pada bagian SUMBER
+  const flacRows = format?.flac ? [
+    [tx("Lossless", "Lossless"), format.lossless ? on : off],
+    [tx("Kedalaman bit", "Bit depth"), format.bitsPerSample ? `${format.bitsPerSample} bit` : DASH],
+    [tx("Verifikasi", "Verification"), format.verified ? on : DASH],
+  ] : [];
+
+  const sourceRows = [
+    [tx("Format", "Format"), container ? String(container).toUpperCase() : cap(codec)],
+    ...flacRows,
+    [tx("Bitrate", "Bitrate"), format?.bitrateKbps ? `${Math.round(format.bitrateKbps)} kbps` : DASH],
+    [tx("Sample rate", "Sample Rate"), khz(srcRate)],
+    [tx("Sumber", "Sources"), sourceName],
+  ];
+
   const sections = [
-    {
-      title: tx("SUMBER", "SOURCE"),
-      rows: [
-        [tx("Format", "Format"), container ? String(container).toUpperCase() : cap(codec)],
-        [tx("Bitrate", "Bitrate"), format?.bitrateKbps ? `${Math.round(format.bitrateKbps)} kbps` : DASH],
-        [tx("Sumber", "Sources"), sourceName],
-      ],
-    },
+    { title: tx("SUMBER", "SOURCE"), rows: sourceRows },
     {
       title: "DECODER",
       rows: [

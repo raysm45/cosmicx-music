@@ -17,6 +17,7 @@ import {
   useTrackAudioInfo, useTrackMenuItems, GlassLayers,
 } from "./components.jsx";
 import { AudioOutputSheet, AudioPipelineCard, LyricsProviderSheet, NPD_LYRICS_ID } from "./NpdSheets.jsx";
+import { unifyAudioInfoFields } from "./lib/audioFormat.js";
 import "./styles/nowplaying-desktop.css";
 
 const COVER_STYLE = { width: "100%", height: "100%" };
@@ -536,14 +537,25 @@ function FullPlayer({ shown, onClose }) {
 function QualityLine({ track, visible }) {
   const { audioFormat } = usePlayer();
   const info = useTrackAudioInfo(track);
-  const format = info && info !== "unavailable" ? info.format : null;
+  const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
   const parts = [];
   const codec = format?.codec || (audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null);
   if (codec) parts.push(String(codec).charAt(0).toUpperCase() + String(codec).slice(1));
-  if (format?.sampleRateHz) parts.push(`${(format.sampleRateHz / 1000).toFixed(1)} kHz`);
+  if (format?.flac) {
+    if (format.lossless) parts.push("Lossless");
+    if (format.sampleRateHz) parts.push(`${(format.sampleRateHz / 1000).toFixed(1)} kHz`);
+    if (format.bitsPerSample) parts.push(`${format.bitsPerSample} bit`);
+    if (format.channels) parts.push(chNameShort(format.channels));
+  }
   if (format?.bitrateKbps) parts.push(`${Math.round(format.bitrateKbps)} kbps`);
   if (!parts.length) return null;
   return <div className={`npd-quality ${visible ? "on" : ""}`}>{parts.join(" \u00b7 ")}</div>;
+}
+
+function chNameShort(n) {
+  if (n === 1) return "Mono";
+  if (n === 2) return "Stereo";
+  return `${n} ch`;
 }
 
 const WAIT_PHRASES = [

@@ -22,6 +22,7 @@ import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
 import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
+import { unifyAudioInfoFields } from "./lib/audioFormat.js";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
 export function resolveAvatarUrl(user) {
   if (!user) return null;
@@ -1768,6 +1769,10 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
   const formatLabel = audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null;
+  // Detail FLAC pada badge: "FLAC · 44.1k/16" — data dari audio-info (cache per videoId)
+  const techInfo = useTrackAudioInfo(currentTrack);
+  const techFormat = unifyAudioInfoFields(techInfo);
+  const formatBadge = formatLabel ? formatBadgeText(formatLabel, techFormat) : null;
   const [moreOpen, setMoreOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [aodOpen, setAodOpen] = useState(false);
@@ -1952,7 +1957,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                   <MarqueeText
                     as="div" className="t" text={currentTrack.title}
                     prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
-                    suffix={<>{isPreviewClip && <span className="badge">{t("preview30")}</span>}{formatLabel && <span className="badge badge-opus">{formatLabel}</span>}</>}
+                    suffix={<>{isPreviewClip && <span className="badge">{t("preview30")}</span>}{formatBadge && <span className="badge badge-opus">{formatBadge}</span>}</>}
                   />
                   <div
                     className="a"
@@ -2023,7 +2028,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
       <TrackOptionsSheet
         open={moreOpen}
         track={currentTrack}
-        formatLabel={formatLabel}
+        formatLabel={formatBadge}
         onClose={() => setMoreOpen(false)}
         onOpenDetail={() => { setMoreOpen(false); setDetailOpen(true); }}
         onOpenAod={() => { setMoreOpen(false); setAodOpen(true); }}
@@ -2297,7 +2302,8 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
   const audioInfo = useTrackAudioInfo(track);
   const loadingInfo = audioInfo === null;
   const info = audioInfo && audioInfo !== "unavailable" ? audioInfo : null;
-  const format = info?.format || null;
+  const format = unifyAudioInfoFields(info);
+  const isFlac = !!format?.flac;
 
   const val = (v, suffix = "") => (loadingInfo ? t("loading") : v != null ? `${v}${suffix}` : t("detailNotAvailable"));
 
@@ -2305,14 +2311,41 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
     : format?.filesizeBytes ? `${(format.filesizeBytes / (1024 * 1024)).toFixed(1)} MB${format.filesizeIsEstimate ? " (\u2248)" : ""}`
     : t("detailNotAvailable");
 
+  const durationValue = loadingInfo ? t("loading")
+    : format?.durationSec ? formatTime(format.durationSec)
+    : t("detailNotAvailable");
+
+  const statusValue = () => {
+    if (loadingInfo) return t("loading");
+    const s = format?.status;
+    if (format?.verified) return t("detailFlacVerified");
+    if (s === "cached") return t("detailFlacVerified");
+    if (s === "preparing" || s === "running") return t("detailFlacPreparing");
+    if (s === "invalid") return t("detailFlacInvalid");
+    if (s === "not-cached") return t("detailFlacNotCached");
+    return t("detailNotAvailable");
+  };
+
   const rows = [
     { label: t("detailQuality"), value: isPreviewClip ? t("detailQualityPreview") : t("detailQualityFull") },
-    { label: t("detailCodec"), value: val(format?.codec) },
-    { label: t("detailMimeType"), value: val(format?.mimeType) },
+    { label: t("detailCodec"), value: val(format?.codec ? format.codec.toUpperCase() : null) },
+    // Baris khusus FLAC lossless
+    ...(isFlac ? [{ label: t("detailLossless"), value: val(format?.lossless ? t("detailYes") : t("detailNo")) }] : []),
+    { label: t("detailSampleRate"), value: val(format?.sampleRateHz ? `${(format.sampleRateHz / 1000).toFixed(1)} kHz (${format.sampleRateHz} Hz)` : null) },
+    ...(isFlac ? [
+      { label: t("detailBitDepth"), value: val(format?.bitsPerSample, " bit") },
+      { label: t("detailChannels"), value: val(format?.channels ? chNameShort(format.channels) : null) },
+      { label: t("detailDuration"), value: durationValue },
+      { label: t("detailStatus"), value: statusValue() },
+    ] : []),
     { label: t("detailBitrate"), value: val(format?.bitrateKbps, " Kbps") },
-    { label: t("detailSampleRate"), value: val(format?.sampleRateHz, " Hz") },
     { label: t("detailFileSize"), value: filesizeValue },
-    { label: t("detailItag"), value: val(format?.itag) },
+    ...(isFlac ? [{ label: t("detailSha256"), value: val(format ? shortenSha256(format.sha256) : null) }] : []),
+    // Khusus YouTube (bukan FLAC)
+    ...(!isFlac ? [
+      { label: t("detailMimeType"), value: val(format?.mimeType) },
+      { label: t("detailItag"), value: val(format?.itag) },
+    ] : []),
   ];
 
   return (
@@ -2328,6 +2361,17 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
       ))}
     </div>
   );
+}
+
+function chNameShort(n) {
+  if (n === 1) return "Mono";
+  if (n === 2) return "Stereo";
+  return `${n} kanal`;
+}
+function shortenSha256(v) {
+  if (!v) return null;
+  const s = String(v);
+  return s.length <= 24 ? s : `${s.slice(0, 20)}\u2026`;
 }
 
 export function TrackDetailSheet({ open, track, isPreviewClip, onClose }) {
