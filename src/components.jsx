@@ -22,7 +22,7 @@ import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
 import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
-import { unifyAudioInfoFields } from "./lib/audioFormat.js";
+import { unifyAudioInfoFields, formatBadgeText } from "./lib/audioFormat.js";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
 export function resolveAvatarUrl(user) {
   if (!user) return null;
