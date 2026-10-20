@@ -125,6 +125,9 @@ export const Api = {
     const body = { videoId, quality, format };
     if (title) body.title = title;
     if (artist) body.artist = artist;
+    // Tandai sesi prefetch: server membatasi tujuan (tanpa ?dl=1) supaya
+    // sesi pra-buka tidak bisa dipakai celah unduhan.
+    if (prefetch) body.prefetch = true;
     const ticket = await apiSend("/api/stream-ticket", "POST", body);
     if (!ticket?.sid) throw new Error("tiket stream kosong");
     streamTicketCache.set(cacheKey, ticket);

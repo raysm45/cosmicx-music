@@ -929,7 +929,29 @@ export function PlayerProvider({ children }) {
         setAudioFormat({ label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" });
       } else if (resolved.videoId) {
         if (getPreferredAudioFormat() === "flac") {
-          setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
+          // Detail FLAC dari audio-info: sumber (flacdownloader / lucida),
+          // tingkat HD, dan keadaan "menyiapkan" saat rip masih jalan.
+          Api.trackAudioInfo(resolved.videoId)
+            .then((info) => {
+              if (cancelled) return;
+              const flac = info?.flac;
+              const st = String(flac?.status || "");
+              if (st === "running" || st === "queued" || st === "downloading") {
+                setAudioFormat({ label: "FLAC · menyiapkan", mimeType: "audio/flac", codec: "flac", container: "FLAC", preparing: true });
+                return;
+              }
+              if (st === "cached") {
+                const isLucida = flac?.source === "lucida-amazon";
+                const hd = Number(flac?.bitsPerSample) >= 24 || Number(flac?.sampleRate) >= 88000;
+                setAudioFormat({
+                  label: `${isLucida ? "FLAC · lucida" : "FLAC"}${hd ? " HD" : ""}`,
+                  mimeType: "audio/flac", codec: "flac", container: "FLAC",
+                });
+                return;
+              }
+              setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
+            })
+            .catch(() => { if (!cancelled) setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" }); });
         } else Api.trackAudioInfo(resolved.videoId)
           .then((info) => {
             if (cancelled) return;
