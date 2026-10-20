@@ -131,6 +131,24 @@ export const Api = {
     return `${API_BASE}/api/s/${encodeURIComponent(ticket.sid)}${suffix}`;
   },
 
+  // Unduh lagu lewat tiket stream yang sudah/sedang dibuat (tidak memakai tiket
+  // prefetch) — server menambah `Content-Disposition: attachment; filename=
+  // "Artist - Title.ext"` ketika `dl=1`, jadi fetch berat tidak diperlukan.
+  async downloadSong(track) {
+    const videoId = track?.videoId || track?.id;
+    if (!videoId) throw new Error("videoId kosong");
+    const url = await this.getStreamUrl(videoId, {
+      title: track?.title || "",
+      artist: (typeof track?.artist === "string" ? track.artist : track?.artist?.name) || "",
+    });
+    const a = document.createElement("a");
+    a.href = url.includes("?") ? `${url}&dl=1` : `${url}?dl=1`;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  },
+
   invalidateStreamTicket(videoId) {
     if (!videoId) return;
     for (const key of streamTicketCache.keys()) {

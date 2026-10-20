@@ -8,7 +8,7 @@ import {
   Lock, Globe, Crown, Mic2, AlertTriangle, GripVertical, Trash2, Film, Send,
   PanelLeft, PanelRight, Type, Star, Airplay, Mic, MessageSquareQuote, Smile,
   Cast, Info, Copy, ListPlus, SlidersHorizontal, Gauge, Maximize, Minimize, Github, Sparkles, RefreshCw,
-  ExternalLink, Rewind, FastForward,
+  ExternalLink, Rewind, FastForward, Download,
 } from "lucide-react";
 import {
   usePlayer, usePlayerTime, useUI,
@@ -355,6 +355,17 @@ function TrackMenuSheet({ menu, onClose }) {
   const removeItem = menu.items?.removeItem || null;
   const run = (fn) => () => { onClose(); fn && fn(); };
 
+  // Unduh via Api.downloadSong (tiket stream sendiri sudah di-cache) —
+  // server membubuhkan Content-Disposition attachment saat `dl=1`.
+  const downloadTrack = async (tr) => {
+    try {
+      pushToast(t("downloadStarted"));
+      await Api.downloadSong(tr);
+    } catch {
+      pushToast(t("downloadFailed"));
+    }
+  };
+
   return createPortal(
     <div className="aivy-trackmenu-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }} onContextMenu={(e) => { e.preventDefault(); if (e.target === e.currentTarget) onClose(); }}>
       <div className="aivy-trackmenu" role="dialog" aria-label={track.title}>
@@ -384,6 +395,9 @@ function TrackMenuSheet({ menu, onClose }) {
           </button>
           <button className="aivy-trackmenu-item" onClick={run(() => { shareTrack(track, pushToast, t); })}>
             <Share2 size={20} /><span>{t("menuShareSong")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => { void downloadTrack(track); })}>
+            <Download size={20} /><span>{t("menuDownload")}</span>
           </button>
           <button className="aivy-trackmenu-item" onClick={run(() => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); })}>
             <Copy size={20} /><span>{t("menuCopyLink")}</span>
