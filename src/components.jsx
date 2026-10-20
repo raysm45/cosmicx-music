@@ -24,6 +24,7 @@ import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
 import { unifyAudioInfoFields, formatBadgeText } from "./lib/audioFormat.js";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
+import { MeshGradient, useCoverPalette } from "./lib/MeshGradient.jsx";
 export function resolveAvatarUrl(user) {
   if (!user) return null;
   const raw = user.avatarUrl || user.avatar_url || user.picture || user.photo || user.photoUrl
@@ -1379,9 +1380,10 @@ export function MiniPlayer({ onExpand }) {
   );
 }
 
-export function MobileNowPlayingIconRow({ lyricsActive, onToggleLyrics, lyricsDisabled, onOpenQueue }) {
+export function MobileNowPlayingIconRow({ lyricsActive, onToggleLyrics, lyricsDisabled, onOpenQueue, pill = false }) {
   const { t, pushToast } = useUI();
   const handleAirplay = () => pushToast(t("airplayUnavailable", "Output perangkat tidak tersedia di browser"));
+  const airplayBtn = <button className="aivy-icon-btn" onClick={handleAirplay} aria-label="AirPlay"><Airplay size={18} /></button>;
   return (
     <div className="aivy-sheet-icon-row">
       <button
@@ -1393,7 +1395,7 @@ export function MobileNowPlayingIconRow({ lyricsActive, onToggleLyrics, lyricsDi
       >
         <MessageSquareQuote size={18} />
       </button>
-      <button className="aivy-icon-btn" onClick={handleAirplay} aria-label="AirPlay"><Airplay size={18} /></button>
+      {pill ? <div className="aivy-sheet-pill">{airplayBtn}</div> : airplayBtn}
       <button className="aivy-icon-btn" onClick={onOpenQueue} aria-label={t("openQueue")}><ListMusic size={18} /></button>
     </div>
   );
@@ -1753,11 +1755,11 @@ const NPX_COVER_FILL_STYLE = { width: "100%", height: "100%" };
 export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const {
     currentTrack, seekTo, isPreviewClip, audioFormat,
-    liked, toggleLike, loadingAudio, currentTrackHasLyrics, isPlaying, togglePlay, next, prev,
+    liked, toggleLike, loadingAudio, currentTrackHasLyrics, isPlaying, togglePlay, next, prev, playSource,
   } = usePlayer();
   const playerTime = usePlayerTime();
   const { navigate } = useRouter();
-  const { t, settings, lyricsOpen, toggleLyrics, pushToast } = useUI();
+  const { t, settings, updateSettings, lyricsOpen, toggleLyrics, pushToast } = useUI();
   const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
   const clientDynamicColor = useDominantColor(settings.dynamicColors ? currentTrack?.cover : null);
   const [serverDominantColor, setServerDominantColor] = useState(null);
@@ -1765,6 +1767,12 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
 
   const dynamicColor = settings.dynamicColors ? (serverDominantColor || clientDynamicColor) : null;
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const meshEnabled = settings.coverBackground !== false;
+  const meshPalette = useCoverPalette(meshEnabled ? currentTrack?.cover : null, serverDominantColor || clientDynamicColor);
+  // Cover edge-to-edge hanya kalau tidak bentrok dengan mode CD spin / tilt (keduanya butuh cover berdiri sendiri).
+  const isBleed = !settings.cdCoverSpin && !settings.tiltCover;
+  const autoplayOn = settings.autoplay !== false;
+  const playingFrom = playSource?.label ? `${t("playingFromLabel")} ${playSource.label}` : null;
   const tilt = useTilt({ enabled: !!settings.tiltCover, distance: Number(settings.tiltDistance) || 10, speed: Number(settings.tiltSpeed) || 240 });
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
@@ -1917,13 +1925,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   return (
     <>
       <div ref={backdropRef} className={`aivy-sheet-backdrop ${open ? "open" : ""}`} onClick={handleGrabberTap} />
-      <div ref={sheetRef} className={`aivy-sheet ${open ? "open" : ""} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""}`} aria-hidden={!open}>
-        {currentTrack && settings.coverBackground !== false && (
-          <div
-            className="aivy-sheet-bg"
-            style={{ backgroundImage: `url(${currentTrack.cover})` }}
-            aria-hidden="true"
-          />
+      <div ref={sheetRef} className={`aivy-sheet npx-v2 ${open ? "open" : ""} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""}`} aria-hidden={!open}>
+        {currentTrack && meshEnabled && (
+          <MeshGradient palette={meshPalette} active={open} still={reduceMotion} />
         )}
         {sheetVisualizer}
         <div
@@ -1932,6 +1936,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
           onPointerUp={swipeDown.onPointerUp} onPointerCancel={swipeDown.onPointerCancel}
         >
           <button className="aivy-sheet-grabber" onClick={handleGrabberTap} aria-label={t("close")} />
+          {playingFrom && <div className="npx-playfrom">{playingFrom}</div>}
         </div>
         {currentTrack && (
           <div ref={bodyScrollRef} className="aivy-sheet-body aivy-scroll">
@@ -1941,9 +1946,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               onPointerUp={swipeDown.onPointerUp} onPointerCancel={swipeDown.onPointerCancel}
             >
               <div
-                className={`npx-cover ${settings.noRoundCover ? "no-round" : ""} ${settings.cdCoverSpin ? "cd-spin" : ""} ${settings.tiltCover ? "has-tilt" : ""}`}
+                className={`npx-cover ${isBleed ? "is-bleed" : ""} ${settings.noRoundCover ? "no-round" : ""} ${settings.cdCoverSpin ? "cd-spin" : ""} ${settings.tiltCover ? "has-tilt" : ""}`}
                 ref={(el) => { coverRef.current = el; tilt.ref.current = el; }}
-                style={{ ...tilt.style, ...(dynamicColor ? { "--npx-dynamic": dynamicColor, boxShadow: `0 24px 60px rgba(0,0,0,.5), 0 0 60px -12px ${dynamicColor}` } : {}) }}
+                style={{ ...tilt.style, ...(dynamicColor ? (isBleed ? { "--npx-dynamic": dynamicColor } : { "--npx-dynamic": dynamicColor, boxShadow: `0 24px 60px rgba(0,0,0,.5), 0 0 60px -12px ${dynamicColor}` }) : {}) }}
                 onPointerMove={settings.tiltCover ? tilt.onMove : undefined}
                 onPointerLeave={settings.tiltCover ? tilt.onLeave : undefined}
                 onClick={handleFullscreenCoverClick}
@@ -1970,6 +1975,13 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                   <button className={`aivy-icon-btn ${isLiked ? "active" : ""}`} onClick={() => toggleLike(currentTrack)} aria-label={t("like")}><Star size={20} fill={isLiked ? "currentColor" : "none"} /></button>
                   <button className="aivy-icon-btn" onClick={handleMore} aria-label={t("menuMore")}><MoreHorizontal size={20} /></button>
                 </div>
+              </div>
+              <div className="npx-autoplay">
+                <button type="button" className={autoplayOn ? "on" : ""} onClick={() => updateSettings({ autoplay: !autoplayOn })} aria-pressed={autoplayOn}>
+                  <Music2 size={16} />
+                  <span>{t("settingAutoplay")}</span>
+                  <span className="sw" aria-hidden="true" />
+                </button>
               </div>
             </div>
 
@@ -2020,7 +2032,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               <VolumeControl showEndIcon />
             </div>
 
-            <MobileNowPlayingIconRow lyricsActive={lyricsMode} onToggleLyrics={handleLyricsToggle} lyricsDisabled={lyricsDisabled} onOpenQueue={onOpenQueue} />
+            <MobileNowPlayingIconRow lyricsActive={lyricsMode} onToggleLyrics={handleLyricsToggle} lyricsDisabled={lyricsDisabled} onOpenQueue={onOpenQueue} pill />
           </div>
         )}
       </div>
