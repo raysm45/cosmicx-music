@@ -129,8 +129,8 @@
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn:active{ transform: scale(.94); }
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn.active{ color: #ffd54a; background: rgba(255,255,255,.2); }
 
-/* ---------- Baris putar otomatis ---------- */
-.npx-autoplay{ box-sizing: border-box; width: 100%; padding: 0 24px; margin: 0 0 8px; }
+/* ---------- Baris putar otomatis (di dalam blok kontrol) ---------- */
+.npx-autoplay{ box-sizing: border-box; width: 100%; padding: 0; margin: 0; }
 .npx-autoplay button{
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 0;
   font-size: 14px; font-weight: 600; text-align: left; color: var(--sheet-ink-dim);
@@ -142,16 +142,49 @@
 @media (max-height: 700px){ .npx-autoplay{ display: none; } }
 
 /* ---------- Kontrol ---------- */
+/* Blok kontrol turun ke bawah dan jarak antar baris dibagi rata, seperti referensi. */
 .aivy-sheet.npx-v2 .npx-top-controls{ box-sizing: border-box; padding: 0 24px; }
-.aivy-sheet.npx-v2 .aivy-scrubber .track{ height: 6px; background: rgba(255,255,255,.2); }
-.aivy-sheet.npx-v2 .aivy-scrubber .fill{ background: rgba(255,255,255,.92); }
-.aivy-sheet.npx-v2 .aivy-transport-btns{ gap: 44px; }
-.aivy-sheet.npx-v2 .aivy-play-btn{ width: 72px; height: 72px; }
-.aivy-sheet.npx-v2 .aivy-play-btn svg{ width: 52px; height: 52px; }
+.aivy-sheet.npx-v2:not(.mode-lyrics) .npx-top-controls{ flex: 1 1 auto; justify-content: space-evenly; gap: 10px; }
+.aivy-sheet.npx-v2:not(.mode-lyrics) .npx-sing-row,
+.aivy-sheet.npx-v2:not(.mode-lyrics) .aivy-sheet-gap{ display: none; }
 
-.aivy-sheet.npx-v2 .aivy-sheet-icon-row{ box-sizing: border-box; padding: 6px 24px 2px; margin-top: 2px; }
-.aivy-sheet-pill{ display: flex; align-items: center; border-radius: 999px; background: rgba(255,255,255,.16); padding: 0 4px; }
-.aivy-sheet.npx-v2 .aivy-sheet-pill .aivy-icon-btn{ width: 72px; height: 46px; border-radius: 999px; }
+/* Progress: bar tebal tanpa thumb, waktu di bawah bar (kiri / kanan) */
+.aivy-sheet.npx-v2 .aivy-scrubber-row{ display: grid; grid-template-columns: 1fr auto; row-gap: 2px; margin: 0; align-items: start; }
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-scrubber{ grid-column: 1 / -1; grid-row: 1; height: 16px; }
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time{ grid-row: 2; width: auto; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.55); }
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time:not(.right){ grid-column: 1; }
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time.right{ grid-column: 2; }
+.aivy-sheet.npx-v2 .aivy-scrubber .track,
+.aivy-sheet.npx-v2 .aivy-scrubber:hover .track,
+.aivy-sheet.npx-v2 .aivy-scrubber.dragging .track{ height: 10px; border-radius: 999px; background: rgba(255,255,255,.22); transition: height .15s ease; }
+.aivy-sheet.npx-v2 .aivy-scrubber.dragging .track{ height: 14px; }
+.aivy-sheet.npx-v2 .aivy-scrubber .fill,
+.aivy-sheet.npx-v2 .aivy-scrubber:hover .fill{ background: rgba(255,255,255,.92); }
+.aivy-sheet.npx-v2 .aivy-scrubber .thumb{ display: none; }
+
+/* Transport: hanya prev / play / next, besar */
+.aivy-sheet.npx-v2 .aivy-transport-btns{ justify-content: space-between; gap: 0; margin: 0; padding: 0 12px; }
+.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn{ width: 72px; height: 72px; color: #fff; transition: transform .15s ease; }
+.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn svg{ width: 46px; height: 46px; opacity: .62; stroke-linejoin: round; transition: opacity .15s ease; }
+.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn:active{ transform: scale(.92); }
+.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn:active svg{ opacity: 1; }
+.aivy-sheet.npx-v2 .aivy-play-btn{ width: 84px; height: 84px; color: #fff; }
+.aivy-sheet.npx-v2 .aivy-play-btn svg{ width: 58px; height: 58px; margin-left: 0; }
+
+/* Volume: bar tebal, ikon speaker di ujung */
+.aivy-sheet.npx-v2 .aivy-vol{ margin: 0; }
+.aivy-sheet.npx-v2 .aivy-vol .track,
+.aivy-sheet.npx-v2 .aivy-vol:hover .track,
+.aivy-sheet.npx-v2 .aivy-vol.dragging .track{ height: 10px; border-radius: 999px; background: rgba(255,255,255,.22); }
+.aivy-sheet.npx-v2 .aivy-vol .fill,
+.aivy-sheet.npx-v2 .aivy-vol:hover .fill{ background: rgba(255,255,255,.92); }
+
+/* Baris bawah: lirik | pill shuffle + repeat | antrean */
+.aivy-sheet.npx-v2 .aivy-sheet-icon-row{ box-sizing: border-box; padding: 4px 24px 0; margin-top: 6px; }
+.aivy-sheet-pill{ display: flex; align-items: center; border-radius: 999px; background: rgba(255,255,255,.16); overflow: hidden; }
+.aivy-sheet-pill .aivy-icon-btn + .aivy-icon-btn{ box-shadow: -1px 0 0 rgba(255,255,255,.16); }
+.aivy-sheet.npx-v2 .aivy-sheet-pill .aivy-icon-btn{ width: 64px; height: 46px; border-radius: 0; }
+.aivy-sheet.npx-v2 .aivy-sheet-pill .aivy-icon-btn.active{ color: #fff; background: rgba(255,255,255,.22); }
 
 /* ---------- Mode lirik ---------- */
 .aivy-sheet.npx-v2 .npx-hero.is-compact{ padding: calc(30px + env(safe-area-inset-top, 0px)) 22px 0; align-items: center; }
@@ -164,5 +197,5 @@
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .t{ font-size: 14.5px; letter-spacing: normal; }
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .a{ font-size: 12px; margin-top: 2px; }
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-actions .aivy-icon-btn{ width: 34px; height: 34px; }
-.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-autoplay{ display: none; }
+.aivy-sheet.npx-v2.mode-lyrics .npx-autoplay{ display: none; }
 .aivy-sheet.npx-v2 .npx-lyrics-wrap .aivy-am-lyrics{ left: 16px; right: 16px; padding: 2px 8px 0; }

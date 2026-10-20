@@ -8,7 +8,7 @@ import {
   Lock, Globe, Crown, Mic2, AlertTriangle, GripVertical, Trash2, Film, Send,
   PanelLeft, PanelRight, Type, Star, Airplay, Mic, MessageSquareQuote, Smile,
   Cast, Info, Copy, ListPlus, SlidersHorizontal, Gauge, Maximize, Minimize, Github, Sparkles, RefreshCw,
-  ExternalLink,
+  ExternalLink, Rewind, FastForward,
 } from "lucide-react";
 import {
   usePlayer, usePlayerTime, useUI,
@@ -1170,11 +1170,13 @@ export function SkeletonHeroPage({ round = false, rows = 6 }) {
   );
 }
 
-export function TransportButtons({ big = false, minimal = false }) {
+export function TransportButtons({ big = false, minimal = false, variant = "default" }) {
   const { isPlaying, togglePlay, next, prev, shuffle, toggleShuffle, repeat, cycleRepeat, currentTrack, room } = usePlayer();
   const { authUser, t } = useUI();
   const [pulse, setPulse] = useState(null);
   const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
+  const PrevIcon = variant === "apple" ? Rewind : SkipBack;
+  const NextIcon = variant === "apple" ? FastForward : SkipForward;
   const isHost = !room || !authUser || room.hostId === authUser.id;
   const controlLocked = room && room.hostOnlyControl && !isHost;
   const handlePrev = () => { prev(); setPulse("prev"); };
@@ -1183,11 +1185,11 @@ export function TransportButtons({ big = false, minimal = false }) {
   return (
     <div className="aivy-transport-btns">
       {!minimal && <button className={`aivy-icon-btn ${shuffle ? "active" : ""}`} onClick={toggleShuffle} aria-label={t("shuffle")} aria-pressed={shuffle} disabled={!!room}><Shuffle size={big ? 18 : 16} /></button>}
-      <button className={`aivy-icon-btn skip-prev ${pulse === "prev" ? "is-pulsing" : ""}`} onClick={handlePrev} onAnimationEnd={clearPulse} disabled={!currentTrack || controlLocked} aria-label={t("previous")}><SkipBack size={big ? 22 : 18} fill="currentColor" /></button>
+      <button className={`aivy-icon-btn skip-prev ${pulse === "prev" ? "is-pulsing" : ""}`} onClick={handlePrev} onAnimationEnd={clearPulse} disabled={!currentTrack || controlLocked} aria-label={t("previous")}><PrevIcon size={big ? 22 : 18} fill="currentColor" /></button>
       <button className="aivy-play-btn" onClick={togglePlay} disabled={!currentTrack || controlLocked} aria-label={isPlaying ? t("pause") : t("play")}>
         {isPlaying ? <Pause size={big ? 24 : 16} fill="currentColor" /> : <Play size={big ? 24 : 16} fill="currentColor" />}
       </button>
-      <button className={`aivy-icon-btn skip-next ${pulse === "next" ? "is-pulsing" : ""}`} onClick={handleNext} onAnimationEnd={clearPulse} disabled={!currentTrack || controlLocked} aria-label={t("next")}><SkipForward size={big ? 22 : 18} fill="currentColor" /></button>
+      <button className={`aivy-icon-btn skip-next ${pulse === "next" ? "is-pulsing" : ""}`} onClick={handleNext} onAnimationEnd={clearPulse} disabled={!currentTrack || controlLocked} aria-label={t("next")}><NextIcon size={big ? 22 : 18} fill="currentColor" /></button>
       {!minimal && <button className={`aivy-icon-btn ${repeat !== "off" ? "active" : ""}`} onClick={cycleRepeat} aria-label={t("repeat")} aria-pressed={repeat !== "off"} disabled={!!room}><RepeatIcon size={big ? 18 : 16} /></button>}
     </div>
   );
@@ -1382,8 +1384,16 @@ export function MiniPlayer({ onExpand }) {
 
 export function MobileNowPlayingIconRow({ lyricsActive, onToggleLyrics, lyricsDisabled, onOpenQueue, pill = false }) {
   const { t, pushToast } = useUI();
+  const { shuffle, toggleShuffle, repeat, cycleRepeat, room } = usePlayer();
+  const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
   const handleAirplay = () => pushToast(t("airplayUnavailable", "Output perangkat tidak tersedia di browser"));
   const airplayBtn = <button className="aivy-icon-btn" onClick={handleAirplay} aria-label="AirPlay"><Airplay size={18} /></button>;
+  const modePill = (
+    <div className="aivy-sheet-pill">
+      <button className={`aivy-icon-btn ${shuffle ? "active" : ""}`} onClick={toggleShuffle} aria-label={t("shuffle")} aria-pressed={shuffle} disabled={!!room}><Shuffle size={18} /></button>
+      <button className={`aivy-icon-btn ${repeat !== "off" ? "active" : ""}`} onClick={cycleRepeat} aria-label={t("repeat")} aria-pressed={repeat !== "off"} disabled={!!room}><RepeatIcon size={18} /></button>
+    </div>
+  );
   return (
     <div className="aivy-sheet-icon-row">
       <button
@@ -1395,7 +1405,7 @@ export function MobileNowPlayingIconRow({ lyricsActive, onToggleLyrics, lyricsDi
       >
         <MessageSquareQuote size={18} />
       </button>
-      {pill ? <div className="aivy-sheet-pill">{airplayBtn}</div> : airplayBtn}
+      {pill ? modePill : airplayBtn}
       <button className="aivy-icon-btn" onClick={onOpenQueue} aria-label={t("openQueue")}><ListMusic size={18} /></button>
     </div>
   );
@@ -1772,7 +1782,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   // Cover edge-to-edge hanya kalau tidak bentrok dengan mode CD spin / tilt (keduanya butuh cover berdiri sendiri).
   const isBleed = !settings.cdCoverSpin && !settings.tiltCover;
   const autoplayOn = settings.autoplay !== false;
-  const playingFrom = playSource?.label ? `${t("playingFromLabel")} ${playSource.label}` : null;
+  const playingFrom = playSource?.label ? `${t("playingFromLabel")} ${playSource.label}` : (playSource?.type === "search" ? `${t("playingFromLabel")} ${t("search", "Search")}` : t("nowPlaying"));
   const tilt = useTilt({ enabled: !!settings.tiltCover, distance: Number(settings.tiltDistance) || 10, speed: Number(settings.tiltSpeed) || 240 });
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
@@ -1976,13 +1986,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                   <button className="aivy-icon-btn" onClick={handleMore} aria-label={t("menuMore")}><MoreHorizontal size={20} /></button>
                 </div>
               </div>
-              <div className="npx-autoplay">
-                <button type="button" className={autoplayOn ? "on" : ""} onClick={() => updateSettings({ autoplay: !autoplayOn })} aria-pressed={autoplayOn}>
-                  <Music2 size={16} />
-                  <span>{t("settingAutoplay")}</span>
-                  <span className="sw" aria-hidden="true" />
-                </button>
-              </div>
             </div>
 
             <div className={`npx-lyrics-wrap ${lyricsMode ? "is-active" : ""}`}>
@@ -2007,6 +2010,13 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
             </div>
 
             <div className="npx-top-controls" ref={controlsRef}>
+              <div className="npx-autoplay">
+                <button type="button" className={autoplayOn ? "on" : ""} onClick={() => updateSettings({ autoplay: !autoplayOn })} aria-pressed={autoplayOn}>
+                  <Music2 size={16} />
+                  <span>{t("settingAutoplay")}</span>
+                  <span className="sw" aria-hidden="true" />
+                </button>
+              </div>
               <div className="aivy-scrubber-row">
                 <span className="aivy-time">{loadingAudio ? "\u2013\u2013" : formatTime(currentTime)}</span>
                 <Scrubber
@@ -2028,7 +2038,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               </div>
 
               <div className="aivy-sheet-gap" />
-              <TransportButtons big />
+              <TransportButtons big minimal variant="apple" />
               <VolumeControl showEndIcon />
             </div>
 
