@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Now Playing mobile v2
+   Now Playing mobile v3 (mengikuti video referensi: mode player / lirik / antrean)
    - cover edge-to-edge yang menyatu ke background lewat fade
    - background: legacy mesh gradient + drifting colour blobs (bukan thumbnail blur)
    Dimuat setelah global.css, semua selector di-scope ke .aivy-sheet.npx-v2.
@@ -17,7 +17,7 @@
   position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
   contain: strict;
   background: #0b0b0d;
-  background: color-mix(in srgb, var(--m4) 30%, #060608);
+  background: color-mix(in srgb, var(--m4) 88%, #060608);
   transition: --m1 1.4s ease, --m2 1.4s ease, --m3 1.4s ease, --m4 1.4s ease, --m5 1.4s ease;
   --bs: max(118vw, 64dvh);
 }
@@ -66,7 +66,7 @@
 /* Vignette halus supaya teks tetap terbaca di warna cover yang terang */
 .npx-mesh::after{
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,.12) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,.18) 60%, rgba(0,0,0,.42) 100%);
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,.10) 60%, rgba(0,0,0,.16) 67%, rgba(0,0,0,.21) 74%, rgba(0,0,0,.27) 85%, rgba(0,0,0,.32) 100%);
 }
 /* Grain tipis untuk memecah banding pada gradient gelap */
 .npx-mesh-grain{
@@ -80,122 +80,266 @@
   .npx-mesh{ transition: none; }
 }
 
-/* ---------- Sheet & header ---------- */
-.aivy-sheet.npx-v2{ background: #0b0b0d; }
+/* ==========================================================================
+   Sheet — ukuran dalam satuan "u"
+   1u = 1 piksel video referensi (lebar 720) = 100vw / 720, jadi proporsinya
+   sama persis di lebar layar HP berapa pun.
+   ========================================================================== */
+.aivy-sheet.npx-v2{
+  --u: calc(100vw / 720);
+  --sheet-dur: .52s; --sheet-ease: cubic-bezier(.16, 1, .3, 1);
+  background: #0b0b0d;
+}
 
+/* Animasi buka: panel naik, isinya membesar dari sisi kiri (±0,5 dtk, ease-out kuat) */
+@keyframes npx-body-in{
+  from{ transform: scale(.45); opacity: .35; }
+  to{ transform: scale(1); opacity: 1; }
+}
+.aivy-sheet.npx-v2.is-opening .aivy-sheet-body{
+  animation: npx-body-in .52s cubic-bezier(.16, 1, .3, 1) both;
+  transform-origin: calc(var(--u) * 95) calc(var(--u) * 400);
+}
+@media (prefers-reduced-motion: reduce){ .aivy-sheet.npx-v2.is-opening .aivy-sheet-body{ animation: none; } }
+
+/* ---------- Grabber + "Playing from …" ---------- */
 .aivy-sheet.npx-v2 .aivy-sheet-grabber-row{
-  position: absolute; top: 0; left: 0; right: 0; z-index: 4;
-  flex-direction: column; align-items: center; gap: 8px;
-  padding: calc(8px + env(safe-area-inset-top, 0px)) 0 14px;
-  background: none;
+  position: absolute; top: 0; left: 0; right: 0; height: calc(var(--u) * 125); z-index: 6; padding: 0; display: block; background: none;
 }
-.aivy-sheet.npx-v2 .aivy-sheet-grabber{ width: 40px; height: 5px; background: rgba(255,255,255,.55); box-shadow: 0 1px 8px rgba(0,0,0,.3); }
+.aivy-sheet.npx-v2 .aivy-sheet-grabber{
+  position: absolute; left: calc(50% - calc(var(--u) * 27)); top: calc(var(--u) * 77); width: calc(var(--u) * 54); height: calc(var(--u) * 7); border-radius: calc(var(--u) * 4); padding: 0;
+  background: rgba(255,255,255,.66); box-shadow: 0 calc(var(--u) * 1) calc(var(--u) * 6) rgba(0,0,0,.25); transition: top .3s var(--ease, ease);
+}
+.aivy-sheet.npx-v2 .aivy-sheet-grabber::after{ content: ""; position: absolute; inset: calc(var(--u) * -16) calc(var(--u) * -24); }
+.aivy-sheet.npx-v2:not(.mode-player) .aivy-sheet-grabber{ top: calc(var(--u) * 87); }
 .npx-playfrom{
-  max-width: 72%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 12px; font-weight: 600; letter-spacing: .01em; color: rgba(255,255,255,.9);
-  text-shadow: 0 1px 10px rgba(0,0,0,.6); pointer-events: none;
+  position: absolute; top: calc(var(--u) * 96); left: 0; right: 0; max-width: none; text-align: center; padding: 0 calc(var(--u) * 120);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: calc(var(--u) * 14); font-weight: 600; line-height: calc(var(--u) * 20); letter-spacing: 0; color: rgba(255,255,255,.95);
+  text-shadow: 0 calc(var(--u) * 1) calc(var(--u) * 8) rgba(0,0,0,.5); pointer-events: none; transition: opacity .25s ease;
 }
-.aivy-sheet.npx-v2.mode-lyrics .npx-playfrom{ display: none; }
+.aivy-sheet.npx-v2:not(.mode-player) .npx-playfrom{ opacity: 0; }
 
-.aivy-sheet.npx-v2 .aivy-sheet-body{ padding: 0 0 calc(14px + var(--safe-b)); align-items: stretch; }
-.aivy-sheet.npx-v2 .npx-hero{ width: 100%; align-items: stretch; }
+/* ---------- Body: semua elemen diposisikan eksplisit ---------- */
+.aivy-sheet.npx-v2 .aivy-sheet-body{ position: absolute; inset: 0; padding: 0; display: block; overflow: hidden; z-index: 2; }
 
-/* ---------- Cover edge-to-edge ---------- */
+/* ---------- Hero: cover + judul ---------- */
+.aivy-sheet.npx-v2 .npx-hero{
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3; width: auto;
+  display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0;
+}
 .aivy-sheet.npx-v2 .npx-cover.is-bleed{
-  width: 100%; height: min(112vw, 54dvh); aspect-ratio: auto; margin: 0; border-radius: 0;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 70%, rgba(0,0,0,.55) 88%, transparent 100%);
-          mask-image: linear-gradient(180deg, #000 0%, #000 70%, rgba(0,0,0,.55) 88%, transparent 100%);
+  width: 100%; height: min(119vw, calc(100dvh - calc(var(--u) * 668))); aspect-ratio: auto; margin: 0; border-radius: 0;
+  /* kurva alpha dari video: ±.9 di y560, .5 di y760, .16 di y800, 0 di y840 (tinggi cover 856u) */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 61%, rgba(0,0,0,.9) 65.4%, rgba(0,0,0,.5) 88.8%, rgba(0,0,0,.16) 93.5%, transparent 98.1%, transparent 100%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 61%, rgba(0,0,0,.9) 65.4%, rgba(0,0,0,.5) 88.8%, rgba(0,0,0,.16) 93.5%, transparent 98.1%, transparent 100%);
+}
+/* garis tipis terang di batas bawah cover (video: y≈853–859, +7 level) */
+.aivy-sheet.npx-v2 .npx-hero:not(.is-compact)::after{
+  content: ""; position: absolute; left: 0; right: 0; top: calc(var(--u) * 853); height: calc(var(--u) * 9); pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.04) 0, rgba(255,255,255,.04) 67%, rgba(255,255,255,0) 100%);
 }
 .aivy-sheet.npx-v2 .npx-cover.is-bleed::before{
   content: ""; position: absolute; inset: 0 0 auto 0; height: 34%; z-index: 2; pointer-events: none;
   background: linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 100%);
 }
-
-/* Mode CD spin / tilt: cover tetap berdiri sendiri, turun sedikit agar tidak tertimpa header */
+/* Mode CD spin / tilt: cover berdiri sendiri */
 .aivy-sheet.npx-v2 .npx-hero:not(.is-compact) .npx-cover:not(.is-bleed){
-  align-self: center; width: min(72vw, 320px); margin: calc(52px + env(safe-area-inset-top, 0px)) 0 24px;
+  align-self: center; width: min(72vw, 320px); margin: calc(var(--u) * 110) 0 calc(var(--u) * 24);
 }
 
-/* ---------- Judul + aksi ---------- */
-.aivy-sheet.npx-v2 .npx-metarow{ box-sizing: border-box; padding: 4px 24px 0; margin: 0 0 6px; align-items: center; gap: 14px; }
-.aivy-sheet.npx-v2 .npx-titles .t{ font-size: clamp(21px, 6vw, 26px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
-.aivy-sheet.npx-v2 .npx-titles .a{ font-size: 17px; font-weight: 500; margin-top: 3px; color: var(--sheet-ink-dim); }
-.aivy-sheet.npx-v2 .npx-actions{ gap: 10px; }
+.aivy-sheet.npx-v2 .npx-metarow{
+  box-sizing: border-box; width: 100%; height: calc(var(--u) * 61); margin: calc(var(--u) * 36.5) 0 0; padding: 0 calc(var(--u) * 43);
+  display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 13);
+}
+.aivy-sheet.npx-v2 .npx-titles{ flex: 1; min-width: 0; position: relative; top: calc(var(--u) * 1.5); }
+.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles{ top: calc(var(--u) * 4); }
+.aivy-sheet.npx-v2 .npx-titles .t{ font-size: calc(var(--u) * 24); font-weight: 600; letter-spacing: -.012em; line-height: calc(var(--u) * 30); color: #fff; }
+.aivy-sheet.npx-v2 .npx-titles .a{ font-size: calc(var(--u) * 24); font-weight: 500; line-height: calc(var(--u) * 31); margin: calc(var(--u) * 1.5) 0 0; color: rgba(255,255,255,.55); }
+.aivy-sheet.npx-v2 .npx-titles .t .badge{ font-size: calc(var(--u) * 10); padding: calc(var(--u) * 2) calc(var(--u) * 8); margin-left: calc(var(--u) * 8); vertical-align: calc(var(--u) * 3); }
+.aivy-sheet.npx-v2 .npx-actions{ gap: calc(var(--u) * 13); }
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn{
-  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
-  background: rgba(255,255,255,.16); color: #fff; transition: background .2s ease, transform .15s ease;
+  width: calc(var(--u) * 48); height: calc(var(--u) * 48); padding: 0; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(255,255,255,.17); color: #fff; transition: background .2s ease, transform .15s ease;
 }
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn:hover{ background: rgba(255,255,255,.24); color: #fff; }
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn:active{ transform: scale(.94); }
-.aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn.active{ color: #ffd54a; background: rgba(255,255,255,.2); }
+.aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn.active{ color: #ff5a7a; background: rgba(255,255,255,.2); }
+.aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn svg{ width: calc(var(--u) * 25); height: calc(var(--u) * 25); }
+.aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn:nth-child(2) svg{ width: calc(var(--u) * 19); height: calc(var(--u) * 5); }
 
-/* ---------- Baris putar otomatis (di dalam blok kontrol) ---------- */
-.npx-autoplay{ box-sizing: border-box; width: 100%; padding: 0; margin: 0; }
-.npx-autoplay button{
-  display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 0;
-  font-size: 14px; font-weight: 600; text-align: left; color: var(--sheet-ink-dim);
-}
-.npx-autoplay .sw{ margin-left: auto; position: relative; width: 36px; height: 21px; border-radius: 999px; background: rgba(255,255,255,.2); transition: background .25s ease; }
-.npx-autoplay .sw::after{ content: ""; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .25s var(--ease, ease); }
-.npx-autoplay button.on .sw{ background: rgba(255,255,255,.62); }
-.npx-autoplay button.on .sw::after{ transform: translateX(15px); }
-@media (max-height: 700px){ .npx-autoplay{ display: none; } }
-
-/* ---------- Kontrol ---------- */
-/* Blok kontrol turun ke bawah dan jarak antar baris dibagi rata, seperti referensi. */
-.aivy-sheet.npx-v2 .npx-top-controls{ box-sizing: border-box; padding: 0 24px; }
-.aivy-sheet.npx-v2:not(.mode-lyrics) .npx-top-controls{ flex: 1 1 auto; justify-content: space-evenly; gap: 10px; }
-.aivy-sheet.npx-v2:not(.mode-lyrics) .npx-sing-row,
-.aivy-sheet.npx-v2:not(.mode-lyrics) .aivy-sheet-gap{ display: none; }
-
-/* Progress: bar tebal tanpa thumb, waktu di bawah bar (kiri / kanan) */
-.aivy-sheet.npx-v2 .aivy-scrubber-row{ display: grid; grid-template-columns: 1fr auto; row-gap: 2px; margin: 0; align-items: start; }
-.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-scrubber{ grid-column: 1 / -1; grid-row: 1; height: 16px; }
-.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time{ grid-row: 2; width: auto; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.55); }
-.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time:not(.right){ grid-column: 1; }
-.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time.right{ grid-column: 2; }
-.aivy-sheet.npx-v2 .aivy-scrubber .track,
-.aivy-sheet.npx-v2 .aivy-scrubber:hover .track,
-.aivy-sheet.npx-v2 .aivy-scrubber.dragging .track{ height: 10px; border-radius: 999px; background: rgba(255,255,255,.22); transition: height .15s ease; }
-.aivy-sheet.npx-v2 .aivy-scrubber.dragging .track{ height: 14px; }
-.aivy-sheet.npx-v2 .aivy-scrubber .fill,
-.aivy-sheet.npx-v2 .aivy-scrubber:hover .fill{ background: rgba(255,255,255,.92); }
-.aivy-sheet.npx-v2 .aivy-scrubber .thumb{ display: none; }
-
-/* Transport: hanya prev / play / next, besar */
-.aivy-sheet.npx-v2 .aivy-transport-btns{ justify-content: space-between; gap: 0; margin: 0; padding: 0 12px; }
-.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn{ width: 72px; height: 72px; color: #fff; transition: transform .15s ease; }
-.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn svg{ width: 46px; height: 46px; opacity: .62; stroke-linejoin: round; transition: opacity .15s ease; }
-.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn:active{ transform: scale(.92); }
-.aivy-sheet.npx-v2 .aivy-transport-btns .aivy-icon-btn:active svg{ opacity: 1; }
-.aivy-sheet.npx-v2 .aivy-play-btn{ width: 84px; height: 84px; color: #fff; }
-.aivy-sheet.npx-v2 .aivy-play-btn svg{ width: 58px; height: 58px; margin-left: 0; }
-
-/* Volume: bar tebal, ikon speaker di ujung */
-.aivy-sheet.npx-v2 .aivy-vol{ margin: 0; }
-.aivy-sheet.npx-v2 .aivy-vol .track,
-.aivy-sheet.npx-v2 .aivy-vol:hover .track,
-.aivy-sheet.npx-v2 .aivy-vol.dragging .track{ height: 10px; border-radius: 999px; background: rgba(255,255,255,.22); }
-.aivy-sheet.npx-v2 .aivy-vol .fill,
-.aivy-sheet.npx-v2 .aivy-vol:hover .fill{ background: rgba(255,255,255,.92); }
-
-/* Baris bawah: lirik | pill shuffle + repeat | antrean */
-.aivy-sheet.npx-v2 .aivy-sheet-icon-row{ box-sizing: border-box; padding: 4px 24px 0; margin-top: 6px; }
-.aivy-sheet-pill{ display: flex; align-items: center; border-radius: 999px; background: rgba(255,255,255,.16); overflow: hidden; }
-.aivy-sheet-pill .aivy-icon-btn + .aivy-icon-btn{ box-shadow: -1px 0 0 rgba(255,255,255,.16); }
-.aivy-sheet.npx-v2 .aivy-sheet-pill .aivy-icon-btn{ width: 64px; height: 46px; border-radius: 0; }
-.aivy-sheet.npx-v2 .aivy-sheet-pill .aivy-icon-btn.active{ color: #fff; background: rgba(255,255,255,.22); }
-
-/* ---------- Mode lirik ---------- */
-.aivy-sheet.npx-v2 .npx-hero.is-compact{ padding: calc(30px + env(safe-area-inset-top, 0px)) 22px 0; align-items: center; }
+/* Hero ringkas (mode lirik & antrean): cover calc(var(--u) * 78) di kiri atas */
+.aivy-sheet.npx-v2 .npx-hero.is-compact{ flex-direction: row; align-items: flex-start; gap: calc(var(--u) * 17); padding: calc(var(--u) * 126) calc(var(--u) * 43) 0; }
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-cover{
-  width: 44px; height: 44px; aspect-ratio: 1; margin: 0; border-radius: 8px;
+  width: calc(var(--u) * 78); height: calc(var(--u) * 78); aspect-ratio: 1; margin: 0; border-radius: calc(var(--u) * 6); flex: none;
   -webkit-mask-image: none; mask-image: none;
 }
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-cover::before{ display: none; }
-.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-metarow{ padding: 0; margin: 0; }
-.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .t{ font-size: 14.5px; letter-spacing: normal; }
-.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .a{ font-size: 12px; margin-top: 2px; }
-.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-actions .aivy-icon-btn{ width: 34px; height: 34px; }
-.aivy-sheet.npx-v2.mode-lyrics .npx-autoplay{ display: none; }
-.aivy-sheet.npx-v2 .npx-lyrics-wrap .aivy-am-lyrics{ left: 16px; right: 16px; padding: 2px 8px 0; }
+.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-metarow{ flex: 1; width: auto; min-width: 0; height: calc(var(--u) * 78); margin: 0; padding: 0; }
+.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .t{ font-size: calc(var(--u) * 20); line-height: calc(var(--u) * 25); letter-spacing: 0; }
+.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .a{ font-size: calc(var(--u) * 19); line-height: calc(var(--u) * 25); }
+
+/* ---------- Mode lirik ---------- */
+.aivy-sheet.npx-v2 .npx-lyrics-wrap{
+  position: absolute; left: 0; right: 0; top: calc(var(--u) * 240); bottom: calc(var(--u) * 640); width: auto; order: 0; z-index: 2;
+  display: block; opacity: 0; transform: none; pointer-events: none; transition: opacity .18s ease;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 36), #000 calc(100% - calc(var(--u) * 64)), transparent 100%);
+          mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 36), #000 calc(100% - calc(var(--u) * 64)), transparent 100%);
+}
+.aivy-sheet.npx-v2 .npx-lyrics-wrap.is-active{ opacity: 1; pointer-events: auto; transition: opacity .3s ease .3s; }
+.aivy-sheet.npx-v2 .npx-lyrics-wrap .aivy-am-lyrics{
+  position: absolute; inset: 0; padding: 0 0 0 calc(var(--u) * 5);
+  --am-lyrics-inline-padding: calc(var(--u) * 33); --lyplus-padding-line: calc(var(--u) * 10); --lyrics-scroll-padding-top: 0%;
+  --am-lyrics-compact-font-size: calc(var(--u) * 40) !important; --lyplus-font-size-base: calc(var(--u) * 40) !important; --am-lyrics-wide-font-size: calc(var(--u) * 40) !important;
+  --am-lyrics-line-height: 1.325; --am-lyrics-line-spacing: calc(var(--u) * 29);
+  /* container query bawaan am-lyrics (<520px) memakai varian compact, jadi set yang ini juga */
+  --am-lyrics-compact-line-spacing: calc(var(--u) * 29); --am-lyrics-compact-selected-position: 0%;
+}
+.aivy-sheet.npx-v2 .npx-lyr-btn{
+  position: absolute; bottom: calc(var(--u) * 584); width: calc(var(--u) * 48); height: calc(var(--u) * 48); padding: 0; border-radius: 50%; z-index: 4;
+  display: grid; place-items: center; color: rgba(255,255,255,.85); background: rgba(255,255,255,.17);
+  transition: background .2s ease, color .2s ease, transform .15s ease;
+}
+.aivy-sheet.npx-v2 .npx-lyr-btn.is-left{ left: calc(var(--u) * 43); }
+.aivy-sheet.npx-v2 .npx-lyr-btn.is-right{ right: calc(var(--u) * 43); }
+.aivy-sheet.npx-v2 .npx-lyr-btn.on{ background: rgba(255,255,255,.34); color: #fff; }
+.aivy-sheet.npx-v2 .npx-lyr-btn:active{ transform: scale(.94); }
+.aivy-sheet.npx-v2 .npx-lyr-btn svg{ width: calc(var(--u) * 25); height: calc(var(--u) * 25); }
+
+/* ---------- Mode antrean ---------- */
+.aivy-sheet.npx-v2 .npx-queue-title{
+  position: absolute; left: calc(var(--u) * 43); top: calc(var(--u) * 212); margin: 0; z-index: 4;
+  font-size: calc(var(--u) * 25.5); font-weight: 700; line-height: calc(var(--u) * 30); letter-spacing: -.012em; color: #fff;
+}
+.aivy-sheet.npx-v2 .npx-queue{
+  position: absolute; left: 0; right: 0; top: calc(var(--u) * 256); bottom: calc(var(--u) * 580); z-index: 2;
+  opacity: 0; pointer-events: none; transition: opacity .18s ease, bottom .3s cubic-bezier(.2, .8, .2, 1);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 40), #000 calc(100% - calc(var(--u) * 40)), transparent 100%);
+          mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 40), #000 calc(100% - calc(var(--u) * 40)), transparent 100%);
+}
+.aivy-sheet.npx-v2 .npx-queue.is-active{ opacity: 1; pointer-events: auto; transition: opacity .3s ease .3s, bottom .3s cubic-bezier(.2, .8, .2, 1); }
+.aivy-sheet.npx-v2.is-qcollapsed .npx-queue{ bottom: calc(var(--u) * 304); }
+.aivy-sheet.npx-v2 .npx-q-scroll{
+  box-sizing: border-box; height: 100%; padding: 0 calc(var(--u) * 54.5) 0 calc(var(--u) * 43); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.aivy-sheet.npx-v2 .npx-q-scroll::-webkit-scrollbar{ display: none; }
+.aivy-sheet.npx-v2 .npx-q-label{ height: calc(var(--u) * 24); margin: calc(var(--u) * 22) 0 0; font-size: calc(var(--u) * 18); font-weight: 600; line-height: calc(var(--u) * 24); color: rgba(255,255,255,.72); }
+.aivy-sheet.npx-v2 .npx-q-label.first{ margin-top: calc(var(--u) * 11); }
+.aivy-sheet.npx-v2 .npx-q-label + .npx-q-row{ margin-top: calc(var(--u) * 9); }
+.aivy-sheet.npx-v2 .npx-q-row{ position: relative; display: flex; align-items: center; height: calc(var(--u) * 81); transition: transform .2s ease, background .2s ease; border-radius: calc(var(--u) * 10); }
+.aivy-sheet.npx-v2 .npx-q-row .handle{
+  flex: none; width: calc(var(--u) * 18); height: calc(var(--u) * 81); margin-right: calc(var(--u) * 17); padding: 0; display: grid; place-items: center;
+  color: rgba(255,255,255,.42); touch-action: none; cursor: grab;
+}
+.aivy-sheet.npx-v2 .npx-q-row .handle svg{ width: calc(var(--u) * 18); height: calc(var(--u) * 8); }
+.aivy-sheet.npx-v2 .npx-q-row .main{
+  flex: 1; min-width: 0; height: calc(var(--u) * 81); margin-right: calc(var(--u) * 21); padding: 0; display: flex; align-items: center; gap: calc(var(--u) * 18); text-align: left; color: inherit;
+}
+.aivy-sheet.npx-v2 .npx-q-row .thumb{ flex: none; display: block; width: calc(var(--u) * 63); height: calc(var(--u) * 63); border-radius: calc(var(--u) * 6); overflow: hidden; background: rgba(255,255,255,.08); }
+.aivy-sheet.npx-v2 .npx-q-row .txt{ flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; top: calc(var(--u) * 2.5); }
+.aivy-sheet.npx-v2 .npx-q-row .t{ display: flex; align-items: center; min-width: 0; font-size: calc(var(--u) * 20); font-weight: 600; line-height: calc(var(--u) * 24); color: rgba(255,255,255,.93); }
+.aivy-sheet.npx-v2 .npx-q-row .t .tt{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aivy-sheet.npx-v2 .npx-q-row .a{ font-size: calc(var(--u) * 17); line-height: calc(var(--u) * 21); color: rgba(255,255,255,.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aivy-sheet.npx-v2 .npx-q-row.is-current .t{ color: #fff; }
+.aivy-sheet.npx-v2 .npx-q-row .eq{ flex: none; width: calc(var(--u) * 24); height: calc(var(--u) * 24); margin-right: calc(var(--u) * 26); color: #fff; }
+.aivy-sheet.npx-v2 .npx-q-row .rm{ flex: none; width: calc(var(--u) * 24); height: calc(var(--u) * 24); padding: 0; display: grid; place-items: center; color: rgba(255,255,255,.55); }
+.aivy-sheet.npx-v2 .npx-q-row .rm svg{ width: calc(var(--u) * 24); height: calc(var(--u) * 24); }
+.aivy-sheet.npx-v2 .npx-q-e{
+  flex: none; display: grid; place-items: center; width: calc(var(--u) * 19); height: calc(var(--u) * 19); margin-right: calc(var(--u) * 9); box-sizing: border-box;
+  border: calc(var(--u) * 1.6) solid rgba(255,255,255,.75); border-radius: calc(var(--u) * 3.5); font-size: calc(var(--u) * 12.5); font-weight: 700; line-height: 1; color: rgba(255,255,255,.85);
+}
+.aivy-sheet.npx-v2 .npx-q-auto{ display: flex; align-items: flex-start; height: calc(var(--u) * 47); margin: calc(var(--u) * 22) 0 calc(var(--u) * 17); }
+.aivy-sheet.npx-v2 .npx-q-auto > svg{ flex: none; width: calc(var(--u) * 24); height: calc(var(--u) * 24); margin: calc(var(--u) * 8.5) calc(var(--u) * 14) 0 0; color: rgba(255,255,255,.78); }
+.aivy-sheet.npx-v2 .npx-q-auto .t{ font-size: calc(var(--u) * 20); font-weight: 700; line-height: calc(var(--u) * 24); color: #fff; }
+.aivy-sheet.npx-v2 .npx-q-auto .d{ font-size: calc(var(--u) * 17); line-height: calc(var(--u) * 23); color: rgba(255,255,255,.55); white-space: nowrap; }
+.aivy-sheet.npx-v2 .npx-q-end{ height: calc(var(--u) * 60); }
+
+/* ---------- Blok kontrol (menempel ke bawah, y relatif ke atas blok = y video − 1090) ---------- */
+.aivy-sheet.npx-v2 .npx-top-controls{ padding: 0; }
+.aivy-sheet.npx-v2 .npx-controls{
+  position: absolute; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px); height: calc(var(--u) * 550); z-index: 5;
+  display: block; width: auto; transition: transform .2s cubic-bezier(.2, .8, .2, 1);
+}
+.aivy-sheet.npx-v2.is-qcollapsed .npx-controls{ transform: translateY(calc(var(--u) * 276)); }
+
+.aivy-sheet.npx-v2 .npx-snip{
+  position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 43); top: calc(var(--u) * 4.5); height: calc(var(--u) * 32); margin: 0; padding: 0; text-align: left;
+  display: flex; align-items: center; gap: calc(var(--u) * 10); color: rgba(255,255,255,.58); font-size: calc(var(--u) * 19); font-weight: 600; line-height: calc(var(--u) * 24);
+}
+.aivy-sheet.npx-v2 .npx-snip .note{ flex: none; width: calc(var(--u) * 21); height: calc(var(--u) * 21); margin-left: calc(var(--u) * 2); color: #fff; }
+.aivy-sheet.npx-v2 .npx-snip .txt{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aivy-sheet.npx-v2 .npx-snip .chev{ flex: none; width: calc(var(--u) * 21); height: calc(var(--u) * 21); margin-left: calc(var(--u) * 1); color: rgba(255,255,255,.53); }
+.aivy-sheet.npx-v2 .npx-snip.is-credit{ pointer-events: auto; }
+.aivy-sheet.npx-v2 .npx-credit{ font-size: calc(var(--u) * 19); font-weight: 500; color: rgba(255,255,255,.55); text-decoration: underline; text-underline-offset: calc(var(--u) * 3); }
+
+.aivy-sheet.npx-v2 .aivy-scrubber-row{
+  position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 43); top: calc(var(--u) * 44.5); width: auto; margin: 0;
+  display: grid; grid-template-columns: 1fr auto; grid-template-rows: calc(var(--u) * 20) calc(var(--u) * 22); row-gap: 0; align-items: center;
+}
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-scrubber{ grid-column: 1 / -1; grid-row: 1; height: calc(var(--u) * 20); }
+.aivy-sheet.npx-v2 .aivy-scrubber .track,
+.aivy-sheet.npx-v2 .aivy-scrubber:hover .track{ height: calc(var(--u) * 10); border-radius: calc(var(--u) * 5); background: rgba(255,255,255,.26); transition: height .15s ease; }
+.aivy-sheet.npx-v2 .aivy-scrubber.dragging .track{ height: calc(var(--u) * 14); }
+.aivy-sheet.npx-v2 .aivy-scrubber .fill,
+.aivy-sheet.npx-v2 .aivy-scrubber:hover .fill{ background: rgba(255,255,255,.92); }
+.aivy-sheet.npx-v2 .aivy-scrubber .thumb{ display: none; }
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time{ grid-row: 2; width: auto; font-size: calc(var(--u) * 16.5); font-weight: 600; line-height: calc(var(--u) * 22); padding-top: calc(var(--u) * 2); color: rgba(255,255,255,.53); }
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time:not(.right){ grid-column: 1; }
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time.right{ grid-column: 2; justify-self: end; }
+
+.aivy-sheet.npx-v2 .npx-transport{ position: absolute; left: 0; right: 0; top: calc(var(--u) * 173); height: calc(var(--u) * 72); margin: 0; }
+.aivy-sheet.npx-v2 .npx-transport button{
+  position: absolute; top: 0; width: calc(var(--u) * 100); height: calc(var(--u) * 72); padding: 0; display: grid; place-items: center; color: #fff;
+  transition: transform .15s ease; -webkit-tap-highlight-color: transparent;
+}
+.aivy-sheet.npx-v2 .npx-transport .prev{ left: calc(var(--u) * 89); }
+.aivy-sheet.npx-v2 .npx-transport .play{ left: calc(var(--u) * 314); }
+.aivy-sheet.npx-v2 .npx-transport .next{ left: calc(var(--u) * 530.5); }
+.aivy-sheet.npx-v2 .npx-transport .skip svg{ width: calc(var(--u) * 67); height: calc(var(--u) * 38); transition: opacity .15s ease; }
+.aivy-sheet.npx-v2 .npx-transport .skip.is-dim svg{ opacity: .3; }
+.aivy-sheet.npx-v2 .npx-transport .play svg{ width: calc(var(--u) * 44); height: calc(var(--u) * 54); }
+.aivy-sheet.npx-v2 .npx-transport button:active{ transform: scale(.92); }
+.aivy-sheet.npx-v2 .npx-transport button:disabled{ opacity: .35; }
+
+.aivy-sheet.npx-v2 .aivy-vol{ position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 43); top: calc(var(--u) * 334.5); width: auto; height: calc(var(--u) * 33); margin: 0; display: block; }
+.aivy-sheet.npx-v2 .aivy-vol .aivy-icon-btn{ position: absolute; left: 0; top: 0; width: calc(var(--u) * 28); height: calc(var(--u) * 33); padding: 0; display: grid; place-items: center; color: rgba(255,255,255,.5); }
+.aivy-sheet.npx-v2 .aivy-vol .aivy-icon-btn svg{ width: calc(var(--u) * 19); height: calc(var(--u) * 19); }
+.aivy-sheet.npx-v2 .aivy-vol .track,
+.aivy-sheet.npx-v2 .aivy-vol:hover .track,
+.aivy-sheet.npx-v2 .aivy-vol.dragging .track{ position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 44); top: calc(var(--u) * 11.5); width: auto; max-width: none; height: calc(var(--u) * 10); border-radius: calc(var(--u) * 5); background: rgba(255,255,255,.26); }
+.aivy-sheet.npx-v2 .aivy-vol .fill,
+.aivy-sheet.npx-v2 .aivy-vol:hover .fill{ background: rgba(255,255,255,.92); }
+.aivy-sheet.npx-v2 .aivy-vol .vol-end{ position: absolute; right: calc(var(--u) * 1); top: 0; width: calc(var(--u) * 28); height: calc(var(--u) * 33); display: grid; place-items: center; color: rgba(255,255,255,.5); }
+.aivy-sheet.npx-v2 .aivy-vol .vol-end svg{ width: calc(var(--u) * 25); height: calc(var(--u) * 23); }
+
+/* Baris bawah: lirik | pill | antrean */
+.aivy-sheet.npx-v2 .npx-bottom{ position: absolute; left: 0; right: 0; top: calc(var(--u) * 383); height: calc(var(--u) * 63); }
+.aivy-sheet.npx-v2 .npx-circ{
+  position: absolute; top: 0; width: calc(var(--u) * 63); height: calc(var(--u) * 63); padding: 0; border-radius: 50%; display: grid; place-items: center;
+  color: rgba(255,255,255,.8); background: rgba(255,255,255,0); transition: background .25s ease, color .25s ease, transform .15s ease;
+}
+.aivy-sheet.npx-v2 .npx-circ.is-lyrics{ left: calc(var(--u) * 100); }
+.aivy-sheet.npx-v2 .npx-circ.is-queue{ left: calc(var(--u) * 557); }
+.aivy-sheet.npx-v2 .npx-circ.on{ background: rgba(255,255,255,.22); color: #fff; }
+.aivy-sheet.npx-v2 .npx-circ:active{ transform: scale(.94); }
+.aivy-sheet.npx-v2 .npx-circ:disabled{ opacity: .3; }
+.aivy-sheet.npx-v2 .npx-circ svg{ width: calc(var(--u) * 36); height: calc(var(--u) * 36); }
+.aivy-sheet.npx-v2 .npx-pill{
+  position: absolute; top: 0; left: 50%; height: calc(var(--u) * 63); transform: translateX(-50%); border-radius: calc(var(--u) * 32); overflow: hidden;
+  display: flex; background: rgba(255,255,255,.127); transition: width .3s cubic-bezier(.2, .8, .2, 1);
+}
+.aivy-sheet.npx-v2 .npx-pill.is-2{ width: calc(var(--u) * 185); }
+.aivy-sheet.npx-v2 .npx-pill.is-3{ width: calc(var(--u) * 227); }
+.aivy-sheet.npx-v2 .npx-pill .seg{
+  position: relative; flex: 1; min-width: 0; padding: 0; display: grid; place-items: center;
+  color: rgba(255,255,255,.8); background: rgba(255,255,255,0); transition: background .2s ease, color .2s ease;
+}
+.aivy-sheet.npx-v2 .npx-pill .seg + .seg::before{ content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--u) * 2); background: rgba(255,255,255,.2); }
+.aivy-sheet.npx-v2 .npx-pill .seg.on{ background: rgba(255,255,255,.14); color: #fff; }
+.aivy-sheet.npx-v2 .npx-pill .seg:disabled{ opacity: .4; }
+.aivy-sheet.npx-v2 .npx-pill .seg svg{ width: calc(var(--u) * 32); height: calc(var(--u) * 32); }
+.aivy-sheet.npx-v2 .npx-device{
+  position: absolute; left: 0; right: 0; top: calc(var(--u) * 472); height: calc(var(--u) * 24); text-align: center; font-size: calc(var(--u) * 13); font-weight: 600; line-height: calc(var(--u) * 24);
+  color: rgba(255,255,255,.52); pointer-events: none;
+}

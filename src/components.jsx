@@ -8,7 +8,8 @@ import {
   Lock, Globe, Crown, Mic2, AlertTriangle, GripVertical, Trash2, Film, Send,
   PanelLeft, PanelRight, Type, Star, Airplay, Mic, MessageSquareQuote, Smile,
   Cast, Info, Copy, ListPlus, SlidersHorizontal, Gauge, Maximize, Minimize, Github, Sparkles, RefreshCw,
-  ExternalLink, Rewind, FastForward, Download,
+  ExternalLink, Rewind, FastForward,
+  Headphones, User, List, Infinity as InfinityIcon, AudioLines, Languages, Music, Volume as VolumeNone,
 } from "lucide-react";
 import {
   usePlayer, usePlayerTime, useUI,
@@ -252,7 +253,7 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
   );
 }
 
-export function VolumeControl({ showEndIcon = false }) {
+export function VolumeControl({ showEndIcon = false, coneAtZero = false }) {
   const { volume, muted, setVolume, toggleMute } = usePlayer();
   const { t } = useUI();
   const trackRef = useRef(null);
@@ -262,7 +263,7 @@ export function VolumeControl({ showEndIcon = false }) {
   const bumpTimerRef = useRef(null);
   const effective = muted ? 0 : volume;
   const ratioFromEvent = (e) => { const r = trackRef.current.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
-  const VolIcon = effective === 0 ? VolumeX : effective < 0.5 ? Volume1 : Volume2;
+  const VolIcon = effective === 0 ? ((coneAtZero && !muted) ? VolumeNone : VolumeX) : effective < 0.5 ? Volume1 : Volume2;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -282,7 +283,7 @@ export function VolumeControl({ showEndIcon = false }) {
 
   return (
     <div className={`aivy-vol ${bumping ? "is-bumping" : ""} ${dragging ? "dragging" : ""}`} ref={rootRef}>
-      <button className="aivy-icon-btn sm" onClick={toggleMute} aria-label={muted ? t("unmute") : t("mute")}><VolIcon size={17} /></button>
+      <button className="aivy-icon-btn sm" onClick={toggleMute} aria-label={muted ? t("unmute") : t("mute")}>{coneAtZero ? <NpxVolLowIcon /> : <VolIcon size={17} />}</button>
       <div
         ref={trackRef} className="track"
         onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragging(true); setVolume(ratioFromEvent(e)); }}
@@ -293,7 +294,7 @@ export function VolumeControl({ showEndIcon = false }) {
       >
         <div className="fill" style={{ width: `${effective * 100}%` }} />
       </div>
-      {showEndIcon && <span className="vol-end"><Volume2 size={17} /></span>}
+      {showEndIcon && <span className="vol-end">{coneAtZero ? <NpxVolHighIcon /> : <Volume2 size={17} />}</span>}
     </div>
   );
 }
@@ -355,17 +356,6 @@ function TrackMenuSheet({ menu, onClose }) {
   const removeItem = menu.items?.removeItem || null;
   const run = (fn) => () => { onClose(); fn && fn(); };
 
-  // Unduh via Api.downloadSong (tiket stream sendiri sudah di-cache) —
-  // server membubuhkan Content-Disposition attachment saat `dl=1`.
-  const downloadTrack = async (tr) => {
-    try {
-      pushToast(t("downloadStarted"));
-      await Api.downloadSong(tr);
-    } catch {
-      pushToast(t("downloadFailed"));
-    }
-  };
-
   return createPortal(
     <div className="aivy-trackmenu-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }} onContextMenu={(e) => { e.preventDefault(); if (e.target === e.currentTarget) onClose(); }}>
       <div className="aivy-trackmenu" role="dialog" aria-label={track.title}>
@@ -395,9 +385,6 @@ function TrackMenuSheet({ menu, onClose }) {
           </button>
           <button className="aivy-trackmenu-item" onClick={run(() => { shareTrack(track, pushToast, t); })}>
             <Share2 size={20} /><span>{t("menuShareSong")}</span>
-          </button>
-          <button className="aivy-trackmenu-item" onClick={run(() => { void downloadTrack(track); })}>
-            <Download size={20} /><span>{t("menuDownload")}</span>
           </button>
           <button className="aivy-trackmenu-item" onClick={run(() => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); })}>
             <Copy size={20} /><span>{t("menuCopyLink")}</span>
@@ -1776,6 +1763,361 @@ export function NowPlayingVisualizer({ running = true }) {
 
 const NPX_COVER_FILL_STYLE = { width: "100%", height: "100%" };
 
+// ==========================================================================
+// Now playing mobile — potongan UI yang mengikuti referensi video
+// (mode player / lirik / antrean dalam satu sheet)
+// ==========================================================================
+
+/* Ikon custom: ukuran viewBox = piksel video referensi supaya proporsinya sama persis */
+function NpxPrevIcon() {
+  return (
+    <svg viewBox="0 0 67 38" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="5" strokeLinejoin="round">
+      <path d="M33 2.5v33L2.5 19z" /><path d="M64.5 2.5v33L34 19z" />
+    </svg>
+  );
+}
+function NpxNextIcon() {
+  return (
+    <svg viewBox="0 0 67 38" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="5" strokeLinejoin="round">
+      <path d="M34 2.5v33L64.5 19z" /><path d="M2.5 2.5v33L33 19z" />
+    </svg>
+  );
+}
+function NpxPlayIcon() {
+  return (
+    <svg viewBox="0 0 44 54" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="8" strokeLinejoin="round">
+      <path d="M4 4l36 23L4 50z" />
+    </svg>
+  );
+}
+function NpxPauseIcon() {
+  return (
+    <svg viewBox="0 0 44 54" aria-hidden="true" fill="currentColor">
+      <rect x="3" y="3" width="14" height="48" rx="4" /><rect x="27" y="3" width="14" height="48" rx="4" />
+    </svg>
+  );
+}
+function NpxVolLowIcon() {
+  return (
+    <svg viewBox="0 0 17 17" aria-hidden="true" fill="currentColor">
+      <path d="M0 5.5h3.8L9.5 1v15L3.8 11.5H0z" />
+      <path d="M12.3 5.3a4.7 4.7 0 0 1 0 6.4" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function NpxVolHighIcon() {
+  return (
+    <svg viewBox="0 0 23 21" aria-hidden="true" fill="currentColor">
+      <path d="M0 7h4.6L11.5 1.5v18L4.6 14H0z" />
+      <path d="M14.8 6.6a5.6 5.6 0 0 1 0 7.8" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+      <path d="M18.2 3.6a9.6 9.6 0 0 1 0 13.8" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function NpxMoreIcon() {
+  return (
+    <svg viewBox="0 0 19 5" aria-hidden="true" fill="currentColor">
+      <circle cx="2.5" cy="2.5" r="2.5" /><circle cx="9.5" cy="2.5" r="2.5" /><circle cx="16.5" cy="2.5" r="2.5" />
+    </svg>
+  );
+}
+function NpxHandleIcon() {
+  return (
+    <svg viewBox="0 0 18 8" aria-hidden="true" fill="currentColor">
+      <rect x="0" y="0" width="18" height="2.4" rx="1.2" /><rect x="0" y="5.6" width="18" height="2.4" rx="1.2" />
+    </svg>
+  );
+}
+
+/* Polling ringan ke elemen <am-lyrics>: baris aktif, sumber lirik, status romanisasi/terjemahan. */
+function useNpxLyricsInfo(enabled, trackKey) {
+  const [info, setInfo] = useState({ line: "", source: "", has: false, roman: false, trans: false });
+  const read = useCallback(() => {
+    const el = typeof document !== "undefined" ? document.getElementById("aivy-am-lyrics-mobile") : null;
+    if (!el) return null;
+    let line = "";
+    try {
+      const node = el.shadowRoot?.querySelector(".lyrics-line.active:not(.lyrics-gap) .main-vocal-container");
+      line = (node?.textContent || "").replace(/\s+/g, " ").trim();
+    } catch { /* shadow DOM belum siap */ }
+    let source = "";
+    try {
+      const raw = el.lyricsSource;
+      if (raw) source = typeof el.constructor?.getDisplaySourceLabel === "function" ? el.constructor.getDisplaySourceLabel(raw) : String(raw);
+    } catch { /* abaikan */ }
+    return {
+      line, source,
+      has: Array.isArray(el.lyrics) ? el.lyrics.length > 0 : false,
+      roman: !!el.showRomanization, trans: !!el.showTranslation,
+    };
+  }, []);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const tick = () => {
+      const next = read();
+      if (!next) return;
+      setInfo((prev) => (prev.line === next.line && prev.source === next.source && prev.has === next.has && prev.roman === next.roman && prev.trans === next.trans ? prev : next));
+    };
+    tick();
+    const id = setInterval(tick, 450);
+    return () => clearInterval(id);
+  }, [enabled, trackKey, read]);
+  return { info, refresh: () => { const n = read(); if (n) setInfo(n); } };
+}
+
+/* Baris cuplikan lirik (♫ teks ›) di mode player & antrean; "Lirik oleh …" di mode lirik. */
+/* Ikon baris bawah: solid/tebal ala Apple. viewBox = bbox video (u), ukuran dipasang lewat style */
+const npxSz = (w, h) => ({ width: `calc(var(--u) * ${w})`, height: `calc(var(--u) * ${h})` });
+function NpxLyricsIcon() {
+  return (
+    <svg viewBox="0 0 31 30" style={npxSz(31, 30)} aria-hidden="true" fill="currentColor">
+      <path d="M7.5 1.5h16a6 6 0 0 1 6 6v10a6 6 0 0 1-6 6H15.5l-8 5v-5a6 6 0 0 1-6-6v-10a6 6 0 0 1 6-6z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M9.6 9h4.6v4.4c0 2-1.1 3.2-3 3.6l-.5-1.3c.9-.3 1.3-.8 1.3-1.6H9.6zm7.2 0h4.6v4.4c0 2-1.1 3.2-3 3.6l-.5-1.3c.9-.3 1.3-.8 1.3-1.6h-2.4z" />
+    </svg>
+  );
+}
+function NpxHeadphonesIcon() {
+  return (
+    <svg viewBox="0 0 25 25" style={npxSz(25, 25)} aria-hidden="true" fill="currentColor">
+      <path d="M3.7 17v-4.6a8.8 8.8 0 0 1 17.6 0V17" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
+      <rect x="0" y="13.6" width="7.6" height="11.4" rx="3.6" /><rect x="17.4" y="13.6" width="7.6" height="11.4" rx="3.6" />
+    </svg>
+  );
+}
+function NpxPersonIcon() {
+  return (
+    <svg viewBox="0 0 22 22" style={npxSz(22, 22)} aria-hidden="true" fill="currentColor">
+      <circle cx="11" cy="4.8" r="4.8" /><path d="M0 22c0-5 4.4-7.6 11-7.6S22 17 22 22z" />
+    </svg>
+  );
+}
+function NpxListIcon() {
+  return (
+    <svg viewBox="0 0 31 23" style={npxSz(31, 23)} aria-hidden="true" fill="currentColor">
+      <circle cx="2.4" cy="2.4" r="2.4" /><circle cx="2.4" cy="11.5" r="2.4" /><circle cx="2.4" cy="20.6" r="2.4" />
+      <rect x="9" y="0.9" width="22" height="3" rx="1.5" /><rect x="9" y="10" width="22" height="3" rx="1.5" /><rect x="9" y="19.1" width="22" height="3" rx="1.5" />
+    </svg>
+  );
+}
+function NpxShuffleIcon() {
+  return (
+    <svg viewBox="0 0 29 24" style={npxSz(29, 24)} aria-hidden="true" fill="currentColor">
+      <g fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1.8 5h4.4c7 0 8.3 14 15.6 14h1" /><path d="M1.8 19h4.4c2.6 0 4.4-1.2 6-3.2" /><path d="M15.4 8.2C17.2 6 19 5 21.8 5h1" />
+      </g>
+      <path d="M22.5 0L29 5l-6.5 5zM22.5 14L29 19l-6.5 5z" />
+    </svg>
+  );
+}
+function NpxRepeatIcon({ one = false }) {
+  return (
+    <svg viewBox="0 0 25 21" style={npxSz(25, 21)} aria-hidden="true" fill="currentColor">
+      <g fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5.5 4h12.5a4 4 0 0 1 4 4v1.5" /><path d="M19.5 17H7a4 4 0 0 1-4-4v-1.5" />
+      </g>
+      <path d="M16.5 0L23 4l-6.5 4zM8.5 13L2 17l6.5 4z" />
+      {one ? <path d="M11 7.4l2.2-1.2v8.6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : null}
+    </svg>
+  );
+}
+function NpxInfinityIcon() {
+  return (
+    <svg viewBox="0 0 29 15" style={npxSz(29, 15)} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 7.5c-2-3-4-5.5-7-5.5a5.5 5.5 0 0 0 0 11c3 0 5-2.5 7-5.5s4-5.5 7-5.5a5.5 5.5 0 0 1 0 11c-3 0-5-2.5-7-5.5z" />
+    </svg>
+  );
+}
+function NpxHeartIcon({ filled }) {
+  return (
+    <svg viewBox="-1 -1 26 24" aria-hidden="true" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round">
+      <path d="M12 20.4C5.4 15.5 1.6 12 1.6 7.5a5.4 5.4 0 0 1 10.4-2 5.4 5.4 0 0 1 10.4 2c0 4.5-3.8 8-10.4 12.9z" />
+    </svg>
+  );
+}
+function NpxNoteIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 21 21" aria-hidden="true" fill="currentColor">
+      <path d="M7.4 3.2L17.6 1.6v4L7.4 7.2z" /><rect x="6.4" y="3" width="1.8" height="11.2" /><rect x="16.2" y="1.6" width="1.8" height="10.6" />
+      <ellipse cx="4.9" cy="15.4" rx="3" ry="2.4" transform="rotate(-18 4.9 15.4)" /><ellipse cx="14.7" cy="13.8" rx="3" ry="2.4" transform="rotate(-18 14.7 13.8)" />
+    </svg>
+  );
+}
+function NpxSnippetRow({ mode, info, hintKey, lyricsDisabled, onOpenLyrics }) {
+  const { t } = useUI();
+  const hint = useMemo(() => (Math.random() < 0.5 ? t("npHintIntro") : t("npHintChorus")), [hintKey, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (mode === "lyrics") {
+    if (!info.source) return <div className="npx-snip is-credit" />;
+    const isDomain = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(info.source);
+    return (
+      <div className="npx-snip is-credit">
+        {isDomain ? (
+          <a className="npx-credit" href={`https://${info.source}`} target="_blank" rel="noopener noreferrer">{t("npLyricsBy")} {info.source}</a>
+        ) : (
+          <span className="npx-credit">{t("npLyricsBy")} {info.source}</span>
+        )}
+      </div>
+    );
+  }
+  if (lyricsDisabled) return <div className="npx-snip" />;
+  return (
+    <button type="button" className="npx-snip" onClick={onOpenLyrics} aria-label={t("npLyricSnippetOpen")}>
+      <NpxNoteIcon className="note" />
+      <span className="txt">{info.line || hint}</span>
+      <ChevronRight className="chev" aria-hidden="true" />
+    </button>
+  );
+}
+
+/* Baris bawah: lirik | pill (🎧 👤 atau acak/ulang/∞) | antrean */
+function NpxBottomRow({ mode, onToggleLyrics, lyricsDisabled, onToggleQueue, onClose }) {
+  const { t, settings, updateSettings, pushToast } = useUI();
+  const { shuffle, toggleShuffle, repeat, cycleRepeat, room } = usePlayer();
+  const { navigate } = useRouter();
+  const autoplayOn = settings.autoplay !== false;
+  const queue = mode === "queue";
+  return (
+    <div className="npx-bottom">
+      <button type="button" className={`npx-circ is-lyrics ${mode === "lyrics" ? "on" : ""}`} onClick={onToggleLyrics} disabled={lyricsDisabled} aria-label={t("lyrics")} aria-pressed={mode === "lyrics"}>
+        <NpxLyricsIcon />
+      </button>
+      <div className={`npx-pill ${queue ? "is-3" : "is-2"}`} role="group">
+        {queue ? (
+          <>
+            <button type="button" className={`seg ${shuffle ? "on" : ""}`} onClick={toggleShuffle} disabled={!!room} aria-label={t("shuffle")} aria-pressed={shuffle}><NpxShuffleIcon /></button>
+            <button type="button" className={`seg ${repeat !== "off" ? "on" : ""}`} onClick={cycleRepeat} disabled={!!room} aria-label={t("repeat")} aria-pressed={repeat !== "off"}><NpxRepeatIcon one={repeat === "one"} /></button>
+            <button type="button" className={`seg ${autoplayOn ? "on" : ""}`} onClick={() => updateSettings({ autoplay: !autoplayOn })} aria-label={t("npAutoplayToggle")} aria-pressed={autoplayOn}><NpxInfinityIcon /></button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="seg" onClick={() => pushToast(t("airplayUnavailable", "Output perangkat tidak tersedia di browser"))} aria-label={t("npOutput")}><NpxHeadphonesIcon /></button>
+            <button type="button" className="seg" onClick={() => { onClose?.(); navigate("roomLobby"); }} aria-label={t("npListeningRoom")}><NpxPersonIcon /></button>
+          </>
+        )}
+      </div>
+      <button type="button" className={`npx-circ is-queue ${queue ? "on" : ""}`} onClick={onToggleQueue} aria-label={t("openQueue")} aria-pressed={queue}>
+        <NpxListIcon />
+      </button>
+    </div>
+  );
+}
+
+/* Tombol transport: prev / play / next dengan ikon bergaya referensi */
+function NpxTransport() {
+  const { isPlaying, togglePlay, next, prev, currentTrack, room, posInOrder } = usePlayer();
+  const { authUser, t } = useUI();
+  const isHost = !room || !authUser || room.hostId === authUser.id;
+  const locked = !!(room && room.hostOnlyControl && !isHost);
+  const off = !currentTrack || locked;
+  return (
+    <div className="npx-transport">
+      <button type="button" className={`skip prev ${posInOrder <= 0 && !room ? "is-dim" : ""}`} onClick={() => prev()} disabled={off} aria-label={t("previous")}><NpxPrevIcon /></button>
+      <button type="button" className="play" onClick={togglePlay} disabled={off} aria-label={isPlaying ? t("pause") : t("play")}>{isPlaying ? <NpxPauseIcon /> : <NpxPlayIcon />}</button>
+      <button type="button" className="skip next" onClick={() => next(false)} disabled={off} aria-label={t("next")}><NpxNextIcon /></button>
+    </div>
+  );
+}
+
+/* Antrean di dalam sheet: Sedang diputar → (Berikutnya) → AutoPlay */
+function NpxQueueRow({ track, handle, current, onPlay, onRemove, dragProps, style, className = "" }) {
+  const { t } = useUI();
+  return (
+    <div className={`npx-q-row ${current ? "is-current" : ""} ${className}`} style={style}>
+      {handle && (
+        <button type="button" className="handle" aria-label={t("npReorder")} {...(dragProps || {})} tabIndex={dragProps ? 0 : -1}><NpxHandleIcon /></button>
+      )}
+      <button type="button" className="main" onClick={onPlay} disabled={!onPlay}>
+        <span className="thumb"><SmartCover src={track.cover} seed={String(track.id) + track.title} size={126} radius={6} style={{ width: "100%", height: "100%" }} /></span>
+        <span className="txt">
+          <span className="t">{track.explicit ? <span className="npx-q-e" title="Explicit">E</span> : null}<span className="tt">{track.title}</span></span>
+          <span className="a">{track.artist?.name || "\u2014"}</span>
+        </span>
+      </button>
+      {current && <AudioLines className="eq" aria-hidden="true" />}
+      <button type="button" className="rm" onClick={onRemove} aria-label={t("npRemoveFromQueue")}><X aria-hidden="true" /></button>
+    </div>
+  );
+}
+
+function NpxQueueView({ active, currentTrack, onCollapse }) {
+  const { t } = useUI();
+  const {
+    upNext, suggestedQueue, removeFromQueue, moveQueueItem, selectQueuePosition, posInOrder,
+    dismissSuggestion, playSuggestion, next, isPlaying, room,
+  } = usePlayer();
+  const scRef = useRef(null);
+  const [drag, setDrag] = useState(null); // { from, over, startY, dy, h }
+
+  useEffect(() => { if (!active && scRef.current) scRef.current.scrollTop = 0; }, [active]);
+
+  const onScroll = (e) => onCollapse(e.currentTarget.scrollTop > 2);
+
+  const startDrag = (e, index) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const row = e.currentTarget.closest(".npx-q-row");
+    setDrag({ from: index, over: index, startY: e.clientY, dy: 0, h: row?.getBoundingClientRect().height || 60 });
+  };
+  const moveDrag = (e) => {
+    setDrag((d) => {
+      if (!d) return d;
+      const dy = e.clientY - d.startY;
+      const over = clamp(d.from + Math.round(dy / d.h), 0, upNext.length - 1);
+      return { ...d, dy, over };
+    });
+  };
+  const endDrag = (commit) => {
+    if (commit && drag && drag.from !== drag.over) moveQueueItem(drag.from, drag.over);
+    setDrag(null);
+  };
+
+  const rowStyle = (i) => {
+    if (!drag) return undefined;
+    if (drag.from === i) return { transform: `translateY(${drag.dy}px)`, zIndex: 2, background: "rgba(255,255,255,.08)" };
+    if (drag.from < drag.over && i > drag.from && i <= drag.over) return { transform: "translateY(-100%)" };
+    if (drag.from > drag.over && i >= drag.over && i < drag.from) return { transform: "translateY(100%)" };
+    return undefined;
+  };
+
+  return (
+    <div className={`npx-queue ${active ? "is-active" : ""}`} aria-hidden={!active}>
+      <div className="npx-q-scroll aivy-scroll" ref={scRef} onScroll={onScroll}>
+        <div className="npx-q-label first">{t("npQueueNow")}</div>
+        {currentTrack && (
+          <NpxQueueRow track={currentTrack} current onRemove={() => next(false)} />
+        )}
+        {upNext.length > 0 && (
+          <>
+            <div className="npx-q-label">{t("npUpNext")}</div>
+            {upNext.map((tr, i) => (
+              <NpxQueueRow
+                key={`${tr.id}-${i}`} track={tr} handle
+                style={rowStyle(i)}
+                dragProps={{
+                  onPointerDown: (e) => startDrag(e, i), onPointerMove: moveDrag,
+                  onPointerUp: () => endDrag(true), onPointerCancel: () => endDrag(false),
+                }}
+                onPlay={() => selectQueuePosition(posInOrder + 1 + i)}
+                onRemove={() => removeFromQueue(i)}
+              />
+            ))}
+          </>
+        )}
+        {!room && suggestedQueue.length > 0 && (
+          <>
+            <div className="npx-q-auto">
+              <InfinityIcon aria-hidden="true" />
+              <div className="txt"><div className="t">{t("npAutoplayTitle")}</div><div className="d">{t("npAutoplayDesc")}</div></div>
+            </div>
+            {suggestedQueue.map((tr) => (
+              <NpxQueueRow key={tr.id} track={tr} handle onPlay={() => playSuggestion(tr)} onRemove={() => dismissSuggestion(tr)} />
+            ))}
+          </>
+        )}
+        <div className="npx-q-end" />
+      </div>
+    </div>
+  );
+}
+
 export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const {
     currentTrack, seekTo, isPreviewClip, audioFormat,
@@ -1783,7 +2125,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   } = usePlayer();
   const playerTime = usePlayerTime();
   const { navigate } = useRouter();
-  const { t, settings, updateSettings, lyricsOpen, toggleLyrics, pushToast } = useUI();
+  const { t, settings, updateSettings, lyricsOpen, toggleLyrics, pushToast, authUser } = useUI();
   const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
   const clientDynamicColor = useDominantColor(settings.dynamicColors ? currentTrack?.cover : null);
   const [serverDominantColor, setServerDominantColor] = useState(null);
@@ -1795,8 +2137,10 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const meshPalette = useCoverPalette(meshEnabled ? currentTrack?.cover : null, serverDominantColor || clientDynamicColor);
   // Cover edge-to-edge hanya kalau tidak bentrok dengan mode CD spin / tilt (keduanya butuh cover berdiri sendiri).
   const isBleed = !settings.cdCoverSpin && !settings.tiltCover;
-  const autoplayOn = settings.autoplay !== false;
-  const playingFrom = playSource?.label ? `${t("playingFromLabel")} ${playSource.label}` : (playSource?.type === "search" ? `${t("playingFromLabel")} ${t("search", "Search")}` : t("nowPlaying"));
+  const [queueMode, setQueueMode] = useState(false);
+  const [qCollapsed, setQCollapsed] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const playingFrom = playSource?.label ? `${t("npPlayingFrom")} ${playSource.label}` : (playSource?.type === "search" ? `${t("npPlayingFrom")} ${t("search", "Search")}` : t("nowPlaying"));
   const tilt = useTilt({ enabled: !!settings.tiltCover, distance: Number(settings.tiltDistance) || 10, speed: Number(settings.tiltSpeed) || 240 });
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
@@ -1842,8 +2186,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   }, [open]);
   useEffect(() => { setUiHidden(false); }, [currentTrack?.id]);
 
-  const lyricsMode = !!(open && lyricsOpen);
-  const [singMode, setSingMode] = useState(false);
+  const lyricsMode = !!(open && lyricsOpen && !queueMode);
+  const mode = queueMode ? "queue" : lyricsMode ? "lyrics" : "player";
+  const compact = lyricsMode || queueMode;
   const [lyricsMounted, setLyricsMounted] = useState(false);
   const [lyricsUnsynced, setLyricsUnsynced] = useState(false);
   const [suppressLyricsBlur, setSuppressLyricsBlur] = useState(isHeavyTransition());
@@ -1851,6 +2196,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
 
   const coverRef = useRef(null);
   const metaRef = useRef(null);
+  const actionsRef = useRef(null);
   const controlsRef = useRef(null);
   const sheetRef = useRef(null);
   const backdropRef = useRef(null);
@@ -1858,16 +2204,28 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const flipTargets = useRef([
     { ref: coverRef },
     { ref: metaRef, uniform: true },
-    { ref: controlsRef, uniform: true },
+    { ref: actionsRef, uniform: true },
   ]).current;
-  const captureHeroFlip = useHeroFlip(lyricsMode, flipTargets);
+  const captureHeroFlip = useHeroFlip(compact, flipTargets);
 
   const bodyScrollRef = useRef(null);
   const handleGrabberTap = () => onClose();
   const swipeDown = useVerticalSwipe({ active: open, direction: "down", onTrigger: handleGrabberTap, dragRef: sheetRef, scrollRef: bodyScrollRef });
 
   const trackKey = currentTrack?.id;
-  useEffect(() => { setSingMode(false); setLyricsUnsynced(false); }, [trackKey]);
+  useEffect(() => { setLyricsUnsynced(false); }, [trackKey]);
+  useEffect(() => { if (!open) { setQueueMode(false); setQCollapsed(false); } }, [open]);
+  useEffect(() => { if (!queueMode) setQCollapsed(false); }, [queueMode]);
+  useEffect(() => {
+    if (!open) { setOpening(false); return undefined; }
+    setOpening(true);
+    const id = setTimeout(() => setOpening(false), 620);
+    return () => clearTimeout(id);
+  }, [open]);
+  const lyricsPoll = useNpxLyricsInfo(open && lyricsMounted, trackKey);
+  const lyricsInfo = lyricsPoll.info;
+  const [hintTick, setHintTick] = useState(0);
+  useEffect(() => { setHintTick((n) => n + 1); }, [open, trackKey, mode]);
   useEffect(() => { if (lyricsMode) setLyricsMounted(true); else setLyricsUnsynced(false); }, [lyricsMode]);
   useEffect(() => {
     if (!open || lyricsMounted || lyricsDisabled) return undefined;
@@ -1883,7 +2241,30 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
     };
   }, [open, lyricsMounted, lyricsDisabled]);
 
-  const handleLyricsToggle = () => { captureHeroFlip(); toggleLyrics(); };
+  const handleLyricsToggle = () => {
+    captureHeroFlip();
+    if (queueMode) { setQueueMode(false); if (!lyricsOpen) toggleLyrics(); return; }
+    toggleLyrics();
+  };
+  const handleQueueToggle = () => {
+    captureHeroFlip();
+    if (queueMode) { setQueueMode(false); return; }
+    setQueueMode(true);
+    if (lyricsOpen) toggleLyrics();
+  };
+  const toggleLyricsLayer = (kind) => {
+    const el = document.getElementById("aivy-am-lyrics-mobile");
+    if (!el) return;
+    try {
+      const fn = kind === "roman" ? el.toggleRomanization : el.toggleTranslation;
+      const res = typeof fn === "function" ? fn.call(el) : null;
+      if (res && typeof res.then === "function") res.then(lyricsPoll.refresh, lyricsPoll.refresh); else lyricsPoll.refresh();
+    } catch { /* abaikan */ }
+  };
+  const deviceName = (() => {
+    const raw = String(authUser?.name || authUser?.username || authUser?.displayName || "").trim();
+    return raw ? `${raw.split(/\s+/)[0]}${t("npPhoneSuffix")}` : t("npThisPhone");
+  })();
 
   const scrollToActiveLyric = () => {
     const el = document.getElementById("aivy-am-lyrics-mobile");
@@ -1949,7 +2330,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   return (
     <>
       <div ref={backdropRef} className={`aivy-sheet-backdrop ${open ? "open" : ""}`} onClick={handleGrabberTap} />
-      <div ref={sheetRef} className={`aivy-sheet npx-v2 ${open ? "open" : ""} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""}`} aria-hidden={!open}>
+      <div ref={sheetRef} className={`aivy-sheet npx-v2 ${open ? "open" : ""} mode-${mode} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""} ${qCollapsed ? "is-qcollapsed" : ""} ${opening ? "is-opening" : ""}`} aria-hidden={!open}>
         {currentTrack && meshEnabled && (
           <MeshGradient palette={meshPalette} active={open} still={reduceMotion} />
         )}
@@ -1963,9 +2344,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
           {playingFrom && <div className="npx-playfrom">{playingFrom}</div>}
         </div>
         {currentTrack && (
-          <div ref={bodyScrollRef} className="aivy-sheet-body aivy-scroll">
+          <div ref={bodyScrollRef} className="aivy-sheet-body npx-body">
             <div
-              className={`npx-hero ${lyricsMode ? "is-compact" : ""}`}
+              className={`npx-hero ${compact ? "is-compact" : ""}`}
               onPointerDown={swipeDown.onPointerDown} onPointerMove={swipeDown.onPointerMove}
               onPointerUp={swipeDown.onPointerUp} onPointerCancel={swipeDown.onPointerCancel}
             >
@@ -1990,17 +2371,19 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                   />
                   <div
                     className="a"
-                    onClick={() => { if (lyricsMode) return; currentTrack.artist?.id && navigate("artist", { params: { id: currentTrack.artist.id } }); onClose(); }}
+                    onClick={() => { if (compact) return; currentTrack.artist?.id && navigate("artist", { params: { id: currentTrack.artist.id } }); onClose(); }}
                   >
                     {currentTrack.artist?.name}
                   </div>
                 </div>
-                <div className="npx-actions">
-                  <button className={`aivy-icon-btn ${isLiked ? "active" : ""}`} onClick={() => toggleLike(currentTrack)} aria-label={t("like")}><Star size={20} fill={isLiked ? "currentColor" : "none"} /></button>
-                  <button className="aivy-icon-btn" onClick={handleMore} aria-label={t("menuMore")}><MoreHorizontal size={20} /></button>
+                <div className="npx-actions" ref={actionsRef}>
+                  <button className={`aivy-icon-btn ${isLiked ? "active" : ""}`} onClick={() => toggleLike(currentTrack)} aria-label={t("like")} aria-pressed={!!isLiked}><NpxHeartIcon filled={!!isLiked} /></button>
+                  <button className="aivy-icon-btn" onClick={handleMore} aria-label={t("menuMore")}><NpxMoreIcon /></button>
                 </div>
               </div>
             </div>
+
+            {queueMode && <h2 className="npx-queue-title">{t("npQueueTitle")}</h2>}
 
             <div className={`npx-lyrics-wrap ${lyricsMode ? "is-active" : ""}`}>
               {lyricsMounted && (
@@ -2013,6 +2396,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                     highlightColor="#f5f5f5"
                     fontSize={normLyricsFontSize(settings.lyricsFontSize)}
                     suppressBlur={suppressLyricsBlur}
+                    hideChrome
                   />
                   {lyricsUnsynced && (
                     <button type="button" className="aivy-lyr2-pill" onClick={scrollToActiveLyric}>
@@ -2022,15 +2406,17 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                 </>
               )}
             </div>
+            {lyricsMode && lyricsInfo.has && (
+              <>
+                <button type="button" className={`npx-lyr-btn is-left ${lyricsInfo.roman ? "on" : ""}`} onClick={() => toggleLyricsLayer("roman")} aria-label={t("npRomanize")} aria-pressed={lyricsInfo.roman}><Globe aria-hidden="true" /></button>
+                <button type="button" className={`npx-lyr-btn is-right ${lyricsInfo.trans ? "on" : ""}`} onClick={() => toggleLyricsLayer("trans")} aria-label={t("npTranslate")} aria-pressed={lyricsInfo.trans}><Languages aria-hidden="true" /></button>
+              </>
+            )}
 
-            <div className="npx-top-controls" ref={controlsRef}>
-              <div className="npx-autoplay">
-                <button type="button" className={autoplayOn ? "on" : ""} onClick={() => updateSettings({ autoplay: !autoplayOn })} aria-pressed={autoplayOn}>
-                  <Music2 size={16} />
-                  <span>{t("settingAutoplay")}</span>
-                  <span className="sw" aria-hidden="true" />
-                </button>
-              </div>
+            <NpxQueueView active={queueMode} currentTrack={currentTrack} onCollapse={setQCollapsed} />
+
+            <div className="npx-top-controls npx-controls" ref={controlsRef}>
+              <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
               <div className="aivy-scrubber-row">
                 <span className="aivy-time">{loadingAudio ? "\u2013\u2013" : formatTime(currentTime)}</span>
                 <Scrubber
@@ -2039,24 +2425,11 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                 />
                 <span className="aivy-time right">{loadingAudio ? "\u2013\u2013" : `-${formatTime(remaining)}`}</span>
               </div>
-
-              <div className={`npx-sing-row ${lyricsMode ? "is-active" : ""}`}>
-                <button
-                  type="button"
-                  className={`aivy-lyr2-sing ${singMode ? "active" : ""}`}
-                  onClick={() => setSingMode((v) => !v)}
-                  aria-pressed={singMode}
-                >
-                  Sing
-                </button>
-              </div>
-
-              <div className="aivy-sheet-gap" />
-              <TransportButtons big minimal variant="apple" />
-              <VolumeControl showEndIcon />
+              <NpxTransport />
+              <VolumeControl showEndIcon coneAtZero />
+              <NpxBottomRow mode={mode} onToggleLyrics={handleLyricsToggle} lyricsDisabled={lyricsDisabled} onToggleQueue={handleQueueToggle} onClose={onClose} />
+              <div className="npx-device">{deviceName}</div>
             </div>
-
-            <MobileNowPlayingIconRow lyricsActive={lyricsMode} onToggleLyrics={handleLyricsToggle} lyricsDisabled={lyricsDisabled} onOpenQueue={onOpenQueue} pill />
           </div>
         )}
       </div>
@@ -3739,7 +4112,7 @@ const AM_LYRICS_FONT_SIZES = {
   // Terbesar: ukuran mengikuti tinggi layar sehingga hanya sekitar 3 baris lirik yang muat
   max: { "--am-lyrics-compact-font-size": "max(36px, 5.5vh)", "--lyplus-font-size-base": "max(44px, 7.5vh)", "--am-lyrics-wide-font-size": "max(48px, 9vh)" },
 };
-export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur }) {
+export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur, hideChrome = false }) {
   const elRef = useRef(null);
 
   useEffect(() => {
@@ -3820,7 +4193,8 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       if (el.shadowRoot.querySelector("style[data-hide-download]")) return;
       const st = document.createElement("style");
       st.setAttribute("data-hide-download", "");
-      st.textContent = '.download-button[title="Download Lyrics"]{display:none!important}';
+      // hideChrome: header (romanisasi/terjemahan/unduh) & footer sumber dipindah ke UI sheet (tombol bulat + "Lirik oleh …").
+      st.textContent = '.download-button[title="Download Lyrics"]{display:none!important}' + (hideChrome ? '.lyrics-header,.lyrics-footer{display:none!important}.lyrics-container{padding-top:0!important}' : '');
       el.shadowRoot.appendChild(st);
     };
     injectHideDownload();

@@ -929,29 +929,7 @@ export function PlayerProvider({ children }) {
         setAudioFormat({ label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" });
       } else if (resolved.videoId) {
         if (getPreferredAudioFormat() === "flac") {
-          // Detail FLAC dari audio-info: sumber (flacdownloader / lucida),
-          // tingkat HD, dan keadaan "menyiapkan" saat rip masih jalan.
-          Api.trackAudioInfo(resolved.videoId)
-            .then((info) => {
-              if (cancelled) return;
-              const flac = info?.flac;
-              const st = String(flac?.status || "");
-              if (st === "running" || st === "queued" || st === "downloading") {
-                setAudioFormat({ label: "FLAC · menyiapkan", mimeType: "audio/flac", codec: "flac", container: "FLAC", preparing: true });
-                return;
-              }
-              if (st === "cached") {
-                const isLucida = flac?.source === "lucida-amazon";
-                const hd = Number(flac?.bitsPerSample) >= 24 || Number(flac?.sampleRate) >= 88000;
-                setAudioFormat({
-                  label: `${isLucida ? "FLAC · lucida" : "FLAC"}${hd ? " HD" : ""}`,
-                  mimeType: "audio/flac", codec: "flac", container: "FLAC",
-                });
-                return;
-              }
-              setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
-            })
-            .catch(() => { if (!cancelled) setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" }); });
+          setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
         } else Api.trackAudioInfo(resolved.videoId)
           .then((info) => {
             if (cancelled) return;
@@ -1348,7 +1326,7 @@ export function PlayerProvider({ children }) {
         .map(normalizeTrack)
         .filter(Boolean)
         .filter((t) => t.id !== seedTrack.id && !knownIds.has(String(t.id)));
-      setSuggestedQueue(items.slice(0, 5));
+      setSuggestedQueue(items.slice(0, 10));
     }).catch(() => {
       if (seq !== suggestSeqRef.current) return;
       setSuggestedQueue([]);
@@ -1401,6 +1379,26 @@ export function PlayerProvider({ children }) {
     setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
     addToQueueEndRef.current?.(track);
   }, []);
+
+  // Hapus satu saran AutoPlay dari daftar (tombol ✕ di antrean now playing mobile).
+  const dismissSuggestion = useCallback((track) => {
+    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
+  }, []);
+
+  // Putar saran AutoPlay sekarang juga: sisipkan tepat setelah lagu yang sedang diputar lalu pindah ke sana.
+  const playSuggestion = useCallback((rawTrack) => {
+    const track = normalizeTrack(rawTrack);
+    if (!track || inRoom) return;
+    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
+    setQueueList((list) => {
+      const newList = [...list, track];
+      const idx = newList.length - 1;
+      setOrder((ord) => { const c = [...ord]; c.splice(posInOrder + 1, 0, idx); return c; });
+      return newList;
+    });
+    setPosInOrder(posInOrder + 1);
+    setIsPlaying(true);
+  }, [inRoom, posInOrder]);
 
   const togglePlay = useCallback(() => {
     if (!currentTrack) return;
@@ -1962,7 +1960,7 @@ export function PlayerProvider({ children }) {
     removeFromQueue, moveQueueItem, clearUpNext, selectQueuePosition,
     playSingle, playRadio, createPlaylist, addToPlaylist, removeFromPlaylist, deletePlaylist, setPlaylistDetail, setPlaylistCover, updatePlaylistMeta, refreshPlaylists,
     registerProgressEl,
-    suggestedQueue, promoteSuggestion,
+    suggestedQueue, promoteSuggestion, dismissSuggestion, playSuggestion,
     room, publicRooms, roomError, refreshPublicRooms, createRoom, joinRoom, leaveRoom,
     chatMessages, sendChatMessage, voteSkip,
     promptCast, getAudioSrc,

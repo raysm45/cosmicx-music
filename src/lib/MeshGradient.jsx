@@ -41,7 +41,7 @@ const hslCss = (h, s, l) => `hsl(${Math.round(((h % 360) + 360) % 360)}, ${Math.
 function tune(h, s, l) {
   const neutral = s < 0.12;
   const sat = neutral ? s : clamp(s * 1.15, 0.38, 0.82);
-  const lum = clamp(l, 0.22, 0.54);
+  const lum = clamp(l * 0.62, 0.16, 0.34);
   return [h, sat, lum];
 }
 
