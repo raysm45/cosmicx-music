@@ -343,3 +343,71 @@
   position: absolute; left: 0; right: 0; top: calc(var(--u) * 472); height: calc(var(--u) * 24); text-align: center; font-size: calc(var(--u) * 13); font-weight: 600; line-height: calc(var(--u) * 24);
   color: rgba(255,255,255,.52); pointer-events: none;
 }
+
+/* ---------- Mode lirik: panel kontrol (durasi, transport, volume) ketutup ke bawah ---------- */
+.aivy-sheet.npx-v2 .npx-controls{ transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+.aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-controls{
+  transform: translateY(calc(var(--u) * 560 + env(safe-area-inset-bottom, 0px)));
+  pointer-events: none;
+}
+/* area lirik melebar ke bawah saat panel tertutup */
+.aivy-sheet.npx-v2 .npx-lyrics-wrap.is-active{ transition: opacity .3s ease .3s, bottom .45s cubic-bezier(.2, .8, .2, 1); }
+.aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyrics-wrap{
+  bottom: calc(var(--u) * 150 + env(safe-area-inset-bottom, 0px));
+}
+.aivy-sheet.npx-v2 .npx-lyr-btn{ transition: background .2s ease, color .2s ease, transform .15s ease, bottom .45s cubic-bezier(.2, .8, .2, 1); }
+.aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyr-btn{
+  bottom: calc(var(--u) * 62 + env(safe-area-inset-bottom, 0px));
+}
+/* handle buka/tutup panel */
+.aivy-sheet.npx-v2 .npx-ctrl-toggle{
+  position: absolute; left: 50%; z-index: 6; width: calc(var(--u) * 84); height: calc(var(--u) * 48); margin-left: calc(var(--u) * -42);
+  bottom: calc(var(--u) * 62 + env(safe-area-inset-bottom, 0px)); padding: 0; border: 0; border-radius: calc(var(--u) * 24);
+  display: grid; place-items: center; cursor: pointer; color: rgba(255,255,255,.85); background: rgba(255,255,255,.17);
+  transition: background .2s ease, transform .15s ease, bottom .45s cubic-bezier(.2, .8, .2, 1);
+}
+.aivy-sheet.npx-v2 .npx-ctrl-toggle svg{ width: calc(var(--u) * 28); height: calc(var(--u) * 28); transform: rotate(180deg); transition: transform .3s ease; }
+.aivy-sheet.npx-v2 .npx-ctrl-toggle.is-open{ bottom: calc(var(--u) * 584); }
+.aivy-sheet.npx-v2 .npx-ctrl-toggle.is-open svg{ transform: rotate(0deg); }
+.aivy-sheet.npx-v2 .npx-ctrl-toggle:active{ transform: scale(.94); }
+
+/* tombol unduh: di antara like dan "..." ; disembunyikan di hero kompak (mode lirik) agar judul tetap lega */
+.aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn:nth-child(2){ order: 3; }
+.aivy-sheet.npx-v2 .npx-actions .npx-dl-btn{ order: 2; }
+.aivy-sheet.npx-v2 .npx-actions .npx-dl-btn svg{ width: calc(var(--u) * 24); height: calc(var(--u) * 24); }
+.aivy-sheet.npx-v2 .npx-hero.is-compact .npx-dl-btn{ display: none; }
+
+/* label format/codec tepat di bawah bar durasi (tengah, di antara waktu kiri & kanan) */
+.aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-quality{
+  grid-column: 1 / -1; grid-row: 2; justify-self: center; align-self: center;
+  height: calc(var(--u) * 24); padding: 0 calc(var(--u) * 10); border-radius: calc(var(--u) * 7); gap: calc(var(--u) * 8);
+  font-size: calc(var(--u) * 15); max-width: calc(100% - var(--u) * 200);
+}
+
+/* ---------- Thumbnail (cover bleed): tanpa garis batas, fade bawah lewat blur progresif ---------- */
+/* garis tipis terang di batas bawah cover dihapus: posisinya dipaku (853u) padahal tinggi cover berubah mengikuti layar,
+   jadi garis itu sering muncul di tengah-tengah gambar sebagai "garis thumbnail" */
+.aivy-sheet.npx-v2 .npx-hero:not(.is-compact)::after{ content: none; display: none; }
+.aivy-sheet.npx-v2 .npx-cover.is-bleed{
+  /* kurva lebih halus & benar-benar transparan sebelum tepi bawah, sehingga tepi thumbnail tidak pernah terlihat */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 56%, rgba(0,0,0,.9) 64%, rgba(0,0,0,.68) 74%, rgba(0,0,0,.4) 83%, rgba(0,0,0,.16) 91%, rgba(0,0,0,.04) 96%, transparent 99%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 56%, rgba(0,0,0,.9) 64%, rgba(0,0,0,.68) 74%, rgba(0,0,0,.4) 83%, rgba(0,0,0,.16) 91%, rgba(0,0,0,.04) 96%, transparent 99%);
+}
+/* blur bertahap di bagian bawah gambar: makin ke bawah makin kabur, menyatu dengan mesh gradient di belakangnya */
+.aivy-sheet.npx-v2 .npx-cover.is-bleed::after{
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 46%; z-index: 1; pointer-events: none;
+  -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.35) 35%, #000 80%);
+          mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.35) 35%, #000 80%);
+}
+
+/* ---------- Lirik mobile: baris aktif tidak lagi ketutup fade/blur ---------- */
+/* sebelumnya baris aktif dipaku di 0% atas, tepat di zona fade ganda (mask wrap + fade internal am-lyrics) */
+.aivy-sheet.npx-v2 .npx-lyrics-wrap .aivy-am-lyrics{
+  --am-lyrics-edge-fade: 0px;
+  --lyrics-scroll-padding-top: 6%; --am-lyrics-compact-selected-position: 6%; --am-lyrics-wide-selected-position: 6%;
+}
+.aivy-sheet.npx-v2 .npx-lyrics-wrap{
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 24), #000 calc(100% - calc(var(--u) * 64)), transparent 100%);
+          mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 24), #000 calc(100% - calc(var(--u) * 64)), transparent 100%);
+}

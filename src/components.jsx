@@ -10,6 +10,7 @@ import {
   Cast, Info, Copy, ListPlus, SlidersHorizontal, Gauge, Maximize, Minimize, Github, Sparkles, RefreshCw,
   ExternalLink, Rewind, FastForward,
   Headphones, User, List, Infinity as InfinityIcon, AudioLines, Languages, Music, Volume as VolumeNone,
+  Download,
 } from "lucide-react";
 import {
   usePlayer, usePlayerTime, useUI,
@@ -23,7 +24,8 @@ import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
 import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
-import { unifyAudioInfoFields, formatBadgeText } from "./lib/audioFormat.js";
+import { unifyAudioInfoFields, formatBadgeText, describeQuality } from "./lib/audioFormat.js";
+import { openDownload } from "./DownloadSheet.jsx";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
 import { MeshGradient, useCoverPalette } from "./lib/MeshGradient.jsx";
 export function resolveAvatarUrl(user) {
@@ -2139,6 +2141,8 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const isBleed = !settings.cdCoverSpin && !settings.tiltCover;
   const [queueMode, setQueueMode] = useState(false);
   const [qCollapsed, setQCollapsed] = useState(false);
+  // Mode lirik: panel kontrol (durasi, transport, volume) ketutup ke bawah; handle di bawah membukanya lagi.
+  const [lyrCtrlOpen, setLyrCtrlOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   const playingFrom = playSource?.label ? `${t("npPlayingFrom")} ${playSource.label}` : (playSource?.type === "search" ? `${t("npPlayingFrom")} ${t("search", "Search")}` : t("nowPlaying"));
   const tilt = useTilt({ enabled: !!settings.tiltCover, distance: Number(settings.tiltDistance) || 10, speed: Number(settings.tiltSpeed) || 240 });
@@ -2216,6 +2220,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   useEffect(() => { setLyricsUnsynced(false); }, [trackKey]);
   useEffect(() => { if (!open) { setQueueMode(false); setQCollapsed(false); } }, [open]);
   useEffect(() => { if (!queueMode) setQCollapsed(false); }, [queueMode]);
+  useEffect(() => { setLyrCtrlOpen(false); }, [lyricsMode, open]);
   useEffect(() => {
     if (!open) { setOpening(false); return undefined; }
     setOpening(true);
@@ -2330,7 +2335,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   return (
     <>
       <div ref={backdropRef} className={`aivy-sheet-backdrop ${open ? "open" : ""}`} onClick={handleGrabberTap} />
-      <div ref={sheetRef} className={`aivy-sheet npx-v2 ${open ? "open" : ""} mode-${mode} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""} ${qCollapsed ? "is-qcollapsed" : ""} ${opening ? "is-opening" : ""}`} aria-hidden={!open}>
+      <div ref={sheetRef} className={`aivy-sheet npx-v2 ${open ? "open" : ""} mode-${mode} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""} ${qCollapsed ? "is-qcollapsed" : ""} ${lyricsMode && lyrCtrlOpen ? "is-lyr-ctrl-open" : ""} ${opening ? "is-opening" : ""}`} aria-hidden={!open}>
         {currentTrack && meshEnabled && (
           <MeshGradient palette={meshPalette} active={open} still={reduceMotion} />
         )}
@@ -2367,7 +2372,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                   <MarqueeText
                     as="div" className="t" text={currentTrack.title}
                     prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
-                    suffix={<>{isPreviewClip && <span className="badge">{t("preview30")}</span>}{formatBadge && <span className="badge badge-opus">{formatBadge}</span>}</>}
+                    suffix={isPreviewClip ? <span className="badge">{t("preview30")}</span> : null}
                   />
                   <div
                     className="a"
@@ -2379,6 +2384,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                 <div className="npx-actions" ref={actionsRef}>
                   <button className={`aivy-icon-btn ${isLiked ? "active" : ""}`} onClick={() => toggleLike(currentTrack)} aria-label={t("like")} aria-pressed={!!isLiked}><NpxHeartIcon filled={!!isLiked} /></button>
                   <button className="aivy-icon-btn" onClick={handleMore} aria-label={t("menuMore")}><NpxMoreIcon /></button>
+                  {currentTrack.source !== "local" && (
+                    <button className="aivy-icon-btn npx-dl-btn" onClick={() => openDownload(currentTrack)} aria-label={t("menuDownload")} title={t("menuDownload")}><Download aria-hidden="true" /></button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2413,6 +2421,14 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               </>
             )}
 
+            {lyricsMode && (
+              <button
+                type="button" className={`npx-ctrl-toggle ${lyrCtrlOpen ? "is-open" : ""}`}
+                onClick={() => setLyrCtrlOpen((v) => !v)} aria-expanded={lyrCtrlOpen}
+                aria-label={lyrCtrlOpen ? t("close") : t("nowPlaying")}
+              ><ChevronDown aria-hidden="true" /></button>
+            )}
+
             <NpxQueueView active={queueMode} currentTrack={currentTrack} onCollapse={setQCollapsed} />
 
             <div className="npx-top-controls npx-controls" ref={controlsRef}>
@@ -2424,6 +2440,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                   waveformSeed={settings.waveformSeekbar && currentTrack ? String(currentTrack.id || currentTrack.title || "") : null}
                 />
                 <span className="aivy-time right">{loadingAudio ? "\u2013\u2013" : `-${formatTime(remaining)}`}</span>
+                {!isPreviewClip && <QualityPill track={currentTrack} fallbackLabel={formatLabel} />}
               </div>
               <NpxTransport />
               <VolumeControl showEndIcon coneAtZero />
@@ -2551,6 +2568,7 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
     !isLocal && { key: "cast", icon: <Cast size={20} />, label: t("npCast"), onSelect: handleCast },
     { key: "playlist", icon: <ListPlus size={20} />, label: t("npAddToPlaylist"), onSelect: handleAddToPlaylist },
     { key: "share", icon: <Share2 size={20} />, label: t("npShare"), onSelect: handleShare },
+    !isLocal && { key: "download", icon: <Download size={20} />, label: t("menuDownload"), onSelect: () => { onClose(); openDownload(track); } },
     { key: "aod", icon: <Moon size={20} />, label: t("npAodMode"), onSelect: onOpenAod },
     !isLocal && onReloadArtwork
       && { key: "reloadArtwork", icon: <RefreshCw size={20} />, label: t("npReloadArtwork"), onSelect: onReloadArtwork },
@@ -2702,6 +2720,27 @@ export function useTrackAudioInfo(track) {
     return () => { alive = false; };
   }, [videoId]);
   return info;
+}
+
+/**
+ * Label format/codec ala Apple Music, ditaruh di bawah bar durasi.
+ * Lossless -> "Lossless" / "Hi-Res Lossless" + detail (FLAC \u00b7 44.1 kHz \u00b7 16-bit)
+ * Lossy    -> nama codec + bitrate (AAC \u00b7 128 kbps)
+ */
+export function QualityPill({ track, fallbackLabel = null, className = "" }) {
+  const { audioFormat } = usePlayer();
+  const info = useTrackAudioInfo(track);
+  const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
+  const label = fallbackLabel || (audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null);
+  const q = describeQuality(format, label);
+  if (!q) return null;
+  const kind = q.hires ? "is-hires" : q.lossless ? "is-lossless" : "";
+  return (
+    <span className={`aivy-quality ${kind} ${className}`} title={[q.main, q.detail].filter(Boolean).join(" \u00b7 ")}>
+      <span className="m">{q.main}</span>
+      {q.detail ? <span className="d">{q.detail}</span> : null}
+    </span>
+  );
 }
 
 function TrackDetailTechnicalTab({ track, isPreviewClip }) {
@@ -4128,6 +4167,11 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       const st = document.createElement("style");
       st.setAttribute("data-perf-layer", "");
       st.textContent = ".lyrics-line-container{ will-change: transform; } .lyrics-line{ will-change: filter; }";
+      // Khusus Now Playing mobile: baris aktif dilukis di atas tetangganya & tidak ikut di-blur, supaya halo blur
+      // baris sebelum/sesudah tidak menutupi teks yang sedang dinyanyikan.
+      if (el.closest(".npx-lyrics-wrap")) {
+        st.textContent += " .lyrics-line.active,.lyrics-line.pre-active,.lyrics-line.persist-highlight{ z-index: 3; filter: none !important; }";
+      }
       el.shadowRoot.appendChild(st);
     };
     inject();

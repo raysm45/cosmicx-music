@@ -3982,3 +3982,13 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .cx-loader.is-static .cx-loader-fallback{ animation: none; opacity: 1; }
 .cx-loader.is-static.is-ready .cx-loader-fallback{ opacity: 0; }
 .aivy-brand .cx-loader{ margin: -4px 0; }
+
+/* ---------- Label kualitas/codec di bawah bar durasi (ala Apple Music) ---------- */
+.aivy-quality{
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 20px; padding: 0 8px; box-sizing: border-box;
+  border-radius: 6px; background: rgba(255,255,255,.18); color: rgba(255,255,255,.88);
+  font-size: 11px; font-weight: 700; letter-spacing: .01em; line-height: 1; white-space: nowrap; pointer-events: none;
+  overflow: hidden;
+}
+.aivy-quality .d{ font-weight: 600; color: rgba(255,255,255,.62); overflow: hidden; text-overflow: ellipsis; }
+.aivy-quality.is-hires .m{ color: #ffe3a3; }

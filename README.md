@@ -171,3 +171,9 @@ Made by the Aivy team
 - `src/lib/seo.js`: judul/meta per halaman di sisi klien.
 - `api/meta.js` + `vercel.json`: Edge Function yang mengisi `<head>` dan konten dasar untuk `/artist/:id` dan `/album/:id` sebelum HTML dikirim.
 - `public/og-image.png` (1200x630), `public/robots.txt`, `public/sitemap.xml`.
+
+## Catatan revisi Now Playing (lrc.red, unduh, label codec)
+
+- **lrc.red** adalah provider lirik pertama (`src/vendor/am-lyrics/AmLyrics.ts`, `fetchLyricsFromLrcRed`): ISRC -> `/s/{ISRC}.ttml`, lalu `/match.json`, lalu `/search.json?q=`. Parameter `/match.json` (`title`, `artist`, `album`, `duration` detik) perlu dicek terhadap dokumentasi lrc.red.
+- **Unduh** (`src/DownloadSheet.jsx`): `format` dikirim ke `/api/stream-ticket`. Backend saat ini memahami `aac | opus | flac`; opsi **MP3** butuh dukungan di backend. "Apple Music Hi-Res Lossless" memakai `flac`.
+- **Label codec** (`QualityPill` di `components.jsx`, `describeQuality` di `lib/audioFormat.js`) tampil di bawah bar durasi (Now Playing mobile).

@@ -133,3 +133,35 @@ export function formatBadgeText(baseLabel, f) {
   const bits = f.bitsPerSample ? `/${f.bitsPerSample}` : "";
   return `${baseLabel} \u00b7 ${khz}k${bits}`;
 }
+
+const CODEC_NAMES = {
+  flac: "FLAC", aac: "AAC", opus: "Opus", mp3: "MP3", vorbis: "Vorbis",
+  alac: "ALAC", pcm: "WAV", wav: "WAV", mp4a: "AAC",
+};
+
+/**
+ * Label kualitas ala Apple Music di bawah bar durasi.
+ *   lossless  -> { main: "Lossless" | "Hi-Res Lossless", detail: "FLAC \u00b7 44.1 kHz \u00b7 16-bit" }
+ *   lossy     -> { main: "AAC", detail: "128 kbps" }
+ * `format` = hasil unifyAudioInfoFields(); `fallbackLabel` = label codec dari player.
+ */
+export function describeQuality(format, fallbackLabel) {
+  const raw = String((format && format.codec) || fallbackLabel || "").trim();
+  if (!raw && !(format && format.lossless)) return null;
+  const key = raw.toLowerCase();
+  const name = CODEC_NAMES[key] || (raw ? raw.toUpperCase() : "FLAC");
+  const khz = format && format.sampleRateHz ? `${Number((format.sampleRateHz / 1000).toFixed(1))} kHz` : null;
+  const bits = format && format.bitsPerSample ? `${format.bitsPerSample}-bit` : null;
+
+  if (format && (format.lossless || key === "flac" || key === "alac")) {
+    const hires = (format.sampleRateHz || 0) > 48000 || (format.bitsPerSample || 0) > 16;
+    return {
+      main: hires ? "Hi-Res Lossless" : "Lossless",
+      detail: [name, khz, bits].filter(Boolean).join(" \u00b7 "),
+      lossless: true,
+      hires,
+    };
+  }
+  const kbps = format && format.bitrateKbps ? `${Math.round(format.bitrateKbps)} kbps` : null;
+  return { main: name, detail: kbps || "", lossless: false, hires: false };
+}

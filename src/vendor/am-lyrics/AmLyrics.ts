@@ -51,6 +51,7 @@ const DEFAULT_KPOE_SOURCE_ORDER =
   'apple,lyricsplus,musixmatch,spotify,qq,deezer,musixmatch-word';
 
 const GENIUS_WORKER_URL = 'https://fetch-genius.samidy.workers.dev/';
+const LRC_RED_BASE = 'https://lrc.red';
 
 interface Syllable {
   text: string;
@@ -2438,6 +2439,16 @@ export class AmLyrics extends LitElement {
         const title = resolvedMetadata.metadata.title?.trim() || '';
         const artist = resolvedMetadata.metadata.artist?.trim() || '';
 
+        const lrcRedResult = await AmLyrics.fetchLyricsFromLrcRed(
+          title,
+          artist,
+          resolvedMetadata.catalogIsrc,
+          resolvedMetadata.metadata,
+        );
+        if (lrcRedResult && lrcRedResult.lines.length > 0) {
+          collectedSources.push(lrcRedResult);
+        }
+
         const biniResult = await AmLyrics.fetchLyricsFromBiniLyrics(
           title,
           artist,
@@ -2586,6 +2597,12 @@ export class AmLyrics extends LitElement {
       );
     const isQQ = lower.includes('qq') || lower.includes('lyricsplus');
 
+    const isLrcRed = lower.includes('lrc.red') || lower.includes('lrcred');
+
+    if (isLrcRed && hasWordSync) return 0.5;
+    if (isLrcRed && !hasWordSync && !isUnsynced) return 7.5;
+    if (isLrcRed && isUnsynced) return 14.5;
+
     if (lower.includes('apple') && hasWordSync) return 1;
     if (lower.includes('bini') && hasWordSync) return 2;
     if (lower.includes('unison') && hasWordSync) return 3;
@@ -2717,6 +2734,22 @@ export class AmLyrics extends LitElement {
 
           if (
             !this.availableSources.some(s =>
+              s.source.toLowerCase().includes('lrc.red'),
+            )
+          ) {
+            const lrcRedResult = await AmLyrics.fetchLyricsFromLrcRed(
+              resolvedMetadata.metadata.title?.trim() || '',
+              resolvedMetadata.metadata.artist?.trim() || '',
+              resolvedMetadata.catalogIsrc,
+              resolvedMetadata.metadata,
+            );
+            if (lrcRedResult && lrcRedResult.lines.length > 0) {
+              newSources.push(lrcRedResult);
+            }
+          }
+
+          if (
+            !this.availableSources.some(s =>
               s.source.toLowerCase().includes('unison'),
             )
           ) {
@@ -2816,8 +2849,9 @@ export class AmLyrics extends LitElement {
     key: string;
     label: string;
     match: string[];
-    group: 'bini' | 'unison' | 'kpoe' | 'lrclib' | 'genius';
+    group: 'lrcred' | 'bini' | 'unison' | 'kpoe' | 'lrclib' | 'genius';
   }[] = [
+    { key: 'lrcred', label: 'lrc.red', match: ['lrc.red', 'lrcred'], group: 'lrcred' },
     { key: 'cosmicx', label: 'Cosmicx-Lyrics', match: ['bini', 'cosmicx'], group: 'bini' },
     { key: 'apple', label: 'Apple Music', match: ['apple'], group: 'kpoe' },
     { key: 'qq', label: 'QQ', match: ['qq', 'lyricsplus'], group: 'kpoe' },
@@ -2918,7 +2952,15 @@ export class AmLyrics extends LitElement {
         const artist = metadata.artist?.trim() || '';
         let found: YouLyPlusLyricsResult[] = [];
 
-        if (entry.group === 'bini') {
+        if (entry.group === 'lrcred') {
+          const r = await AmLyrics.fetchLyricsFromLrcRed(
+            title,
+            artist,
+            resolved.catalogIsrc,
+            metadata,
+          );
+          if (r && r.lines.length > 0) found = [r];
+        } else if (entry.group === 'bini') {
           const r = await AmLyrics.fetchLyricsFromBiniLyrics(
             title,
             artist,
@@ -3242,6 +3284,165 @@ export class AmLyrics extends LitElement {
       console.error('Cache API failed', e);
     }
 
+    return null;
+  }
+
+  /**
+   * lrc.red — katalog lirik publik (TTML, word-sync bila ada timing).
+   * Urutan lookup:
+   *   1. ISRC langsung  -> /s/{ISRC}.ttml
+   *   2. title + artist -> /match.json (album & durasi dalam detik opsional)
+   *   3. query bebas    -> /search.json?q=...
+   * Hasil match/search membawa ISRC yang dipakai untuk mengunduh TTML.
+   * Parser TTML-nya sama dengan BiniLyrics.
+   */
+  private static async fetchLyricsFromLrcRed(
+    title: string,
+    artist: string,
+    isrc?: string,
+    metadata: { durationMs?: number; album?: string } = {},
+  ): Promise<YouLyPlusLyricsResult | null> {
+    const normIsrc = (v: unknown): string =>
+      typeof v === 'string' ? v.replace(/[\s-]/g, '').toUpperCase() : '';
+    const isIsrc = (v: string) => /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(v);
+    const normText = (v: unknown): string =>
+      String(v ?? '')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\(.*?\)|\[.*?\]/g, ' ')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .trim();
+
+    const tryTtml = async (code: string): Promise<YouLyPlusLyricsResult | null> => {
+      try {
+        const res = await fetchWithTimeout(
+          `${LRC_RED_BASE}/s/${encodeURIComponent(code)}.ttml`,
+        );
+        if (!res.ok) return null;
+        const parsed = AmLyrics.parseTTML(await res.text());
+        if (parsed && parsed.lines.length > 0) {
+          return {
+            lines: parsed.lines,
+            source: 'lrc.red',
+            songwriters: parsed.songwriters,
+          };
+        }
+      } catch {
+        // abaikan, lanjut ke kandidat berikutnya
+      }
+      return null;
+    };
+
+    // Ambil daftar kandidat ISRC dari respons match/search. Bentuk responsnya
+    // dibaca longgar (array / {results|items|tracks|data}) supaya tahan
+    // perubahan kecil di sisi lrc.red.
+    const collectCandidates = (data: any): string[] => {
+      const list: any[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.tracks)
+              ? data.tracks
+              : Array.isArray(data?.data)
+                ? data.data
+                : data && typeof data === 'object'
+                  ? [data]
+                  : [];
+
+      const wantTitle = normText(title);
+      const wantSec =
+        metadata.durationMs && metadata.durationMs > 0
+          ? metadata.durationMs / 1000
+          : 0;
+
+      const scored: { code: string; score: number }[] = [];
+      for (const item of list) {
+        const code = normIsrc(
+          item?.isrc ?? item?.track?.isrc ?? item?.id ?? item?.track?.id,
+        );
+        if (!isIsrc(code)) continue;
+
+        let score = 0;
+        const gotTitle = normText(
+          item?.title ?? item?.name ?? item?.track?.title ?? item?.track?.name,
+        );
+        if (wantTitle && gotTitle) {
+          if (gotTitle === wantTitle) score += 4;
+          else if (gotTitle.includes(wantTitle) || wantTitle.includes(gotTitle))
+            score += 2;
+          else continue; // judul beda -> bukan lagu yang sama
+        }
+        const gotSec = Number(
+          item?.duration ?? item?.durationSec ?? item?.track?.duration,
+        );
+        if (wantSec && gotSec > 0) {
+          // sebagian API memberi ms, sebagian detik
+          const sec = gotSec > 10000 ? gotSec / 1000 : gotSec;
+          const diff = Math.abs(sec - wantSec);
+          if (diff <= 3) score += 3;
+          else if (diff <= 8) score += 1;
+          else score -= 3;
+        }
+        scored.push({ code, score });
+      }
+      return scored
+        .sort((a, b) => b.score - a.score)
+        .filter((c, i, arr) => arr.findIndex(x => x.code === c.code) === i)
+        .slice(0, 3)
+        .map(c => c.code);
+    };
+
+    try {
+      const directIsrc = normIsrc(isrc);
+      if (isIsrc(directIsrc)) {
+        const direct = await tryTtml(directIsrc);
+        if (direct) return direct;
+      }
+      if (!title) return null;
+
+      const tried = new Set<string>(isIsrc(directIsrc) ? [directIsrc] : []);
+      const queue: string[] = [];
+
+      if (artist) {
+        const mp = new URLSearchParams({ title, artist });
+        if (metadata.album) mp.set('album', metadata.album);
+        if (metadata.durationMs && metadata.durationMs > 0) {
+          mp.set('duration', Math.round(metadata.durationMs / 1000).toString());
+        }
+        try {
+          const res = await fetchWithTimeout(
+            `${LRC_RED_BASE}/match.json?${mp.toString()}`,
+          );
+          if (res.ok) queue.push(...collectCandidates(await res.json()));
+        } catch {
+          // lanjut ke search
+        }
+      }
+
+      if (queue.length === 0) {
+        try {
+          const q = [title, artist].filter(Boolean).join(' ');
+          const res = await fetchWithTimeout(
+            `${LRC_RED_BASE}/search.json?q=${encodeURIComponent(q)}`,
+          );
+          if (res.ok) queue.push(...collectCandidates(await res.json()));
+        } catch {
+          // tidak ada kandidat
+        }
+      }
+
+      for (const code of queue) {
+        if (tried.has(code)) continue;
+        tried.add(code);
+        const hit = await tryTtml(code);
+        if (hit) return hit;
+      }
+    } catch (e) {
+      console.error('lrc.red failed', e);
+    }
     return null;
   }
 

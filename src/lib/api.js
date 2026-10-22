@@ -111,10 +111,12 @@ export const Api = {
     return apiGet(`/api/lyrics?${qs.toString()}`);
   },
 
-  async getStreamUrl(videoId, { prefetch = false, forceFresh = false, title = "", artist = "" } = {}) {
+  async getStreamUrl(videoId, { prefetch = false, forceFresh = false, title = "", artist = "", format: formatOverride = "" } = {}) {
     if (!videoId) return null;
     const quality = getPreferredAudioQuality();
-    const format = getPreferredAudioFormat();
+    // formatOverride dipakai fitur unduh supaya format file bisa dipilih
+    // terpisah dari format pemutaran (Settings > Format audio).
+    const format = formatOverride || getPreferredAudioFormat();
     const cacheKey = `${videoId}:${format}`;
     const nowS = Math.floor(Date.now() / 1000);
     const suffix = prefetch ? "?purpose=prefetch" : "";
@@ -137,12 +139,23 @@ export const Api = {
   // Unduh lagu lewat tiket stream yang sudah/sedang dibuat (tidak memakai tiket
   // prefetch) — server menambah `Content-Disposition: attachment; filename=
   // "Artist - Title.ext"` ketika `dl=1`, jadi fetch berat tidak diperlukan.
-  async downloadSong(track) {
-    const videoId = track?.videoId || track?.id;
+  async downloadSong(track, { format = "" } = {}) {
+    const artistName = (typeof track?.artist === "string" ? track.artist : track?.artist?.name) || "";
+    let videoId = track?.videoId;
+    // Lagu dari katalog (mis. Deezer) belum punya videoId: cari padanannya dulu,
+    // sama seperti yang dilakukan pemutaran mode Penuh.
+    if (!videoId && track?.title) {
+      try {
+        const hits = await this.search(`${track.title} ${artistName}`.trim());
+        videoId = hits?.[0]?.videoId || null;
+      } catch { videoId = null; }
+    }
+    if (!videoId) videoId = track?.id;
     if (!videoId) throw new Error("videoId kosong");
     const url = await this.getStreamUrl(videoId, {
       title: track?.title || "",
-      artist: (typeof track?.artist === "string" ? track.artist : track?.artist?.name) || "",
+      artist: artistName,
+      format,
     });
     const a = document.createElement("a");
     a.href = url.includes("?") ? `${url}&dl=1` : `${url}?dl=1`;

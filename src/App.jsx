@@ -16,6 +16,7 @@ import {
 } from "./components.jsx";
 import { CookieConsent } from "./CookieConsent.jsx";
 import { NowPlayingDesktop } from "./NowPlayingDesktop.jsx";
+import { DownloadSheetHost } from "./DownloadSheet.jsx";
 import { LandingPage, LoginPage } from "./pages/AuthPages.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { NewTrendingPage, BestAlbumsPage, EditorsPicksPage } from "./pages/FeedPages.jsx";
@@ -173,6 +174,7 @@ function AppInner() {
 
       <AddToPlaylistModal />
       <CreditsModal />
+      <DownloadSheetHost />
       <LyricsOverlay />
       <GlobalContextMenu />
       <ToastHost isMobile={isMobile} />
