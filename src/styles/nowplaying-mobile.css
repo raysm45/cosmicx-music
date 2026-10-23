@@ -129,7 +129,7 @@
   display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0;
 }
 .aivy-sheet.npx-v2 .npx-cover.is-bleed{
-  width: 100%; height: min(119vw, calc(100dvh - calc(var(--u) * 708) - env(safe-area-inset-bottom, 0px))); aspect-ratio: auto; margin: 0; border-radius: 0;
+  width: 100%; height: min(119vw, calc(100dvh - calc(var(--u) * 686) - env(safe-area-inset-bottom, 0px))); aspect-ratio: auto; margin: 0; border-radius: 0;
   /* kurva alpha dari video: ±.9 di y560, .5 di y760, .16 di y800, 0 di y840 (tinggi cover 856u) */
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 61%, rgba(0,0,0,.9) 65.4%, rgba(0,0,0,.5) 88.8%, rgba(0,0,0,.16) 93.5%, transparent 98.1%, transparent 100%);
           mask-image: linear-gradient(180deg, #000 0%, #000 61%, rgba(0,0,0,.9) 65.4%, rgba(0,0,0,.5) 88.8%, rgba(0,0,0,.16) 93.5%, transparent 98.1%, transparent 100%);
@@ -345,27 +345,37 @@
 }
 
 /* ---------- Mode lirik: panel kontrol (durasi, transport, volume, kredit) + tombol bulat turun bersama ke luar layar ---------- */
-.aivy-sheet.npx-v2{ --lyr-hide: calc(var(--u) * 660 + env(safe-area-inset-bottom, 0px)); --lyr-ease: cubic-bezier(.2, .8, .2, 1); }
-.aivy-sheet.npx-v2 .npx-controls{ transition: transform .45s var(--lyr-ease); }
+.aivy-sheet.npx-v2{
+  --lyr-hide: calc(var(--u) * 660 + env(safe-area-inset-bottom, 0px));
+  --lyr-show-dur: .6s; --lyr-show-ease: cubic-bezier(.22, 1, .36, 1);
+  --lyr-hide-dur: .85s; --lyr-hide-ease: cubic-bezier(.45, .05, .2, 1);
+}
+/* muncul (state tujuan = terbuka) */
+.aivy-sheet.npx-v2 .npx-controls{ transition: transform var(--lyr-show-dur) var(--lyr-show-ease); }
+/* tutup (state tujuan = tersembunyi): lebih lambat, ease-in-out supaya turunnya halus */
 .aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-controls{
   transform: translateY(var(--lyr-hide));
+  transition: transform var(--lyr-hide-dur) var(--lyr-hide-ease);
   pointer-events: none;
 }
-/* area lirik melebar ke bawah saat panel tertutup */
-.aivy-sheet.npx-v2 .npx-lyrics-wrap.is-active{ transition: opacity .3s ease .3s, bottom .45s var(--lyr-ease); }
-.aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyrics-wrap{
+/* area lirik melebar ke bawah dengan durasi/easing yang sama */
+.aivy-sheet.npx-v2 .npx-lyrics-wrap.is-active{ transition: opacity .3s ease .3s, bottom var(--lyr-show-dur) var(--lyr-show-ease); }
+.aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyrics-wrap.is-active{
   bottom: calc(var(--u) * 40 + env(safe-area-inset-bottom, 0px));
+  transition: opacity .3s ease .3s, bottom var(--lyr-hide-dur) var(--lyr-hide-ease);
 }
-/* tombol romanisasi/terjemahan: ikut turun (transform, jarak & easing sama dengan panel kontrol) lalu hilang */
+/* tombol romanisasi/terjemahan: ikut turun (transform, jarak & easing sama dengan panel kontrol) lalu memudar */
 .aivy-sheet.npx-v2 .npx-lyr-btn{
-  transition: background .2s ease, color .2s ease, transform .45s var(--lyr-ease), opacity .3s ease;
+  transition: background .2s ease, color .2s ease, transform var(--lyr-show-dur) var(--lyr-show-ease), opacity .4s ease;
   animation: npx-lyr-btn-in .3s ease .3s backwards;
 }
 .aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyr-btn{
   transform: translateY(var(--lyr-hide)); opacity: 0; pointer-events: none;
+  transition: background .2s ease, color .2s ease, transform var(--lyr-hide-dur) var(--lyr-hide-ease), opacity .5s ease .25s;
 }
 @keyframes npx-lyr-btn-in{ from{ opacity: 0; } to{ opacity: 1; } }
 @media (prefers-reduced-motion: reduce){ .aivy-sheet.npx-v2 .npx-lyr-btn{ animation: none; } }
+
 /* area ketuk di bawah (saat kontrol tersembunyi di mode lirik): satu ketukan memunculkan kontrol lagi */
 .aivy-sheet.npx-v2 .npx-ctrl-zone{
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; height: calc(var(--u) * 150 + env(safe-area-inset-bottom, 0px));
@@ -415,25 +425,25 @@
 
 /* ---------- Lirik di atas bar durasi (mode player) ---------- */
 .aivy-sheet.npx-v2 .npx-inl{
-  position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 43); top: calc(var(--u) * -46); height: calc(var(--u) * 80);
+  position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 43); top: calc(var(--u) * -32); height: calc(var(--u) * 66);
   margin: 0; padding: 0; border: 0; background: none; text-align: left; overflow: hidden; display: block;
   -webkit-tap-highlight-color: transparent; cursor: pointer;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 100%); mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22%, #000 100%); mask-image: linear-gradient(180deg, transparent 0, #000 22%, #000 100%);
 }
 .aivy-sheet.npx-v2 .npx-inl.is-empty{ pointer-events: none; }
 .aivy-sheet.npx-v2 .npx-inl{ transition: opacity .25s ease; }
 .aivy-sheet.npx-v2:not(.mode-player) .npx-inl{ opacity: 0; pointer-events: none; }
+.aivy-sheet.npx-v2.is-opening .npx-inl{ opacity: 0; transition: none; }
 .aivy-sheet.npx-v2 .npx-inl-line{
   position: absolute; left: 0; right: 0; bottom: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
-  font-size: calc(var(--u) * 30); font-weight: 700; line-height: calc(var(--u) * 38); letter-spacing: -.01em; white-space: pre-wrap; overflow-wrap: anywhere;
-  will-change: transform, opacity;
+  font-size: calc(var(--u) * 24); font-weight: 650; line-height: calc(var(--u) * 30); letter-spacing: -.005em; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .aivy-sheet.npx-v2 .npx-inl-line.is-in{ animation: npx-inl-in .46s cubic-bezier(.2, .8, .2, 1) both; }
 .aivy-sheet.npx-v2 .npx-inl-line.is-first{ animation: npx-inl-fade .35s ease both; }
 .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ animation: npx-inl-out .46s cubic-bezier(.4, 0, .6, 1) both; pointer-events: none; }
 @keyframes npx-inl-fade{ from{ opacity: 0; } to{ opacity: 1; } }
-@keyframes npx-inl-in{ from{ opacity: 0; transform: translateY(60%); filter: blur(4px); } to{ opacity: 1; transform: none; filter: blur(0); } }
-@keyframes npx-inl-out{ from{ opacity: 1; transform: none; filter: blur(0); } to{ opacity: 0; transform: translateY(-60%); filter: blur(4px); } }
+@keyframes npx-inl-in{ from{ opacity: 0; transform: translateY(45%); } to{ opacity: 1; transform: none; } }
+@keyframes npx-inl-out{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateY(-45%); } }
 
 /* baris tanpa timing kata: menyala utuh saat gilirannya */
 .aivy-sheet.npx-v2 .npx-inl-line.is-plain{ color: rgba(255,255,255,.42); transition: color .35s ease; }

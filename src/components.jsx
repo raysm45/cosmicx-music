@@ -1948,6 +1948,7 @@ function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
     if (disabled || !active || !lines.length) return undefined;
     let raf = 0;
     let leaveTimer = null;
+    let resync = true;
     const lastP = [];
     const tick = () => {
       raf = requestAnimationFrame(tick);
@@ -1965,6 +1966,19 @@ function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
       const shown = !started ? 0 : inGap ? i + 1 : i;
       const live = started && !inGap;
       const cur = viewRef.current;
+      if (resync) {
+        // frame pertama setelah sheet dibuka/ lirik termuat: langsung ke baris yang benar, tanpa animasi pergantian
+        resync = false;
+        wordEls.current = [];
+        lastP.length = 0;
+        if (cur.i !== shown || cur.live !== live) {
+          const next = { i: shown, live, first: true };
+          viewRef.current = next;
+          setLeaving(null);
+          setView(next);
+          return;
+        }
+      }
       if (cur.i !== shown || cur.live !== live) {
         if (cur.i !== shown && cur.i >= 0) {
           setLeaving({ i: cur.i, key: `${cur.i}-${Date.now()}` });
