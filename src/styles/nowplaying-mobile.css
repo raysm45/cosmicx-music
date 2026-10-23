@@ -344,21 +344,28 @@
   color: rgba(255,255,255,.52); pointer-events: none;
 }
 
-/* ---------- Mode lirik: panel kontrol (durasi, transport, volume) ketutup ke bawah ---------- */
-.aivy-sheet.npx-v2 .npx-controls{ transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+/* ---------- Mode lirik: panel kontrol (durasi, transport, volume, kredit) + tombol bulat turun bersama ke luar layar ---------- */
+.aivy-sheet.npx-v2{ --lyr-hide: calc(var(--u) * 660 + env(safe-area-inset-bottom, 0px)); --lyr-ease: cubic-bezier(.2, .8, .2, 1); }
+.aivy-sheet.npx-v2 .npx-controls{ transition: transform .45s var(--lyr-ease); }
 .aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-controls{
-  transform: translateY(calc(var(--u) * 560 + env(safe-area-inset-bottom, 0px)));
+  transform: translateY(var(--lyr-hide));
   pointer-events: none;
 }
 /* area lirik melebar ke bawah saat panel tertutup */
-.aivy-sheet.npx-v2 .npx-lyrics-wrap.is-active{ transition: opacity .3s ease .3s, bottom .45s cubic-bezier(.2, .8, .2, 1); }
+.aivy-sheet.npx-v2 .npx-lyrics-wrap.is-active{ transition: opacity .3s ease .3s, bottom .45s var(--lyr-ease); }
 .aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyrics-wrap{
-  bottom: calc(var(--u) * 150 + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--u) * 40 + env(safe-area-inset-bottom, 0px));
 }
-.aivy-sheet.npx-v2 .npx-lyr-btn{ transition: background .2s ease, color .2s ease, transform .15s ease, bottom .45s cubic-bezier(.2, .8, .2, 1); }
+/* tombol romanisasi/terjemahan: ikut turun (transform, jarak & easing sama dengan panel kontrol) lalu hilang */
+.aivy-sheet.npx-v2 .npx-lyr-btn{
+  transition: background .2s ease, color .2s ease, transform .45s var(--lyr-ease), opacity .3s ease;
+  animation: npx-lyr-btn-in .3s ease .3s backwards;
+}
 .aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyr-btn{
-  bottom: calc(var(--u) * 62 + env(safe-area-inset-bottom, 0px));
+  transform: translateY(var(--lyr-hide)); opacity: 0; pointer-events: none;
 }
+@keyframes npx-lyr-btn-in{ from{ opacity: 0; } to{ opacity: 1; } }
+@media (prefers-reduced-motion: reduce){ .aivy-sheet.npx-v2 .npx-lyr-btn{ animation: none; } }
 /* area ketuk di bawah (saat kontrol tersembunyi di mode lirik): satu ketukan memunculkan kontrol lagi */
 .aivy-sheet.npx-v2 .npx-ctrl-zone{
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; height: calc(var(--u) * 150 + env(safe-area-inset-bottom, 0px));
@@ -414,13 +421,17 @@
   -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 100%); mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 100%);
 }
 .aivy-sheet.npx-v2 .npx-inl.is-empty{ pointer-events: none; }
+.aivy-sheet.npx-v2 .npx-inl{ transition: opacity .25s ease; }
+.aivy-sheet.npx-v2:not(.mode-player) .npx-inl{ opacity: 0; pointer-events: none; }
 .aivy-sheet.npx-v2 .npx-inl-line{
   position: absolute; left: 0; right: 0; bottom: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
   font-size: calc(var(--u) * 30); font-weight: 700; line-height: calc(var(--u) * 38); letter-spacing: -.01em; white-space: pre-wrap; overflow-wrap: anywhere;
   will-change: transform, opacity;
 }
 .aivy-sheet.npx-v2 .npx-inl-line.is-in{ animation: npx-inl-in .46s cubic-bezier(.2, .8, .2, 1) both; }
+.aivy-sheet.npx-v2 .npx-inl-line.is-first{ animation: npx-inl-fade .35s ease both; }
 .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ animation: npx-inl-out .46s cubic-bezier(.4, 0, .6, 1) both; pointer-events: none; }
+@keyframes npx-inl-fade{ from{ opacity: 0; } to{ opacity: 1; } }
 @keyframes npx-inl-in{ from{ opacity: 0; transform: translateY(60%); filter: blur(4px); } to{ opacity: 1; transform: none; filter: blur(0); } }
 @keyframes npx-inl-out{ from{ opacity: 1; transform: none; filter: blur(0); } to{ opacity: 0; transform: translateY(-60%); filter: blur(4px); } }
 
@@ -435,6 +446,6 @@
   -webkit-background-clip: text; background-clip: text;
 }
 @media (prefers-reduced-motion: reduce){
-  .aivy-sheet.npx-v2 .npx-inl-line.is-in, .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ animation: none; }
+  .aivy-sheet.npx-v2 .npx-inl-line.is-in, .aivy-sheet.npx-v2 .npx-inl-line.is-first, .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ animation: none; }
   .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ display: none; }
 }

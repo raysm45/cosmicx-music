@@ -1914,8 +1914,8 @@ function useNpxLyricLines(enabled, trackKey) {
   return lines;
 }
 
-function NpxInlineLine({ line, live, leaving, reg }) {
-  const cls = `npx-inl-line ${line.sync ? "is-sync" : "is-plain"} ${live ? "is-live" : "is-wait"} ${leaving ? "is-leaving" : "is-in"}`;
+function NpxInlineLine({ line, live, leaving, first, reg }) {
+  const cls = `npx-inl-line ${line.sync ? "is-sync" : "is-plain"} ${live ? "is-live" : "is-wait"} ${leaving ? "is-leaving" : first ? "is-first" : "is-in"}`;
   return (
     <span className={cls} aria-hidden={leaving ? "true" : undefined}>
       {line.sync
@@ -1925,7 +1925,7 @@ function NpxInlineLine({ line, live, leaving, reg }) {
   );
 }
 
-function NpxInlineLyrics({ lines, disabled, onOpen, trackKey }) {
+function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
   const { isPlaying } = usePlayer();
   const playerTime = usePlayerTime();
   const anchorRef = useRef({ t: playerTime, at: typeof performance !== "undefined" ? performance.now() : 0 });
@@ -1934,18 +1934,18 @@ function NpxInlineLyrics({ lines, disabled, onOpen, trackKey }) {
   const linesRef = useRef(lines);
   linesRef.current = lines;
   const wordEls = useRef([]);
-  const [view, setView] = useState({ i: -1, live: false });
+  const [view, setView] = useState({ i: -1, live: false, first: true });
   const [leaving, setLeaving] = useState(null);
   const viewRef = useRef(view);
   const idxHint = useRef(0);
 
   useEffect(() => { anchorRef.current = { t: playerTime, at: performance.now() }; }, [playerTime]);
-  useEffect(() => { viewRef.current = { i: -1, live: false }; setView({ i: -1, live: false }); setLeaving(null); idxHint.current = 0; wordEls.current = []; }, [trackKey]);
+  useEffect(() => { viewRef.current = { i: -1, live: false, first: true }; setView({ i: -1, live: false, first: true }); setLeaving(null); idxHint.current = 0; wordEls.current = []; }, [trackKey]);
 
   const reg = useCallback((k, el) => { wordEls.current[k] = el; }, []);
 
   useEffect(() => {
-    if (disabled || !lines.length) return undefined;
+    if (disabled || !active || !lines.length) return undefined;
     let raf = 0;
     let leaveTimer = null;
     const lastP = [];
@@ -1973,8 +1973,9 @@ function NpxInlineLyrics({ lines, disabled, onOpen, trackKey }) {
           wordEls.current = [];
           lastP.length = 0;
         }
-        viewRef.current = { i: shown, live };
-        setView({ i: shown, live });
+        const next = { i: shown, live, first: cur.i < 0 };
+        viewRef.current = next;
+        setView(next);
       }
       const line = ls[shown];
       if (line && line.sync) {
@@ -1991,7 +1992,7 @@ function NpxInlineLyrics({ lines, disabled, onOpen, trackKey }) {
     };
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); clearTimeout(leaveTimer); };
-  }, [disabled, lines, trackKey]);
+  }, [disabled, active, lines, trackKey]);
 
   if (disabled || !lines.length || view.i < 0) return <div className="npx-inl is-empty" />;
   const line = lines[view.i];
@@ -1999,7 +2000,7 @@ function NpxInlineLyrics({ lines, disabled, onOpen, trackKey }) {
   return (
     <button type="button" className="npx-inl" onClick={onOpen} aria-label={line.text}>
       {gone && leaving.i !== view.i ? <NpxInlineLine key={`o${leaving.key}`} line={gone} live={false} leaving reg={reg} /> : null}
-      <NpxInlineLine key={`i${view.i}`} line={line} live={view.live} reg={reg} />
+      <NpxInlineLine key={`i${view.i}`} line={line} live={view.live} first={view.first} reg={reg} />
     </button>
   );
 }
@@ -2279,7 +2280,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const [queueMode, setQueueMode] = useState(false);
   const [qCollapsed, setQCollapsed] = useState(false);
   // Mode lirik: panel kontrol (durasi, transport, volume) ketutup ke bawah; handle di bawah membukanya lagi.
-  const [lyrCtrlOpen, setLyrCtrlOpen] = useState(false);
+  const [lyrCtrlOpen, setLyrCtrlOpen] = useState(true);
   const [opening, setOpening] = useState(false);
   const playingFrom = playSource?.label ? `${t("npPlayingFrom")} ${playSource.label}` : (playSource?.type === "search" ? `${t("npPlayingFrom")} ${t("search", "Search")}` : t("nowPlaying"));
   const tilt = useTilt({ enabled: !!settings.tiltCover, distance: Number(settings.tiltDistance) || 10, speed: Number(settings.tiltSpeed) || 240 });
@@ -2418,8 +2419,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   useEffect(() => { setLyricsUnsynced(false); }, [trackKey]);
   useEffect(() => { if (!open) { setQueueMode(false); setQCollapsed(false); } }, [open]);
   useEffect(() => { if (!queueMode) setQCollapsed(false); }, [queueMode]);
-  // Panel lirik dibuka -> kontrol bawah tampil dulu, lalu sembunyi otomatis (lihat efek auto-hide di bawah).
-  useEffect(() => { setLyrCtrlOpen(!!(lyricsMode && open)); }, [lyricsMode, open]);
+  // Panel lirik dibuka / sheet dibuka -> kontrol bawah tampil dulu, lalu sembunyi otomatis (efek auto-hide di bawah).
+  // useLayoutEffect: state di-reset sebelum paint, jadi kontrol tidak sempat turun lalu naik lagi ("loncat").
+  useLayoutEffect(() => { if (open) setLyrCtrlOpen(true); }, [lyricsMode, open]);
   useEffect(() => {
     if (!open) { setOpening(false); return undefined; }
     setOpening(true);
@@ -2628,9 +2630,8 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
             <NpxQueueView active={queueMode} currentTrack={currentTrack} onCollapse={setQCollapsed} />
 
             <div className="npx-top-controls npx-controls" ref={controlsRef}>
-              {mode === "player" ? (
-                <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} onOpen={handleLyricsToggle} trackKey={trackKey} />
-              ) : (
+              <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open} onOpen={handleLyricsToggle} trackKey={trackKey} />
+              {mode !== "player" && (
                 <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
               )}
               <div className="aivy-scrubber-row">
