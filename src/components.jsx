@@ -2436,7 +2436,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   // Panel lirik dibuka / sheet dibuka -> kontrol bawah tampil dulu, lalu sembunyi otomatis (efek auto-hide di bawah).
   // useLayoutEffect: state di-reset sebelum paint, jadi kontrol tidak sempat turun lalu naik lagi ("loncat").
   useLayoutEffect(() => { if (open) setLyrCtrlOpen(true); }, [lyricsMode, open]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) { setOpening(false); return undefined; }
     setOpening(true);
     const id = setTimeout(() => setOpening(false), 620);
@@ -2444,7 +2444,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   }, [open]);
   const lyricsPoll = useNpxLyricsInfo(open && lyricsMounted, trackKey);
   const lyricsInfo = lyricsPoll.info;
-  const inlineLines = useNpxLyricLines(open && lyricsMounted, trackKey);
+  const inlineLines = useNpxLyricLines(open && lyricsMounted && !opening, trackKey);
   const [hintTick, setHintTick] = useState(0);
   useEffect(() => { setHintTick((n) => n + 1); }, [open, trackKey, mode]);
   useEffect(() => { if (lyricsMode) setLyricsMounted(true); else setLyricsUnsynced(false); }, [lyricsMode]);
@@ -2644,7 +2644,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
             <NpxQueueView active={queueMode} currentTrack={currentTrack} onCollapse={setQCollapsed} />
 
             <div className="npx-top-controls npx-controls" ref={controlsRef}>
-              <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open} onOpen={handleLyricsToggle} trackKey={trackKey} />
+              <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open && !opening} onOpen={handleLyricsToggle} trackKey={trackKey} />
               {mode !== "player" && (
                 <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
               )}
