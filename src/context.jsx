@@ -3,7 +3,7 @@ import React, { useSyncExternalStore,
 } from "react";
 import { io } from "socket.io-client";
 import { Api, SOCKET_ORIGIN, SOCKET_PATH, getAuthToken } from "./lib/api.js";
-import { setPreferredAudioFormat, getPreferredAudioFormat } from "./lib/audioFormat.js";
+import { setPreferredAudioFormat, getPreferredAudioFormat, audioLabelFromInfo, unifyAudioInfoFields } from "./lib/audioFormat.js";
 import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
 import { makeT } from "./lib/i18n.js";
 import { seoState } from "./lib/seo.js";
@@ -933,12 +933,10 @@ export function PlayerProvider({ children }) {
         } else Api.trackAudioInfo(resolved.videoId)
           .then((info) => {
             if (cancelled) return;
-            const fmt = info?.format;
-            if (!fmt) { setAudioFormat("unavailable"); return; }
-            const label = fmt.codecFamily === "opus" ? "OPUS"
-              : fmt.codecFamily === "aac" ? "AAC"
-              : (fmt.container || "unavailable").toString().toUpperCase();
-            setAudioFormat({ label, mimeType: fmt.mimeType, codec: fmt.codec, container: fmt.container });
+            const unified = unifyAudioInfoFields(info);
+            const label = audioLabelFromInfo(info);
+            if (!unified || !label) { setAudioFormat("unavailable"); return; }
+            setAudioFormat({ label, mimeType: unified.mimeType, codec: unified.codec, container: unified.container });
           })
           .catch(() => { if (!cancelled) setAudioFormat("unavailable"); });
       } else {

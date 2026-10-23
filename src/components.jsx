@@ -1832,6 +1832,8 @@ function NpxHandleIcon() {
 }
 
 /* Polling ringan ke elemen <am-lyrics>: baris aktif, sumber lirik, status romanisasi/terjemahan. */
+const LYR_CTRL_IDLE_MS = 5000;
+
 function useNpxLyricsInfo(enabled, trackKey) {
   const [info, setInfo] = useState({ line: "", source: "", has: false, roman: false, trans: false });
   const read = useCallback(() => {
@@ -1865,6 +1867,141 @@ function useNpxLyricsInfo(enabled, trackKey) {
     return () => clearInterval(id);
   }, [enabled, trackKey, read]);
   return { info, refresh: () => { const n = read(); if (n) setInfo(n); } };
+}
+
+/* ---------- Lirik di atas bar durasi (mode player): transisi antarbaris + sorotan kata per kata bila datanya ada ---------- */
+const NPX_INL_LEAVE_MS = 460;
+const NPX_INL_GAP_HOLD_MS = 900;
+
+function toInlineLine(l) {
+  if (!l || !Array.isArray(l.text)) return null;
+  const words = l.text.map((sy) => ({ text: String(sy?.text ?? ""), s: Number(sy?.timestamp) || 0, e: Number(sy?.endtime) || 0 }));
+  const text = words.map((w) => w.text).join("").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  const t0 = Number(l.timestamp) || words[0]?.s || 0;
+  const lastEnd = words.reduce((m, w) => Math.max(m, w.e), 0);
+  const t1 = Math.max(Number(l.endtime) || 0, lastEnd);
+  const sync = !!l.isWordSynced && words.length > 1 && words.some((w) => w.e > w.s);
+  return { t0, t1, words, sync, text };
+}
+
+/** Baca baris lirik (beserta timing kata) dari <am-lyrics> mobile yang sudah ter-mount. */
+function useNpxLyricLines(enabled, trackKey) {
+  const [lines, setLines] = useState([]);
+  const prevTrackRef = useRef(trackKey);
+  useEffect(() => {
+    const trackChanged = prevTrackRef.current !== trackKey;
+    prevTrackRef.current = trackKey;
+    setLines([]);
+    if (!enabled) return undefined;
+    const getRaw = () => {
+      const el = typeof document !== "undefined" ? document.getElementById("aivy-am-lyrics-mobile") : null;
+      return el && Array.isArray(el.lyrics) ? el.lyrics : null;
+    };
+    // setelah ganti lagu, array lirik lagu sebelumnya bisa masih menempel sampai lirik baru termuat
+    const stale = trackChanged ? getRaw() : null;
+    let last = null;
+    const read = () => {
+      const raw = getRaw();
+      if (raw === last || (stale && raw === stale)) return;
+      last = raw;
+      setLines(raw && raw.length ? raw.map(toInlineLine).filter(Boolean).sort((a, b) => a.t0 - b.t0) : []);
+    };
+    read();
+    const id = setInterval(read, 700);
+    return () => clearInterval(id);
+  }, [enabled, trackKey]);
+  return lines;
+}
+
+function NpxInlineLine({ line, live, leaving, reg }) {
+  const cls = `npx-inl-line ${line.sync ? "is-sync" : "is-plain"} ${live ? "is-live" : "is-wait"} ${leaving ? "is-leaving" : "is-in"}`;
+  return (
+    <span className={cls} aria-hidden={leaving ? "true" : undefined}>
+      {line.sync
+        ? line.words.map((w, k) => <span key={k} className="w" ref={leaving ? undefined : (el) => reg(k, el)}>{w.text}</span>)
+        : line.text}
+    </span>
+  );
+}
+
+function NpxInlineLyrics({ lines, disabled, onOpen, trackKey }) {
+  const { isPlaying } = usePlayer();
+  const playerTime = usePlayerTime();
+  const anchorRef = useRef({ t: playerTime, at: typeof performance !== "undefined" ? performance.now() : 0 });
+  const playingRef = useRef(isPlaying);
+  playingRef.current = isPlaying;
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+  const wordEls = useRef([]);
+  const [view, setView] = useState({ i: -1, live: false });
+  const [leaving, setLeaving] = useState(null);
+  const viewRef = useRef(view);
+  const idxHint = useRef(0);
+
+  useEffect(() => { anchorRef.current = { t: playerTime, at: performance.now() }; }, [playerTime]);
+  useEffect(() => { viewRef.current = { i: -1, live: false }; setView({ i: -1, live: false }); setLeaving(null); idxHint.current = 0; wordEls.current = []; }, [trackKey]);
+
+  const reg = useCallback((k, el) => { wordEls.current[k] = el; }, []);
+
+  useEffect(() => {
+    if (disabled || !lines.length) return undefined;
+    let raf = 0;
+    let leaveTimer = null;
+    const lastP = [];
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const ls = linesRef.current;
+      if (!ls.length) return;
+      const a = anchorRef.current;
+      const ms = a.t * 1000 + (playingRef.current ? Math.min(performance.now() - a.at, 600) : 0);
+      let i = Math.min(idxHint.current, ls.length - 1);
+      if (ls[i].t0 > ms) i = 0;
+      while (i + 1 < ls.length && ls[i + 1].t0 <= ms) i += 1;
+      idxHint.current = i;
+      const started = ls[i].t0 <= ms;
+      const end = ls[i].t1 > ls[i].t0 ? ls[i].t1 : (ls[i + 1]?.t0 ?? Infinity);
+      const inGap = started && ms > end + NPX_INL_GAP_HOLD_MS && i + 1 < ls.length;
+      const shown = !started ? 0 : inGap ? i + 1 : i;
+      const live = started && !inGap;
+      const cur = viewRef.current;
+      if (cur.i !== shown || cur.live !== live) {
+        if (cur.i !== shown && cur.i >= 0) {
+          setLeaving({ i: cur.i, key: `${cur.i}-${Date.now()}` });
+          clearTimeout(leaveTimer);
+          leaveTimer = setTimeout(() => setLeaving(null), NPX_INL_LEAVE_MS);
+          wordEls.current = [];
+          lastP.length = 0;
+        }
+        viewRef.current = { i: shown, live };
+        setView({ i: shown, live });
+      }
+      const line = ls[shown];
+      if (line && line.sync) {
+        const els = wordEls.current;
+        for (let k = 0; k < line.words.length; k += 1) {
+          const el = els[k];
+          if (!el) continue;
+          const w = line.words[k];
+          const prog = w.e > w.s ? Math.min(1, Math.max(0, (ms - w.s) / (w.e - w.s))) : (ms >= w.s ? 1 : 0);
+          const v = Math.round((prog * 106 - 6) * 10) / 10;
+          if (lastP[k] !== v) { lastP[k] = v; el.style.setProperty("--p", `${v}%`); }
+        }
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); clearTimeout(leaveTimer); };
+  }, [disabled, lines, trackKey]);
+
+  if (disabled || !lines.length || view.i < 0) return <div className="npx-inl is-empty" />;
+  const line = lines[view.i];
+  const gone = leaving && lines[leaving.i];
+  return (
+    <button type="button" className="npx-inl" onClick={onOpen} aria-label={line.text}>
+      {gone && leaving.i !== view.i ? <NpxInlineLine key={`o${leaving.key}`} line={gone} live={false} leaving reg={reg} /> : null}
+      <NpxInlineLine key={`i${view.i}`} line={line} live={view.live} reg={reg} />
+    </button>
+  );
 }
 
 /* Baris cuplikan lirik (♫ teks ›) di mode player & antrean; "Lirik oleh …" di mode lirik. */
@@ -2213,6 +2350,67 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const captureHeroFlip = useHeroFlip(compact, flipTargets);
 
   const bodyScrollRef = useRef(null);
+  const lyricsWrapRef = useRef(null);
+
+  // Auto-hide kontrol bawah di mode lirik: sembunyi setelah 5 dtk tanpa aktivitas, muncul lagi saat lirik di-scroll ke bawah
+  // atau area bawah diketuk, lalu sembunyi lagi setelah 5 dtk (berulang).
+  useEffect(() => {
+    if (!lyricsMode || !lyrCtrlOpen) return undefined;
+    const ctrl = controlsRef.current;
+    const wrap = lyricsWrapRef.current;
+    let timer = null;
+    let holding = false;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = holding ? null : setTimeout(() => setLyrCtrlOpen(false), LYR_CTRL_IDLE_MS);
+    };
+    const hold = () => { holding = true; clearTimeout(timer); };
+    const release = () => { holding = false; arm(); };
+    const targets = [ctrl, wrap].filter(Boolean);
+    const opts = { passive: true, capture: true };
+    targets.forEach((el) => {
+      el.addEventListener("pointerdown", hold, opts);
+      el.addEventListener("touchstart", hold, opts);
+      ["pointermove", "touchmove", "wheel", "click", "keydown"].forEach((ev) => el.addEventListener(ev, arm, opts));
+    });
+    ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach((ev) => window.addEventListener(ev, release, true));
+    arm();
+    return () => {
+      clearTimeout(timer);
+      targets.forEach((el) => {
+        el.removeEventListener("pointerdown", hold, opts);
+        el.removeEventListener("touchstart", hold, opts);
+        ["pointermove", "touchmove", "wheel", "click", "keydown"].forEach((ev) => el.removeEventListener(ev, arm, opts));
+      });
+      ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach((ev) => window.removeEventListener(ev, release, true));
+    };
+  }, [lyricsMode, lyrCtrlOpen, currentTrack?.id]);
+
+  // Scroll lirik ke bawah (jari geser ke atas / roda ke bawah) -> kontrol muncul lagi. Scroll otomatis tidak dihitung.
+  useEffect(() => {
+    if (!lyricsMode) return undefined;
+    const wrap = lyricsWrapRef.current;
+    if (!wrap) return undefined;
+    let lastY = null;
+    const onStart = (e) => { lastY = e.touches?.[0]?.clientY ?? null; };
+    const onMove = (e) => {
+      const y = e.touches?.[0]?.clientY;
+      if (lastY == null || y == null) return;
+      const dy = y - lastY;
+      if (dy < -14) { setLyrCtrlOpen(true); lastY = y; }
+      else if (dy > 14) lastY = y;
+    };
+    const onWheel = (e) => { if (e.deltaY > 6) setLyrCtrlOpen(true); };
+    const opts = { passive: true };
+    wrap.addEventListener("touchstart", onStart, opts);
+    wrap.addEventListener("touchmove", onMove, opts);
+    wrap.addEventListener("wheel", onWheel, opts);
+    return () => {
+      wrap.removeEventListener("touchstart", onStart, opts);
+      wrap.removeEventListener("touchmove", onMove, opts);
+      wrap.removeEventListener("wheel", onWheel, opts);
+    };
+  }, [lyricsMode, currentTrack?.id]);
   const handleGrabberTap = () => onClose();
   const swipeDown = useVerticalSwipe({ active: open, direction: "down", onTrigger: handleGrabberTap, dragRef: sheetRef, scrollRef: bodyScrollRef });
 
@@ -2220,7 +2418,8 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   useEffect(() => { setLyricsUnsynced(false); }, [trackKey]);
   useEffect(() => { if (!open) { setQueueMode(false); setQCollapsed(false); } }, [open]);
   useEffect(() => { if (!queueMode) setQCollapsed(false); }, [queueMode]);
-  useEffect(() => { setLyrCtrlOpen(false); }, [lyricsMode, open]);
+  // Panel lirik dibuka -> kontrol bawah tampil dulu, lalu sembunyi otomatis (lihat efek auto-hide di bawah).
+  useEffect(() => { setLyrCtrlOpen(!!(lyricsMode && open)); }, [lyricsMode, open]);
   useEffect(() => {
     if (!open) { setOpening(false); return undefined; }
     setOpening(true);
@@ -2229,6 +2428,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   }, [open]);
   const lyricsPoll = useNpxLyricsInfo(open && lyricsMounted, trackKey);
   const lyricsInfo = lyricsPoll.info;
+  const inlineLines = useNpxLyricLines(open && lyricsMounted, trackKey);
   const [hintTick, setHintTick] = useState(0);
   useEffect(() => { setHintTick((n) => n + 1); }, [open, trackKey, mode]);
   useEffect(() => { if (lyricsMode) setLyricsMounted(true); else setLyricsUnsynced(false); }, [lyricsMode]);
@@ -2393,7 +2593,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
 
             {queueMode && <h2 className="npx-queue-title">{t("npQueueTitle")}</h2>}
 
-            <div className={`npx-lyrics-wrap ${lyricsMode ? "is-active" : ""}`}>
+            <div ref={lyricsWrapRef} className={`npx-lyrics-wrap ${lyricsMode ? "is-active" : ""}`}>
               {lyricsMounted && (
                 <>
                   <AppleLyricsPane
@@ -2421,18 +2621,18 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               </>
             )}
 
-            {lyricsMode && (
-              <button
-                type="button" className={`npx-ctrl-toggle ${lyrCtrlOpen ? "is-open" : ""}`}
-                onClick={() => setLyrCtrlOpen((v) => !v)} aria-expanded={lyrCtrlOpen}
-                aria-label={lyrCtrlOpen ? t("close") : t("nowPlaying")}
-              ><ChevronDown aria-hidden="true" /></button>
+            {lyricsMode && !lyrCtrlOpen && (
+              <button type="button" className="npx-ctrl-zone" onClick={() => setLyrCtrlOpen(true)} aria-label={t("nowPlaying")} />
             )}
 
             <NpxQueueView active={queueMode} currentTrack={currentTrack} onCollapse={setQCollapsed} />
 
             <div className="npx-top-controls npx-controls" ref={controlsRef}>
-              <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
+              {mode === "player" ? (
+                <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} onOpen={handleLyricsToggle} trackKey={trackKey} />
+              ) : (
+                <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
+              )}
               <div className="aivy-scrubber-row">
                 <span className="aivy-time">{loadingAudio ? "\u2013\u2013" : formatTime(currentTime)}</span>
                 <Scrubber
@@ -2784,11 +2984,11 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
       { label: t("detailBitDepth"), value: val(format?.bitsPerSample, " bit") },
       { label: t("detailChannels"), value: val(format?.channels ? chNameShort(format.channels) : null) },
       { label: t("detailDuration"), value: durationValue },
-      { label: t("detailStatus"), value: statusValue() },
+      ...((loadingInfo || format?.status || format?.verified) ? [{ label: t("detailStatus"), value: statusValue() }] : []),
     ] : []),
     { label: t("detailBitrate"), value: val(format?.bitrateKbps, " Kbps") },
     { label: t("detailFileSize"), value: filesizeValue },
-    ...(isFlac ? [{ label: t("detailSha256"), value: val(format ? shortenSha256(format.sha256) : null) }] : []),
+    ...(isFlac && (loadingInfo || format?.sha256) ? [{ label: t("detailSha256"), value: val(format ? shortenSha256(format.sha256) : null) }] : []),
     // Khusus YouTube (bukan FLAC)
     ...(!isFlac ? [
       { label: t("detailMimeType"), value: val(format?.mimeType) },
