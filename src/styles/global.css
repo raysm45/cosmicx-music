@@ -2822,7 +2822,8 @@ body.aivy-artist-immersive .aivy-player{
 :root[data-glass="blur"]{ --lg-blur: 12px; --lg-tint: rgba(14,14,14,.40); }
 :root[data-glass="blur"][data-theme="white"], :root[data-glass="blur"][data-theme="latte"], :root[data-glass="blur"][data-theme="salmon"], :root[data-glass="blur"][data-theme="premium"]{ --lg-tint: rgba(255,255,255,.55); }
 .aivy-dock{
-  position: fixed; left: 12px; right: 12px; z-index: 40;
+  /* ringkas & di tengah: lebar dibatasi, bukan memanjang penuh */
+  position: fixed; left: 0; right: 0; margin: 0 auto; width: min(calc(100% - 24px), var(--dock-w, 312px)); z-index: 40;
   bottom: calc(var(--safe-b) + var(--dock-bottom));
   height: var(--dock-h);
   pointer-events: none;
