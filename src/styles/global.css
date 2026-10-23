@@ -661,8 +661,8 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 
 .aivy-mini-player{ position: fixed; left: 8px; right: 8px; z-index: 40; bottom: calc(var(--tabbar-h) + var(--safe-b) + 8px); background: var(--bg-elev-2); border: 1px solid var(--line); border-radius: var(--radius-md); display: flex; align-items: center; gap: 10px; padding: 7px 8px; min-width: 0; }
 .aivy-mini-player .meta{ min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 0; }
-.aivy-mini-player .meta .t{ font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.aivy-mini-player .meta .a{ font-size: 11.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aivy-mini-player .meta .t{ font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aivy-mini-player .meta .a{ font-size: 11px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aivy-mini-player .mini-progress{ position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px; background: var(--bg-elev-3); border-radius: 2px; overflow: hidden; }
 .aivy-mini-player .mini-progress .fill{ height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: var(--accent-strong); will-change: transform; }
 .aivy-mini-player .mini-progress.is-loading .skeleton-shine{ border-radius: 2px; }
@@ -720,7 +720,7 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-animated-cover img,
 .aivy-animated-cover svg,
 .aivy-animated-cover video{ filter: none !important; }
-.aivy-mini-cover{ position: relative; overflow: hidden; border-radius: 6px; flex-shrink: 0; width: 40px; height: 40px; }
+.aivy-mini-cover{ position: relative; overflow: hidden; border-radius: 6px; flex-shrink: 0; width: 34px; height: 34px; }
 .aivy-mini-cover.no-round{ border-radius: 4px; }
 .aivy-sheet-visualizer{ position: absolute; inset: 0; z-index: 0; opacity: .9; pointer-events: none; }
 .aivy-visualizer-canvas{ width: 100%; height: 100%; display: block; }
@@ -2784,9 +2784,9 @@ body.aivy-artist-immersive .aivy-player{
   .aivy-am-page .aivy-am-latest .tile-play{ opacity: 1; transform: none; }
 }
 :root{
-  --dock-h: 58px;
-  --dock-gap: 8px;
-  --dock-bottom: 10px;
+  --dock-h: 50px;
+  --dock-gap: 6px;
+  --dock-bottom: 8px;
   --dock-ease: cubic-bezier(.22,1,.36,1);
   --dock-spring: cubic-bezier(.34,1.32,.64,1);
   --dock-dur: 520ms;
@@ -2903,7 +2903,7 @@ body.aivy-artist-immersive .aivy-player{
 :root[data-glass="blur"] .aivy-dock .aivy-tabbar,
 :root[data-glass="blur"] .aivy-dock .aivy-mini-player,
 :root[data-glass="blur"] .aivy-dock .aivy-dock-search{ box-shadow: none; }
-.aivy-dock .aivy-tabbar{ display: flex; align-items: stretch; gap: 0; padding: 5px; }
+.aivy-dock .aivy-tabbar{ display: flex; align-items: stretch; gap: 0; padding: 4px; }
 .aivy-dock .aivy-tab{
   position: relative; flex: 1 1 0; min-width: 0;
   display: flex; align-items: center; justify-content: center; gap: 0;
@@ -2912,17 +2912,17 @@ body.aivy-artist-immersive .aivy-player{
   -webkit-tap-highlight-color: transparent;
   transition: flex-grow var(--dock-dur) var(--dock-ease), opacity 240ms var(--ease), color var(--dur-base) var(--ease);
 }
-.aivy-dock .aivy-tab svg{ position: relative; z-index: 1; transform: translateY(-7px); transition: transform var(--dock-dur) var(--dock-ease); }
+.aivy-dock .aivy-tab svg{ position: relative; z-index: 1; transform: translateY(-6px); transition: transform var(--dock-dur) var(--dock-ease); }
 .aivy-dock .aivy-tab span{
-  position: absolute; left: 0; right: 0; bottom: 8px; z-index: 1;
-  text-align: center; font-size: 10.5px; line-height: 1; font-weight: 600; white-space: nowrap;
+  position: absolute; left: 0; right: 0; bottom: 6px; z-index: 1;
+  text-align: center; font-size: 10px; line-height: 1; font-weight: 600; white-space: nowrap;
   transition: opacity 200ms var(--ease);
 }
-.aivy-dock .aivy-tab:active svg{ transform: translateY(-7px) scale(.92); }
+.aivy-dock .aivy-tab:active svg{ transform: translateY(-6px) scale(.92); }
 .aivy-dock .aivy-tab{ z-index: 1; }
 .aivy-dock .aivy-tab-lens{
-  position: absolute; top: 5px; bottom: 5px; left: 5px; z-index: 0;
-  width: calc((100% - 10px) / var(--n, 1));
+  position: absolute; top: 4px; bottom: 4px; left: 4px; z-index: 0;
+  width: calc((100% - 8px) / var(--n, 1));
   border-radius: 999px; pointer-events: none;
   background: var(--lg-lens);
   box-shadow: inset 0 0 0 1px var(--lg-lens-ring), inset 0 1px 0 rgba(255,255,255,.22);
@@ -2948,8 +2948,8 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-dock .aivy-dock-search:active{ transform: scale(.94); }
 .aivy-dock .aivy-dock-search.active{ color: var(--accent-strong); box-shadow: var(--lg-shadow), var(--lg-top), inset 0 0 0 100px var(--lg-lens); }
 .aivy-dock .aivy-mini-player{
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 8px 0 9px; cursor: pointer;
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 6px 0 8px; cursor: pointer;
   touch-action: none; -webkit-tap-highlight-color: transparent;
   transform-origin: 50% 50%;
   transition: transform 420ms var(--dock-spring);
@@ -2968,7 +2968,7 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-mini-player .aivy-mini-cover,
 .aivy-mini-player .meta{ animation: aivy-fade-in 300ms var(--ease) backwards; }
 .aivy-mini-player .aivy-swap-icon{ display: inline-flex; animation: aivy-icon-pop 260ms var(--dock-spring) backwards; }
-.aivy-mini-cover{ border-radius: 14px; box-shadow: 0 0 0 1px rgba(255,255,255,.14); }
+.aivy-mini-cover{ border-radius: 12px; box-shadow: 0 0 0 1px rgba(255,255,255,.14); }
 .aivy-mini-cover.no-round{ border-radius: 6px; }
 .aivy-dock .aivy-mini-player .meta{ justify-content: center; }
 .aivy-dock .aivy-mini-player .meta .a{
@@ -3992,3 +3992,7 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 }
 .aivy-quality .d{ font-weight: 600; color: rgba(255,255,255,.62); overflow: hidden; text-overflow: ellipsis; }
 .aivy-quality.is-hires .m{ color: #ffe3a3; }
+
+/* ---------- Dock (navbar + mini player) lebih ringkas ---------- */
+.aivy-dock .aivy-mini-player .aivy-icon-btn{ width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }
+.aivy-dock .aivy-mini-player .skip-next{ margin-left: -4px; }

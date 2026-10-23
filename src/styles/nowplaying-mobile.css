@@ -459,3 +459,9 @@
   .aivy-sheet.npx-v2 .npx-inl-line.is-in, .aivy-sheet.npx-v2 .npx-inl-line.is-first, .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ animation: none; }
   .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ display: none; }
 }
+
+/* panah kecil setelah baris lirik (ikut mengalir di akhir teks) */
+.aivy-sheet.npx-v2 .npx-inl-line .chev{
+  display: inline-block; width: calc(var(--u) * 20); height: calc(var(--u) * 20); margin-left: calc(var(--u) * 10);
+  vertical-align: calc(var(--u) * -4); color: rgba(255,255,255,.53); -webkit-text-fill-color: currentColor;
+}

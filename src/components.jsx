@@ -1355,7 +1355,7 @@ export function MiniPlayer({ onExpand }) {
     >
       <GlassLayers />
       <span key={`c-${currentTrack.id}`} className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
-        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={40} radius={settings.noRoundCover ? 0 : 6} />
+        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={34} radius={settings.noRoundCover ? 0 : 6} />
       </span>
       <div key={`m-${currentTrack.id}`} className="meta">
         <MarqueeText
@@ -1366,7 +1366,7 @@ export function MiniPlayer({ onExpand }) {
       </div>
       <button className="aivy-icon-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? t("pause") : t("play")}>
         <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
-          {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" />}
+          {isPlaying ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
         </span>
       </button>
       <button
@@ -1374,12 +1374,12 @@ export function MiniPlayer({ onExpand }) {
         onClick={(e) => { e.stopPropagation(); next(false); setPulsing(true); }}
         onAnimationEnd={() => setPulsing(false)}
         aria-label={t("next")}
-      ><SkipForward size={18} fill="currentColor" /></button>
+      ><SkipForward size={16} fill="currentColor" /></button>
       <svg className={`mini-ring ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true" focusable="false">
-        <rect className="track" x="0" y="0" width="100%" height="100%" rx="29" ry="29" pathLength="1" />
+        <rect className="track" x="0" y="0" width="100%" height="100%" rx="25" ry="25" pathLength="1" />
         {loadingAudio
-          ? <rect key="run" className="run" x="0" y="0" width="100%" height="100%" rx="29" ry="29" pathLength="1" />
-          : <rect key="fill" className="fill" x="0" y="0" width="100%" height="100%" rx="29" ry="29" pathLength="1" ref={registerRing} />}
+          ? <rect key="run" className="run" x="0" y="0" width="100%" height="100%" rx="25" ry="25" pathLength="1" />
+          : <rect key="fill" className="fill" x="0" y="0" width="100%" height="100%" rx="25" ry="25" pathLength="1" ref={registerRing} />}
       </svg>
     </div>
   );
@@ -1921,6 +1921,7 @@ function NpxInlineLine({ line, live, leaving, first, reg }) {
       {line.sync
         ? line.words.map((w, k) => <span key={k} className="w" ref={leaving ? undefined : (el) => reg(k, el)}>{w.text}</span>)
         : line.text}
+      <ChevronRight className="chev" aria-hidden="true" />
     </span>
   );
 }
@@ -4285,7 +4286,7 @@ export function MobileDock({ onExpandPlayer }) {
               className={`aivy-tab ${name === route ? "active" : ""} ${shownRoute === route ? "is-shown" : ""}`}
               aria-label={t(labelKey)}
               tabIndex={collapsed && shownRoute !== route ? -1 : undefined}
-            ><Icon size={21} /><span>{t(labelKey)}</span></Link>
+            ><Icon size={19} /><span>{t(labelKey)}</span></Link>
           ))}
         </nav>
       </div>
@@ -4293,7 +4294,7 @@ export function MobileDock({ onExpandPlayer }) {
         <div className="aivy-dock-slot slot-search">
           <Link to="search" className={`aivy-dock-search ${name === "search" ? "active" : ""}`} aria-label={t(searchItem.labelKey)}>
             <GlassLayers />
-            <SearchIcon size={22} />
+            <SearchIcon size={20} />
           </Link>
         </div>
       )}
