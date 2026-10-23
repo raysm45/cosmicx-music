@@ -2784,7 +2784,7 @@ body.aivy-artist-immersive .aivy-player{
   .aivy-am-page .aivy-am-latest .tile-play{ opacity: 1; transform: none; }
 }
 :root{
-  --dock-h: 56px;
+  --dock-h: clamp(56px, 14vw, 64px);
   --dock-gap: 8px;
   --dock-bottom: 10px;
   --dock-ease: cubic-bezier(.22,1,.36,1);
@@ -2823,7 +2823,7 @@ body.aivy-artist-immersive .aivy-player{
 :root[data-glass="blur"][data-theme="white"], :root[data-glass="blur"][data-theme="latte"], :root[data-glass="blur"][data-theme="salmon"], :root[data-glass="blur"][data-theme="premium"]{ --lg-tint: rgba(255,255,255,.55); }
 .aivy-dock{
   /* ringkas & di tengah: lebar dibatasi, bukan memanjang penuh */
-  position: fixed; left: 0; right: 0; margin: 0 auto; width: min(calc(100% - 24px), var(--dock-w, 336px)); z-index: 40;
+  position: fixed; left: 0; right: 0; margin: 0 auto; width: min(calc(100% - 24px), var(--dock-w, 88%)); max-width: 480px; z-index: 40;
   bottom: calc(var(--safe-b) + var(--dock-bottom));
   height: var(--dock-h);
   pointer-events: none;
