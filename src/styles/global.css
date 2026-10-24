@@ -2897,7 +2897,7 @@ body.aivy-artist-immersive .aivy-player{
   mix-blend-mode: overlay;
   background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.32) 33%, rgba(255,255,255,.6) 66%, rgba(255,255,255,0) 100%);
 }
-:root[data-glass="full"][data-glass-fx="1"]{ --lg-blur: 3px; }
+:root[data-glass="full"][data-glass-fx="1"]{ --lg-blur: 0px; }
 :root[data-glass-fx="0"]{ --lg-blur: 12px; }
 :root[data-glass="blur"] .lg-warp{ backdrop-filter: blur(var(--lg-blur)); -webkit-backdrop-filter: blur(var(--lg-blur)); }
 :root[data-glass="blur"] .lg-rim{ mix-blend-mode: normal; opacity: .32; }

@@ -572,8 +572,8 @@ export function SettingsPage() {
         <ToggleRow
           label="Liquid Glass"
           hint={tt(
-            "Aktif: dock bawah memakai kaca dengan efek refraksi (tepinya membelokkan latar). Nonaktif: blur biasa. Refraksi hanya tampil di Chrome/Edge/Android; browser lain tetap memakai kaca bening. Kalau terasa berat, matikan.",
-            "On: the bottom dock uses glass with a refraction effect (edges bend the background). Off: plain blur. Refraction only shows in Chrome/Edge/Android; other browsers use clear glass. Turn it off if it feels slow."
+            "Aktif: dock dan pemutar memakai kaca cair dengan distorsi dan aberasi kromatik (warna terpisah di bagian yang melengkung). Nonaktif: blur biasa. Efek distorsi hanya tampil di Chrome/Edge/Android; browser lain tetap memakai kaca bening. Kalau terasa berat, matikan.",
+            "On: the dock and player use liquid glass with distortion and chromatic aberration (colors split where the glass bends). Off: plain blur. The distortion only shows in Chrome/Edge/Android; other browsers use clear glass. Turn it off if it feels slow."
           )}
           checked={settings.liquidGlass !== false}
           onChange={set("liquidGlass")}

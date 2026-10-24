@@ -22,7 +22,8 @@ import { peekArtistProfile, loadArtistProfile, loadTrackArtists, menuArtists } f
 import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
 import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
-import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
+import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
+import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
 import { unifyAudioInfoFields, formatBadgeText, describeQuality } from "./lib/audioFormat.js";
 import { openDownload } from "./DownloadSheet.jsx";
@@ -1240,15 +1241,10 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
     if (!refract || !el) { setLg("off"); return undefined; }
     let tm = 0;
     const regen = () => {
-      const img = el.querySelector("#lg-player feImage");
+      const flt = el.querySelector("#lg-player");
       const w = el.offsetWidth, h = el.offsetHeight;
-      if (!img || w < 8 || h < 8) return;
-      const radius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || h / 2;
-      const url = makeDisplacementMap(w, h, Math.min(26, Math.round(h * 0.45)), radius);
-      if (!url) return;
-      img.setAttribute("href", url);
-      img.setAttribute("width", String(w));
-      img.setAttribute("height", String(h));
+      if (!flt || w < 8 || h < 8) return;
+      applyLiquidFilter(flt, w, h);
       setLg("ready");
     };
     const onSize = () => {
@@ -4133,27 +4129,11 @@ const LG_SURFACES = [
 ];
 const LG_DOCK_IDS = LG_SURFACES.map(([, id]) => id);
 const LG_PLAYER_IDS = ["lg-player"];
-const LG_PX = 24;
-const LG_ABER = 0.08;
-
 const LiquidGlassDefs = React.memo(function LiquidGlassDefs({ ids = LG_DOCK_IDS }) {
-  const S = LG_PX * 2;
   return (
     <svg width="0" height="0" style={{ position: "absolute", pointerEvents: "none" }} aria-hidden="true" focusable="false">
       <defs>
-        {ids.map((id) => (
-          <filter key={id} id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
-            <feImage x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map" />
-            <feDisplacementMap in="SourceGraphic" in2="map" scale={S} xChannelSelector="R" yChannelSelector="B" result="dr" />
-            <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
-            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="dg" />
-            <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
-            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - 2 * LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="db" />
-            <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
-            <feBlend in="cg" in2="cb" mode="screen" result="gb" />
-            <feBlend in="cr" in2="gb" mode="screen" />
-          </filter>
-        ))}
+        {ids.map((id) => <LiquidFilter key={id} id={id} />)}
       </defs>
     </svg>
   );
@@ -4211,15 +4191,11 @@ export function MobileDock({ onExpandPlayer }) {
     let ok = false;
     for (const [sel, id] of LG_SURFACES) {
       const el = dock.querySelector(sel);
-      const img = dock.querySelector(`#${id} feImage`);
-      if (!el || !img) continue;
+      const flt = dock.querySelector(`#${id}`);
+      if (!el || !flt) continue;
       const w = el.offsetWidth, h = el.offsetHeight;
       if (w < 8 || h < 8) continue;
-      const url = makeDisplacementMap(w, h, Math.min(26, Math.round(h * 0.45)));
-      if (!url) continue;
-      img.setAttribute("href", url);
-      img.setAttribute("width", String(w));
-      img.setAttribute("height", String(h));
+      applyLiquidFilter(flt, w, h);
       ok = true;
     }
     if (ok) setLgReady(true);

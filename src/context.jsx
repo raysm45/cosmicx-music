@@ -154,7 +154,7 @@ const DEFAULT_SETTINGS = {
   artistBanners: true,
   reducedMotion: false,
   highContrast: false,
-  liquidGlass: !isLowEndDevice(),
+  liquidGlass: true,
 
   waveformSeekbar: false,
   coverBackground: true,

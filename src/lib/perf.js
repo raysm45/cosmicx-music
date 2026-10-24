@@ -57,7 +57,7 @@ export function readCachedLiquidGlass() {
       if (v === true || v === false) return v;
     }
   } catch {}
-  return !isLowEndDevice();
+  return true;
 }
 
 export function applyLiquidGlass(enabled) {

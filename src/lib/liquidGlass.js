@@ -44,3 +44,18 @@ export function makeDisplacementMap(w, h, bezel, radius) {
   mapCache.set(key, url);
   return url;
 }
+
+// Liquid glass final (turbulence + kromatik). Nilai acuan dari kaca 200x200: distorsi 183, frekuensi 0.01,
+// merah/biru digeser 2.5px berlawanan. Untuk elemen yang lebih kecil/besar, skala & frekuensi disesuaikan.
+export const LQ = { freq: 0.01, seed: 5, scale: 183, shift: 2.5, ref: 200 };
+
+export function applyLiquidFilter(filter, w, h) {
+  if (!filter || !w || !h) return;
+  const k = Math.min(w, h) / LQ.ref;
+  const turb = filter.querySelector('[data-lq="turb"]');
+  if (turb) turb.setAttribute("baseFrequency", `${(LQ.freq * LQ.ref / w).toFixed(5)} ${(LQ.freq * LQ.ref / h).toFixed(5)}`);
+  const soft = filter.querySelector('[data-lq="soft"]');
+  if (soft) soft.setAttribute("stdDeviation", Math.max(0.6, 3 * k).toFixed(2));
+  const sc = String(Math.max(14, Math.round(LQ.scale * k)));
+  filter.querySelectorAll('[data-lq="d"]').forEach((n) => n.setAttribute("scale", sc));
+}

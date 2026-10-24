@@ -10,7 +10,8 @@ import { useRouter } from "./router.jsx";
 import { AnimatedCover } from "./lib/brand.jsx";
 import { formatTime, cleanTrackTitleForLyrics, hashStr } from "./lib/utils.js";
 import { lyricPhase } from "./lib/presenceLyrics.js";
-import { makeDisplacementMap, supportsRefraction } from "./lib/liquidGlass.js";
+import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
+import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import {
   Scrubber, VolumeControl, MarqueeText, AppleLyricsPane, normLyricsFontSize,
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
@@ -303,8 +304,6 @@ function useCoverSwipe({ onNext, onPrev, disabled }) {
   };
 }
 
-const NPD_LG_PX = 24;
-const NPD_LG_ABER = 0.08;
 const NPD_LG_SURFACES = [
   [".npd-round", "npd-lg-round", 44, 44],
   [".npd-seg", "npd-lg-seg", 130, 44],
@@ -312,23 +311,10 @@ const NPD_LG_SURFACES = [
 ];
 
 const NpdGlassDefs = React.memo(function NpdGlassDefs() {
-  const S = NPD_LG_PX * 2;
   return (
     <svg width="0" height="0" style={{ position: "absolute", pointerEvents: "none" }} aria-hidden="true" focusable="false">
       <defs>
-        {NPD_LG_SURFACES.map(([, id]) => (
-          <filter key={id} id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
-            <feImage x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map" />
-            <feDisplacementMap in="SourceGraphic" in2="map" scale={S} xChannelSelector="R" yChannelSelector="B" result="dr" />
-            <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
-            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - NPD_LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="dg" />
-            <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
-            <feDisplacementMap in="SourceGraphic" in2="map" scale={S * (1 - 2 * NPD_LG_ABER)} xChannelSelector="R" yChannelSelector="B" result="db" />
-            <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
-            <feBlend in="cg" in2="cb" mode="screen" result="gb" />
-            <feBlend in="cr" in2="gb" mode="screen" />
-          </filter>
-        ))}
+        {NPD_LG_SURFACES.map(([, id]) => <LiquidFilter key={id} id={id} />)}
       </defs>
     </svg>
   );
@@ -344,16 +330,12 @@ function useNpdGlass(rootRef, enabled, hasTrack, queueMode) {
       raf = 0;
       let ok = false;
       for (const [sel, id, fw, fh] of NPD_LG_SURFACES) {
-        const img = root.querySelector(`#${id} feImage`);
-        if (!img) continue;
+        const flt = root.querySelector(`#${id}`);
+        if (!flt) continue;
         const el = root.querySelector(sel);
         const w = (el && el.offsetWidth) || fw;
         const h = (el && el.offsetHeight) || fh;
-        const url = makeDisplacementMap(w, h, Math.min(26, Math.round(h * 0.45)));
-        if (!url) continue;
-        img.setAttribute("href", url);
-        img.setAttribute("width", String(w));
-        img.setAttribute("height", String(h));
+        applyLiquidFilter(flt, w, h);
         ok = true;
       }
       if (ok) setReady(true);
