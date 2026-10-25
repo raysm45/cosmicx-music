@@ -215,17 +215,24 @@ function migrateSettings(obj) {
   if (next.visualizerPreset === "matrix") next.visualizerPreset = "auto";
   return next;
 }
+// Migrasi sekali: pengguna yang sebelumnya tersimpan liquidGlass=false (default lama untuk perangkat low-end)
+// dinyalakan ulang. Setelah ada penyimpanan pertama, pilihan pengguna dihormati lagi.
+const LG_FLAG = "aivy_lg_v2";
+function forceLiquidGlassOnce(obj) {
+  try { if (localStorage.getItem(LG_FLAG)) return obj; } catch { return obj; }
+  return obj.liquidGlass === true ? obj : { ...obj, liquidGlass: true };
+}
 function loadCachedSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return DEFAULT_SETTINGS;
-    return migrateSettings({ ...DEFAULT_SETTINGS, ...parsed });
+    return forceLiquidGlassOnce(migrateSettings({ ...DEFAULT_SETTINGS, ...parsed }));
   } catch { return DEFAULT_SETTINGS; }
 }
 function saveCachedSettings(s) {
-  try { localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(s)); } catch {}
+  try { localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(s)); localStorage.setItem(LG_FLAG, "1"); } catch {}
 }
 
 export function UIProvider({ children }) {
@@ -262,7 +269,9 @@ export function UIProvider({ children }) {
     Api.getSettings()
       .then((s) => {
         const local = loadCachedSettings();
-        const merged = migrateSettings({ ...DEFAULT_SETTINGS, ...local, ...(s || {}) });
+        const base = migrateSettings({ ...DEFAULT_SETTINGS, ...local, ...(s || {}) });
+        const merged = forceLiquidGlassOnce(base);
+        if (merged.liquidGlass !== base.liquidGlass) Api.putSettings({ liquidGlass: true }).catch(() => {});
         setSettings(merged);
         saveCachedSettings(merged);
         setTheme(typeof merged.theme === "string" && merged.theme && merged.theme !== "dark" ? merged.theme : "black");
