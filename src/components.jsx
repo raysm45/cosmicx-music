@@ -2299,11 +2299,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const meshEnabled = settings.coverBackground !== false;
   const meshPalette = useCoverPalette(meshEnabled ? currentTrack?.cover : null, serverDominantColor || clientDynamicColor);
-  // Cover edge-to-edge hanya kalau tidak bentrok dengan mode CD spin / tilt (keduanya butuh cover berdiri sendiri).
   const isBleed = !settings.cdCoverSpin && !settings.tiltCover;
   const [queueMode, setQueueMode] = useState(false);
   const [qCollapsed, setQCollapsed] = useState(false);
-  // Mode lirik: panel kontrol (durasi, transport, volume) ketutup ke bawah; handle di bawah membukanya lagi.
   const [lyrCtrlOpen, setLyrCtrlOpen] = useState(true);
   const [opening, setOpening] = useState(false);
   const playingFrom = playSource?.label ? `${t("npPlayingFrom")} ${playSource.label}` : (playSource?.type === "search" ? `${t("npPlayingFrom")} ${t("search", "Search")}` : t("nowPlaying"));
@@ -2311,7 +2309,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
   const formatLabel = audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null;
-  // Detail FLAC pada badge: "FLAC · 44.1k/16" — data dari audio-info (cache per videoId)
   const techInfo = useTrackAudioInfo(currentTrack);
   const techFormat = unifyAudioInfoFields(techInfo);
   const formatBadge = formatLabel ? formatBadgeText(formatLabel, techFormat) : null;
@@ -2949,11 +2946,6 @@ export function useTrackAudioInfo(track) {
   return info;
 }
 
-/**
- * Label format/codec ala Apple Music, ditaruh di bawah bar durasi.
- * Lossless -> "Lossless" / "Hi-Res Lossless" + detail (FLAC \u00b7 44.1 kHz \u00b7 16-bit)
- * Lossy    -> nama codec + bitrate (AAC \u00b7 128 kbps)
- */
 export function QualityPill({ track, fallbackLabel = null, className = "" }) {
   const { audioFormat } = usePlayer();
   const info = useTrackAudioInfo(track);
@@ -3004,7 +2996,6 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
   const rows = [
     { label: t("detailQuality"), value: isPreviewClip ? t("detailQualityPreview") : t("detailQualityFull") },
     { label: t("detailCodec"), value: val(format?.codec ? format.codec.toUpperCase() : null) },
-    // Baris khusus FLAC lossless
     ...(isFlac ? [{ label: t("detailLossless"), value: val(format?.lossless ? t("detailYes") : t("detailNo")) }] : []),
     { label: t("detailSampleRate"), value: val(format?.sampleRateHz ? `${(format.sampleRateHz / 1000).toFixed(1)} kHz (${format.sampleRateHz} Hz)` : null) },
     ...(isFlac ? [
@@ -3016,7 +3007,6 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
     { label: t("detailBitrate"), value: val(format?.bitrateKbps, " Kbps") },
     { label: t("detailFileSize"), value: filesizeValue },
     ...(isFlac && (loadingInfo || format?.sha256) ? [{ label: t("detailSha256"), value: val(format ? shortenSha256(format.sha256) : null) }] : []),
-    // Khusus YouTube (bukan FLAC)
     ...(!isFlac ? [
       { label: t("detailMimeType"), value: val(format?.mimeType) },
       { label: t("detailItag"), value: val(format?.itag) },

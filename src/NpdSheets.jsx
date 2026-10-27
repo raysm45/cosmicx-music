@@ -236,7 +236,6 @@ export function AudioPipelineCard({ track, tx, onClose }) {
   let resampler = DASH;
   if (srcRate && outRate) resampler = srcRate === outRate ? tx("Tanpa konversi", "No conversion") : `${khz(srcRate)} \u2192 ${khz(outRate)}`;
 
-  // Baris khusus FLAC lossless pada bagian SUMBER
   const flacRows = format?.flac ? [
     [tx("Lossless", "Lossless"), format.lossless ? on : off],
     [tx("Kedalaman bit", "Bit depth"), format.bitsPerSample ? `${format.bitsPerSample} bit` : DASH],
