@@ -192,6 +192,17 @@ export class ErrorBoundary extends Component {
   }
 }
 
+/* Boundary ringan untuk potongan UI kosmetik (mis. lirik satu baris): kalau error, cukup hilang, bukan menjatuhkan seluruh aplikasi. */
+class SoftBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null, key: props.resetKey }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  static getDerivedStateFromProps(props, state) {
+    return props.resetKey !== state.key ? { error: null, key: props.resetKey } : null;
+  }
+  componentDidCatch(error) { console.error("cosmicx soft-fail:", error); }
+  render() { return this.state.error ? (this.props.fallback ?? null) : this.props.children; }
+}
+
 function seededRand(seed) {
   let h = 0;
   const s = String(seed || "x");
@@ -2005,8 +2016,10 @@ function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
     return () => { cancelAnimationFrame(raf); clearTimeout(leaveTimer); };
   }, [disabled, active, lines, trackKey]);
 
-  if (disabled || !lines.length || view.i < 0) return <div className="npx-inl is-empty" />;
-  const line = lines[view.i];
+  // view.i bisa sesaat tertinggal dari `lines` (mis. ganti lagu / lirik diganti sumber lain dengan jumlah baris lebih sedikit).
+  // Jangan pernah mengakses lines[view.i] tanpa cek: efek rAF di atas yang akan menyelaraskan indeksnya di frame berikutnya.
+  const line = view.i >= 0 ? lines[view.i] : null;
+  if (disabled || !lines.length || !line) return <div className="npx-inl is-empty" />;
   const gone = leaving && lines[leaving.i];
   return (
     <button type="button" className="npx-inl" onClick={onOpen} aria-label={line.text}>
@@ -2641,7 +2654,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
             <NpxQueueView active={queueMode} currentTrack={currentTrack} onCollapse={setQCollapsed} />
 
             <div className="npx-top-controls npx-controls" ref={controlsRef}>
-              <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open && !opening} onOpen={handleLyricsToggle} trackKey={trackKey} />
+              <SoftBoundary resetKey={trackKey} fallback={<div className="npx-inl is-empty" />}>
+                <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open && !opening} onOpen={handleLyricsToggle} trackKey={trackKey} />
+              </SoftBoundary>
               {mode !== "player" && (
                 <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
               )}
