@@ -571,10 +571,6 @@ export function SettingsPage() {
       <SettingSection title={tt("Efek Kaca", "Glass Effect")}>
         <ToggleRow
           label="Liquid Glass"
-          hint={tt(
-            "Aktif: dock dan pemutar memakai kaca cair dengan distorsi dan aberasi kromatik (warna terpisah di bagian yang melengkung). Nonaktif: blur biasa. Efek distorsi hanya tampil di Chrome/Edge/Android; browser lain tetap memakai kaca bening. Kalau terasa berat, matikan.",
-            "On: the dock and player use liquid glass with distortion and chromatic aberration (colors split where the glass bends). Off: plain blur. The distortion only shows in Chrome/Edge/Android; other browsers use clear glass. Turn it off if it feels slow."
-          )}
           checked={settings.liquidGlass !== false}
           onChange={set("liquidGlass")}
         />
@@ -593,7 +589,7 @@ export function SettingsPage() {
           value={Math.max(0, ["sm", "md", "lg", "xl", "max"].indexOf(settings.lyricsFontSize || "md"))} min={0} max={4} step={1}
           onChange={(v) => set("lyricsFontSize")(["sm", "md", "lg", "xl", "max"][v] || "md")}
           format={(v) => [tt("Kecil", "Small"), tt("Sedang", "Medium"), tt("Besar", "Large"), tt("XL", "XL"), tt("3 baris", "3 lines")][v]} />
-        <ToggleRow label={tt("Sampul animasi (Now Playing & Lirik)", "Animated Artwork")} hint={tt("Cari video sampul album animasi (kalau tersedia) di layar Now Playing dan tampilan lirik desktop; sampul statis tetap tampil dulu sampai animasinya siap diputar. Pakai data ekstra.", "Looks up an animated album cover video when available on the Now Playing screen and the desktop lyrics view; the static cover always shows first until the animation is ready to play. Uses extra data.")} checked={!!settings.animatedArtwork} onChange={set("animatedArtwork")} />
+        <ToggleRow label={tt("Sampul animasi", "Animated Artwork")} checked={!!settings.animatedArtwork} onChange={set("animatedArtwork")} />
       </SettingSection>
 
       <SettingSection title="Visualizer" desc={tt("Visualizer canvas ringan berbasis Web Audio — gaya Butterchurn/Kawarp di sini adalah interpretasi kustom, bukan library Milkdrop asli.", "A lightweight Web-Audio canvas visualizer — the Butterchurn/Kawarp styles here are custom interpretations, not the original Milkdrop library.")}>
@@ -676,15 +672,15 @@ export function SettingsPage() {
   const renderAudio = () => (
     <>
       <SettingSection title={tt("Streaming", "Streaming")}>
-        <SelectRow label={tt("Kualitas audio", "Audio quality")} hint={tt("Pratinjau: 30 detik resmi dari Deezer. Penuh: eksperimental lewat YouTube.", "Preview: official 30s from Deezer. Full: experimental via YouTube.")}
+        <SelectRow label={tt("Kualitas audio", "Audio quality")}
           value={settings.audioQuality || "preview"} onChange={set("audioQuality")}
-          options={[{ value: "preview", label: tt("Pratinjau (disarankan)", "Preview (recommended)") }, { value: "full", label: tt("Penuh (eksperimental)", "Full (experimental)") }]} />
-        <SelectRow label={tt("Format audio", "Audio format")} hint={tt("Berlaku untuk pemutaran Penuh. FLAC: sumber lossless via stream.py (butuh judul+artis), fallback transcode YouTube — putaran pertama lebih lama karena disiapkan dulu.", "Applies to Full playback. FLAC: lossless source via stream.py (needs title+artist), falls back to YouTube transcode — first play is slower while it prepares the file.")}
+          options={[{ value: "preview", label: tt("Pratinjau", "Preview") }, { value: "full", label: tt("Penuh", "Full") }]} />
+        <SelectRow label={tt("Format audio", "Audio format")} 
           value={settings.audioFormat || "opus"} onChange={set("audioFormat")}
           options={[
             { value: "aac", label: tt("AAC (m4a \u00b7 128kbps)", "AAC (m4a \u00b7 128kbps)") },
             { value: "opus", label: tt("OPUS (webm \u00b7 160kbps)", "OPUS (webm \u00b7 160kbps)") },
-            { value: "flac", label: tt("FLAC (lossless)", "FLAC (lossless)") },
+            { value: "flac", label: tt("lossless", "lossless") },
           ]} />
       </SettingSection>
 
