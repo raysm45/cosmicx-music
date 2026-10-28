@@ -1244,7 +1244,7 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
 
-  const refract = settings?.liquidGlass !== false && supportsRefraction();
+  const refract = settings?.liquidGlass === true && supportsRefraction();
   const barRef = useRef(null);
   const [lg, setLg] = useState("off");
   useEffect(() => {
@@ -4224,7 +4224,7 @@ export function MobileDock({ onExpandPlayer }) {
   const hasTrack = !!currentTrack;
   const [collapsed, setDock] = useDockCollapse(name, hasTrack);
   const dockRef = useRef(null);
-  const refract = settings?.liquidGlass !== false && supportsRefraction();
+  const refract = settings?.liquidGlass === true && supportsRefraction();
   const [lgReady, setLgReady] = useState(false);
   useEffect(() => { if (!refract) setLgReady(false); }, [refract]);
   const regen = useCallback(() => {

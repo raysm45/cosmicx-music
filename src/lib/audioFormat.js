@@ -85,7 +85,7 @@ export function clearAudioFormatCache(url) {
 export function getPreferredAudioQuality() {
   return "high";
 }
-let preferredFormat = "opus";
+let preferredFormat = "flac";
 const VALID_FORMATS = ["aac", "opus", "flac"];
 
 export function setPreferredAudioFormat(format) {

@@ -414,3 +414,10 @@ button.npd-row:disabled{ opacity: .45; cursor: default; }
   .npd-round, .npd-seg, .npd-chip, .npd-mini{ background: rgba(58,58,58,.88); }
   .npd .lg-warp{ backdrop-filter: none; -webkit-backdrop-filter: none; filter: none !important; }
 }
+/* Hapus overlay putih/border pada kartu queue (menimpa body.aivy-artist-immersive :is(.aivy-queue-row) di global.css) */
+body .npd .npd-queue-scroll .aivy-queue-row,
+body.aivy-artist-immersive .npd .npd-queue-scroll .aivy-queue-row{ background: transparent; border: none; }
+body .npd .npd-queue-scroll .aivy-queue-row:hover,
+body.aivy-artist-immersive .npd .npd-queue-scroll .aivy-queue-row:hover{ background: rgba(255,255,255,.08); }
+body .npd .npd-queue-scroll .aivy-queue-row.is-dragging,
+body.aivy-artist-immersive .npd .npd-queue-scroll .aivy-queue-row.is-dragging{ background: rgba(255,255,255,.18); }

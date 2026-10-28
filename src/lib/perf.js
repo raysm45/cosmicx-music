@@ -51,19 +51,19 @@ import { supportsRefraction } from "./liquidGlass.js";
 const SETTINGS_CACHE_KEY = "aivy_settings_cache_v1";
 export function readCachedLiquidGlass() {
   try {
-    if (!localStorage.getItem("aivy_lg_v2")) return true;
+    if (!localStorage.getItem("aivy_lg_v2")) return false;
     const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
     if (raw) {
       const v = JSON.parse(raw)?.liquidGlass;
       if (v === true || v === false) return v;
     }
   } catch {}
-  return true;
+  return false;
 }
 
 export function applyLiquidGlass(enabled) {
   if (typeof document === "undefined") return;
-  const on = enabled !== false;
+  const on = enabled === true;
   const root = document.documentElement;
   root.dataset.glass = on ? "full" : "blur";
   root.dataset.glassFx = on && supportsRefraction() ? "1" : "0";

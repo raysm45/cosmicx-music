@@ -465,7 +465,7 @@ export function SettingsPage() {
         <SelectRow
           label={tt("Bahasa Aplikasi", "App Language")}
           hint={tt("Mengubah semua teks di aplikasi", "Changes all text throughout the app")}
-          value={settings.language || "id"}
+          value={settings.language || "en"}
           onChange={set("language")}
           options={[
             { value: "id", label: "Bahasa Indonesia" },
@@ -571,7 +571,7 @@ export function SettingsPage() {
       <SettingSection title={tt("Efek Kaca", "Glass Effect")}>
         <ToggleRow
           label="Liquid Glass"
-          checked={settings.liquidGlass !== false}
+          checked={settings.liquidGlass === true}
           onChange={set("liquidGlass")}
         />
       </SettingSection>
@@ -673,10 +673,10 @@ export function SettingsPage() {
     <>
       <SettingSection title={tt("Streaming", "Streaming")}>
         <SelectRow label={tt("Kualitas audio", "Audio quality")}
-          value={settings.audioQuality || "preview"} onChange={set("audioQuality")}
+          value={settings.audioQuality || "full"} onChange={set("audioQuality")}
           options={[{ value: "preview", label: tt("Pratinjau", "Preview") }, { value: "full", label: tt("Penuh", "Full") }]} />
         <SelectRow label={tt("Format audio", "Audio format")} 
-          value={settings.audioFormat || "opus"} onChange={set("audioFormat")}
+          value={settings.audioFormat || "flac"} onChange={set("audioFormat")}
           options={[
             { value: "aac", label: tt("AAC (m4a \u00b7 128kbps)", "AAC (m4a \u00b7 128kbps)") },
             { value: "opus", label: tt("MP3 \u00b7 320kbps", "MP3 \u00b7 320kbps") },

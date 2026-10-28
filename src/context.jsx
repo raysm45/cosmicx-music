@@ -134,8 +134,8 @@ function readSavedOutputDevice() {
 }
 
 const DEFAULT_SETTINGS = {
-  audioQuality: "preview",
-  audioFormat: "opus",
+  audioQuality: "full",
+  audioFormat: "flac",
   autoplay: true,
   crossfadeSeconds: 0,
   volumeDefault: 0.7,
@@ -145,7 +145,7 @@ const DEFAULT_SETTINGS = {
 
   theme: defaultThemeForSeason(),
   customThemeCss: "",
-  language: "id",
+  language: "en",
   fontFamily: "default",
   fontUrl: "",
   fontScale: 100,
@@ -155,7 +155,7 @@ const DEFAULT_SETTINGS = {
   artistBanners: true,
   reducedMotion: false,
   highContrast: false,
-  liquidGlass: true,
+  liquidGlass: false,
 
   waveformSeekbar: false,
   coverBackground: true,
@@ -220,8 +220,7 @@ function migrateSettings(obj) {
 // dinyalakan ulang. Setelah ada penyimpanan pertama, pilihan pengguna dihormati lagi.
 const LG_FLAG = "aivy_lg_v2";
 function forceLiquidGlassOnce(obj) {
-  try { if (localStorage.getItem(LG_FLAG)) return obj; } catch { return obj; }
-  return obj.liquidGlass === true ? obj : { ...obj, liquidGlass: true };
+  return obj;
 }
 function loadCachedSettings() {
   try {
@@ -272,7 +271,6 @@ export function UIProvider({ children }) {
         const local = loadCachedSettings();
         const base = migrateSettings({ ...DEFAULT_SETTINGS, ...local, ...(s || {}) });
         const merged = forceLiquidGlassOnce(base);
-        if (merged.liquidGlass !== base.liquidGlass) Api.putSettings({ liquidGlass: true }).catch(() => {});
         setSettings(merged);
         saveCachedSettings(merged);
         setTheme(typeof merged.theme === "string" && merged.theme && merged.theme !== "dark" ? merged.theme : "black");
