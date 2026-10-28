@@ -679,7 +679,7 @@ export function SettingsPage() {
           value={settings.audioFormat || "opus"} onChange={set("audioFormat")}
           options={[
             { value: "aac", label: tt("AAC (m4a \u00b7 128kbps)", "AAC (m4a \u00b7 128kbps)") },
-            { value: "opus", label: tt("OPUS (webm \u00b7 160kbps)", "OPUS (webm \u00b7 160kbps)") },
+            { value: "opus", label: tt("MP3 \u00b7 320kbps", "MP3 \u00b7 320kbps") },
             { value: "flac", label: tt("lossless", "lossless") },
           ]} />
       </SettingSection>
