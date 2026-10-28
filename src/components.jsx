@@ -1331,15 +1331,16 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   );
 }
 
+// MiniPlayer mobile: ringan (tanpa GlassLayers/MarqueeText/SVG ring), GPU scaleX progress + scaleY eq
 export function MiniPlayer({ onExpand }) {
   const { currentTrack, isPlaying, togglePlay, next, loadingAudio, registerProgressEl } = usePlayer();
   const { t, settings } = useUI();
   const [pulsing, setPulsing] = useState(false);
   const miniRef = useRef(null);
-  const ringCleanupRef = useRef(null);
-  const registerRing = useCallback((el) => {
-    ringCleanupRef.current?.();
-    ringCleanupRef.current = el ? registerProgressEl(el, "ring") : null;
+  const fillCleanupRef = useRef(null);
+  const registerFill = useCallback((el) => {
+    fillCleanupRef.current?.();
+    fillCleanupRef.current = el ? registerProgressEl(el, "width") : null;
   }, [registerProgressEl]);
   const justDragged = useRef(false);
   const handleExpand = () => onExpand?.();
@@ -1351,7 +1352,7 @@ export function MiniPlayer({ onExpand }) {
   }, []);
   const swipe = useVerticalSwipe({
     active: !!currentTrack, direction: "up", onTrigger: handleExpand, dragRef: miniRef,
-    threshold: 64, velocityThreshold: 0.35, moveSelf: false,
+    threshold: 56, velocityThreshold: 0.32, moveSelf: false,
     onDragStart: sheetPeekStart, onDragMove: sheetPeekMove, onDragEnd: handleDragEnd,
   });
   if (!currentTrack) return null;
@@ -1360,34 +1361,33 @@ export function MiniPlayer({ onExpand }) {
       className={`aivy-mini-player ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleClick} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
       onPointerDown={swipe.onPointerDown} onPointerMove={swipe.onPointerMove} onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
     >
-      <GlassLayers />
       <span key={`c-${currentTrack.id}`} className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
-        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={40} radius={settings.noRoundCover ? 0 : 6} />
+        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={36} radius={settings.noRoundCover ? 4 : 9} />
       </span>
       <div key={`m-${currentTrack.id}`} className="meta">
-        <MarqueeText
-          as="span" className="t" text={currentTrack.title}
-          prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
-        />
+        <div className="t-row">
+          <span className="mini-eq" aria-hidden="true"><i /><i /><i /></span>
+          {currentTrack.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+          <span className="t">{currentTrack.title}</span>
+        </div>
         <span className="a">{currentTrack.artist?.name}</span>
       </div>
-      <button className="aivy-icon-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? t("pause") : t("play")}>
-        <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
-          {isPlaying ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" />}
-        </span>
-      </button>
-      <button
-        className={`aivy-icon-btn skip-next ${pulsing ? "is-pulsing" : ""}`}
-        onClick={(e) => { e.stopPropagation(); next(false); setPulsing(true); }}
-        onAnimationEnd={() => setPulsing(false)}
-        aria-label={t("next")}
-      ><SkipForward size={18} fill="currentColor" /></button>
-      <svg className={`mini-ring ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true" focusable="false">
-        <rect className="track" x="0" y="0" width="100%" height="100%" rx="28" ry="28" pathLength="1" />
-        {loadingAudio
-          ? <rect key="run" className="run" x="0" y="0" width="100%" height="100%" rx="28" ry="28" pathLength="1" />
-          : <rect key="fill" className="fill" x="0" y="0" width="100%" height="100%" rx="28" ry="28" pathLength="1" ref={registerRing} />}
-      </svg>
+      <div className="mini-controls">
+        <button className="aivy-icon-btn play-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? t("pause") : t("play")}>
+          <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
+            {isPlaying ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
+          </span>
+        </button>
+        <button
+          className={`aivy-icon-btn skip-next ${pulsing ? "is-pulsing" : ""}`}
+          onClick={(e) => { e.stopPropagation(); next(false); setPulsing(true); }}
+          onAnimationEnd={() => setPulsing(false)}
+          aria-label={t("next")}
+        ><SkipForward size={17} fill="currentColor" /></button>
+      </div>
+      <div className={`mini-progress ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true">
+        <span className="fill" ref={registerFill} />
+      </div>
     </div>
   );
 }
@@ -4180,8 +4180,7 @@ const LiquidGlassDefs = React.memo(function LiquidGlassDefs({ ids = LG_DOCK_IDS 
     </svg>
   );
 });
-// harus >= transisi terlama dock (durasi 520ms + delay terbesar 90ms) + sedikit margin
-const DOCK_MORPH_MS = 680;
+// MobileDock: Stacked Monolith Deck (GPU translate3d/opacity, tanpa SVG displacement filter)
 function useDockCollapse(routeName, enabled) {
   const [collapsed, setCollapsed] = useState(false);
   const stateRef = useRef(false);
@@ -4203,12 +4202,12 @@ function useDockCollapse(routeName, enabled) {
       const y = Math.max(0, el.scrollTop);
       const dy = y - lastY;
       lastY = y;
-      if (y <= 8) { acc = 0; set(false); return; }
+      if (y <= 12) { acc = 0; set(false); return; }
       if (Math.abs(dy) < 1) return;
       if ((dy > 0) !== (acc > 0)) acc = 0;
       acc += dy;
-      if (acc > 28 && y > 56) set(true);
-      else if (acc < -14) set(false);
+      if (acc > 32 && y > 60) set(true);
+      else if (acc < -10) set(false);
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(run); };
     el.addEventListener("scroll", onScroll, { passive: true });
@@ -4222,100 +4221,42 @@ export function MobileDock({ onExpandPlayer }) {
   const { t, settings } = useUI();
   const { currentTrack } = usePlayer();
   const hasTrack = !!currentTrack;
-  const [collapsed, setDock] = useDockCollapse(name, hasTrack);
-  const dockRef = useRef(null);
-  const refract = settings?.liquidGlass === true && supportsRefraction();
-  const [lgReady, setLgReady] = useState(false);
-  useEffect(() => { if (!refract) setLgReady(false); }, [refract]);
-  const regen = useCallback(() => {
-    const dock = dockRef.current;
-    if (!dock || !refract) return;
-    let ok = false;
-    for (const [sel, id] of LG_SURFACES) {
-      const el = dock.querySelector(sel);
-      const flt = dock.querySelector(`#${id}`);
-      if (!el || !flt) continue;
-      const w = el.offsetWidth, h = el.offsetHeight;
-      if (w < 8 || h < 8) continue;
-      applyLiquidFilter(flt, w, h);
-      ok = true;
-    }
-    if (ok) setLgReady(true);
-  }, [refract]);
+  const [collapsed] = useDockCollapse(name, hasTrack);
 
-  useEffect(() => {
-    const id = requestAnimationFrame(regen);
-    return () => cancelAnimationFrame(id);
-  }, [regen, hasTrack]);
-  useEffect(() => {
-    let tm;
-    const on = () => { clearTimeout(tm); tm = setTimeout(regen, 160); };
-    window.addEventListener("resize", on);
-    return () => { clearTimeout(tm); window.removeEventListener("resize", on); };
-  }, [regen]);
-  const [morphing, setMorphing] = useState(false);
-  const firstRun = useRef(true);
-  const regenRef = useRef(regen);
-  regenRef.current = regen;
-  // useLayoutEffect: kelas is-morphing (filter SVG mati + will-change) terpasang SEBELUM frame pertama transisi,
-  // bukan 1 frame sesudahnya, jadi tidak ada lonjakan raster di awal animasi.
-  useLayoutEffect(() => {
-    if (firstRun.current) { firstRun.current = false; return undefined; }
-    setMorphing(true);
-    let raf = 0;
-    const id = setTimeout(() => { regenRef.current(); raf = requestAnimationFrame(() => setMorphing(false)); }, DOCK_MORPH_MS);
-    return () => { clearTimeout(id); if (raf) cancelAnimationFrame(raf); };
-  }, [collapsed]);
-
-  const items = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
-  const searchItem = items.find((i) => i.route === "search");
-  const tabItems = items.filter((i) => i.route !== "search");
+  const tabItems = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
   const activeTabIdx = tabItems.findIndex((i) => i.route === name);
-  const shownRoute = tabItems.some((i) => i.route === name) ? name : tabItems[0]?.route;
-  const SearchIcon = searchItem?.icon;
-  const onNavClickCapture = (e) => {
-    if (!collapsed) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setDock(false);
-  };
 
   return (
-    <div
-      ref={dockRef}
-      className={`aivy-dock ${collapsed ? "is-collapsed" : ""} ${morphing ? "is-morphing" : ""} ${refract && lgReady ? "lg-ready" : ""}`}
-      style={{ "--dock-search": searchItem ? 1 : 0 }}
-    >
-      {refract && <LiquidGlassDefs />}
+    <div className={`aivy-dock ${hasTrack ? "has-track" : ""} ${collapsed ? "is-collapsed" : ""}`}>
       {hasTrack && (
-        <div className="aivy-dock-slot slot-mini"><MiniPlayer onExpand={onExpandPlayer} /></div>
+        <div className="aivy-dock-slot slot-mini">
+          <MiniPlayer onExpand={onExpandPlayer} />
+        </div>
       )}
       <div className="aivy-dock-slot slot-tabs">
         <nav
-          className="aivy-tabbar" onClickCapture={onNavClickCapture}
+          className="aivy-tabbar"
           data-lens={activeTabIdx >= 0 ? "on" : "off"}
           style={{ "--n": Math.max(1, tabItems.length), "--i": Math.max(0, activeTabIdx) }}
         >
-          <GlassLayers />
           <span className="aivy-tab-lens" aria-hidden="true" />
           {tabItems.map(({ route, labelKey, icon: Icon }) => (
             <Link
-              key={route} to={route}
-              className={`aivy-tab ${name === route ? "active" : ""} ${shownRoute === route ? "is-shown" : ""}`}
+              key={route}
+              to={route}
+              className={`aivy-tab ${name === route ? "active" : ""}`}
               aria-label={t(labelKey)}
-              tabIndex={collapsed && shownRoute !== route ? -1 : undefined}
-            ><Icon size={21} /><span>{t(labelKey)}</span></Link>
+              tabIndex={collapsed ? -1 : undefined}
+            >
+              <span className="aivy-tab-icon">
+                <Icon size={19} />
+                <i className="aivy-tab-dot" aria-hidden="true" />
+              </span>
+              <span className="aivy-tab-label">{t(labelKey)}</span>
+            </Link>
           ))}
         </nav>
       </div>
-      {searchItem && (
-        <div className="aivy-dock-slot slot-search">
-          <Link to="search" className={`aivy-dock-search ${name === "search" ? "active" : ""}`} aria-label={t(searchItem.labelKey)}>
-            <GlassLayers />
-            <SearchIcon size={22} />
-          </Link>
-        </div>
-      )}
     </div>
   );
 }
