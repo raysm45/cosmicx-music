@@ -2600,7 +2600,7 @@ export class AmLyrics extends LitElement {
     const isLrcRed = lower.includes('lrc.red') || lower.includes('lrcred');
 
     if (isLrcRed && hasWordSync) return 0.5;
-    if (isLrcRed && !hasWordSync && !isUnsynced) return 7.5;
+    if (isLrcRed && !hasWordSync && !isUnsynced) return 0.6;
     if (isLrcRed && isUnsynced) return 14.5;
 
     if (lower.includes('apple') && hasWordSync) return 1;
