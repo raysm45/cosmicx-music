@@ -1009,8 +1009,14 @@ export function PlayerProvider({ children }) {
     const nextTrack = queueList[order[nextIdx]];
     if (!nextTrack) return;
     let cancelled = false;
+    // Pra-siapkan tiket lagu berikutnya supaya transisi tidak perlu meminta
+    // tiket lagi (±1–2 s). Badan file hanya dipra-unduh untuk format ringan;
+    // FLAC 20–29 MB TIDAK diambil penuh — di jalur ~5 Mbps pra-unduhan penuh
+    // merebut bandwidth dari lagu yang sedang diputar (terukur: stream utama
+    // turun ke ~1,4 Mbps → audio putus-putus).
+    const skipBody = getPreferredAudioFormat() === "flac";
     resolveAudioSrc(nextTrack, { prefetch: true }).then((resolved) => {
-      if (cancelled || !resolved) return;
+      if (cancelled || !resolved || skipBody) return;
       const pre = preloadAudioRef.current;
       if (pre && pre.src !== resolved.src) {
         pre.src = resolved.src;

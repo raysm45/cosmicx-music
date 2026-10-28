@@ -119,26 +119,29 @@ export const Api = {
     const format = formatOverride || getPreferredAudioFormat();
     const cacheKey = `${videoId}:${format}`;
     const nowS = Math.floor(Date.now() / 1000);
-    const suffix = prefetch ? "?purpose=prefetch" : "";
+    // URL prefetch & pemutaran SENGAJA sama (tanpa suffix). Dulu prefetch
+    // memakai `?purpose=prefetch` sementara pemutaran tidak, sehingga browser
+    // menganggapnya dua resource berbeda: byte pra-unduhan terbuang dan lagu
+    // (FLAC 20–29 MB) diunduh DUA kali — merebut bandwidth sampai audio
+    // putus-putus. Dengan satu URL, pra-unduhan benar-benar dipakai saat lagu
+    // diputar. Flag `prefetch` hanya dipertahankan demi pemanggil lama.
+    void prefetch;
     const cached = !forceFresh && streamTicketCache.get(cacheKey);
     if (cached && cached.expiresAt - TICKET_MARGIN_S > nowS) {
-      return `${API_BASE}/api/s/${encodeURIComponent(cached.sid)}${suffix}`;
+      return `${API_BASE}/api/s/${encodeURIComponent(cached.sid)}`;
     }
     const body = { videoId, quality, format };
     if (title) body.title = title;
     if (artist) body.artist = artist;
-    // Tandai sesi prefetch: server membatasi tujuan (tanpa ?dl=1) supaya
-    // sesi pra-buka tidak bisa dipakai celah unduhan.
-    if (prefetch) body.prefetch = true;
     const ticket = await apiSend("/api/stream-ticket", "POST", body);
     if (!ticket?.sid) throw new Error("tiket stream kosong");
     streamTicketCache.set(cacheKey, ticket);
-    return `${API_BASE}/api/s/${encodeURIComponent(ticket.sid)}${suffix}`;
+    return `${API_BASE}/api/s/${encodeURIComponent(ticket.sid)}`;
   },
 
-  // Unduh lagu lewat tiket stream yang sudah/sedang dibuat (tidak memakai tiket
-  // prefetch) — server menambah `Content-Disposition: attachment; filename=
-  // "Artist - Title.ext"` ketika `dl=1`, jadi fetch berat tidak diperlukan.
+  // Unduh lagu lewat tiket stream yang sama dengan pemutaran — server
+  // menambahkan `Content-Disposition: attachment; filename="Judul - Artist.ext"`
+  // ketika `dl=1`, jadi fetch berat tidak diperlukan.
   async downloadSong(track, { format = "" } = {}) {
     const artistName = (typeof track?.artist === "string" ? track.artist : track?.artist?.name) || "";
     let videoId = track?.videoId;
