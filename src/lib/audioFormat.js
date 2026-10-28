@@ -133,10 +133,6 @@ function normCodec(v) {
   return s.trim() || null;
 }
 
-// ===========================================================================
-// Info audio terpadu: semua penyedia (yt-dlp, engine FLAC, Lucida, Flacdownloader, ...)
-// dipetakan ke SATU bentuk, sehingga badge, label kualitas & detail teknis tampil sama persis.
-// ===========================================================================
 export function unifyAudioInfoFields(raw) {
   const f =
     raw && typeof raw === "object"
@@ -164,8 +160,6 @@ export function unifyAudioInfoFields(raw) {
     flac: lossless,
   };
 }
-
-/** Teks badge kompak: "FLAC · 44.1k/16" — hanya bila datanya ada. */
 export function formatBadgeText(baseLabel, f) {
   if (!f || !f.flac || !f.sampleRateHz) return baseLabel;
   const khz = String((f.sampleRateHz / 1000).toFixed(1)).replace(/\.0$/, "");
@@ -178,12 +172,6 @@ const CODEC_NAMES = {
   alac: "ALAC", pcm: "WAV", wav: "WAV", mp4a: "AAC",
 };
 
-/**
- * Label kualitas ala Apple Music di bawah bar durasi.
- *   lossless  -> { main: "Lossless" | "Hi-Res Lossless", detail: "FLAC \u00b7 44.1 kHz \u00b7 16-bit" }
- *   lossy     -> { main: "AAC", detail: "128 kbps" }
- * `format` = hasil unifyAudioInfoFields(); `fallbackLabel` = label codec dari player.
- */
 export function describeQuality(format, fallbackLabel) {
   const raw = String((format && format.codec) || fallbackLabel || "").trim();
   if (!raw && !(format && format.lossless)) return null;
@@ -192,8 +180,8 @@ export function describeQuality(format, fallbackLabel) {
   const khz = format && format.sampleRateHz ? `${Number((format.sampleRateHz / 1000).toFixed(1))} kHz` : null;
   const bits = format && format.bitsPerSample ? `${format.bitsPerSample}-bit` : null;
 
-  if (format && (format.lossless || key === "flac" || key === "alac")) {
-    const hires = (format.sampleRateHz || 0) > 48000 || (format.bitsPerSample || 0) > 16;
+  if ((format && format.lossless) || key === "flac" || key === "alac") {
+    const hires = ((format && format.sampleRateHz) || 0) > 48000 || ((format && format.bitsPerSample) || 0) > 16;
     return {
       main: hires ? "Hi-Res Lossless" : "Lossless",
       detail: [name, khz, bits].filter(Boolean).join(" \u00b7 "),
@@ -205,10 +193,25 @@ export function describeQuality(format, fallbackLabel) {
   return { main: name, detail: kbps || "", lossless: false, hires: false };
 }
 
-/**
- * Label codec singkat untuk badge ("FLAC", "AAC", "OPUS", ...) dari respons audio-info penyedia mana pun.
- * Dipakai supaya label sama persis walau sumbernya berbeda (yang dulu jatuh ke nama container).
- */
+export function resolveBitrateKbps(format) {
+  if (!format) return null;
+  if (format.bitrateKbps) return Math.round(format.bitrateKbps);
+  if (format.filesizeBytes && format.durationSec) {
+    const kbps = (format.filesizeBytes * 8) / format.durationSec / 1000;
+    return kbps > 0 && isFinite(kbps) ? Math.round(kbps) : null;
+  }
+  return null;
+}
+
+export function isAudioInfoSettled(raw) {
+  const f = unifyAudioInfoFields(raw && raw !== "unavailable" ? raw : null);
+  if (!f) return false;
+  if (f.lossless) {
+    if (f.status === "preparing" || f.status === "running") return false;
+    return !!(f.sampleRateHz && f.bitsPerSample);
+  }
+  return true;
+}
 export function audioLabelFromInfo(info) {
   const f = unifyAudioInfoFields(info);
   if (!f) return null;

@@ -3731,7 +3731,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   background: rgba(255,255,255,.22); color: #fff;
 }
 
-/* Search filter tabs (Semua / Lagu / Album / Artis) */
 .aivy-search-tabs{
   display: flex; align-items: center; gap: 8px; overflow-x: auto;
   padding: 2px 0 14px; margin-bottom: 6px;
@@ -3755,7 +3754,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   font-variant-numeric: tabular-nums;
 }
 
-/* Rich Artist Profile + Artwork hero card in Search */
 .aivy-search-artist-hero{
   position: relative; overflow: hidden; border-radius: 18px;
   border: 1px solid var(--line); background: var(--bg-elev-2);
@@ -3853,12 +3851,8 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   .aivy-search-artist-hero-name{ font-size: 22px; white-space: normal; }
 }
 
-/* =========================================================
-   Library v2 — desktop & mobile dipisah, hanya pakai token tema
-   ========================================================= */
 .lib2{ max-width: 1280px; min-width: 0; }
 
-/* ---------- header ---------- */
 .lib2-head{ display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0 14px; }
 .lib2-head h1{ margin: 0; font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
 .lib2-actions{ display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
@@ -3867,7 +3861,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .lib2-iconbtn{ width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--ink-dim); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .lib2-iconbtn:hover, .lib2-iconbtn:active{ background: var(--bg-elev-2); color: var(--ink); }
 
-/* ---------- desktop: tab garis bawah + alat ---------- */
 .lib2-toolbar{ display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
 .lib2-tabs{ display: flex; gap: 24px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .lib2-tabs::-webkit-scrollbar{ display: none; }
@@ -3889,18 +3882,15 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .lib2-seg button:hover{ color: var(--ink); }
 .lib2-seg button.active{ background: var(--bg-elev-3); color: var(--ink); }
 
-/* ---------- mobile: chip filter ---------- */
 .lib2-chips{ display: flex; gap: 8px; margin: 0 -16px 16px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
 .lib2-chips::-webkit-scrollbar{ display: none; }
 .lib2-chip{ flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: var(--radius-pill); background: var(--bg-elev-2); color: var(--ink-dim); font-size: 13px; font-weight: 600; white-space: nowrap; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .lib2-chip.active{ background: var(--accent); color: var(--accent-ink); }
 
-/* ---------- teks bersama ---------- */
 .lib2-meta{ min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .lib2-title{ font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib2-sub{ font-size: 12.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ---------- pin: Lagu Disukai & Semua lagu ---------- */
 .lib2-pins{ display: grid; grid-template-columns: repeat(2, minmax(0, 340px)); gap: 12px; margin-bottom: 36px; }
 .lib2-pins.is-single{ grid-template-columns: minmax(0, 340px); margin-bottom: 28px; }
 .lib2-pin{ display: flex; align-items: center; min-width: 0; border-radius: var(--radius-md); background: var(--bg-elev); border: 1px solid var(--line); transition: background var(--dur-fast) var(--ease); }
@@ -3917,14 +3907,12 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   .lib2.is-desktop .lib2-pin:focus-within .lib2-pin-play{ opacity: 1; }
 }
 
-/* ---------- section & shelf ---------- */
 .lib2-section{ margin-bottom: 36px; min-width: 0; }
 .lib2-section-head{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .lib2-section-head h2{ margin: 0; font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; letter-spacing: -.01em; }
 .lib2-link{ font-size: 13px; font-weight: 600; color: var(--ink-faint); transition: color var(--dur-fast) var(--ease); }
 .lib2-link:hover{ color: var(--ink); }
 
-/* ---------- grid (desktop) ---------- */
 .lib2-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 28px 20px; }
 .lib2-item{ display: flex; min-width: 0; color: inherit; }
 .lib2-art{ position: relative; display: block; flex-shrink: 0; overflow: hidden; background: var(--bg-elev-2); }
@@ -3936,7 +3924,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .lib2-item.is-grid.is-round .lib2-art{ border-radius: 50%; }
 .lib2-item.is-grid.is-round .lib2-meta{ align-items: center; text-align: center; }
 
-/* ---------- list / baris (mobile & desktop list) ---------- */
 .lib2-list{ display: flex; flex-direction: column; }
 .lib2-item.is-row{ align-items: center; gap: 14px; margin: 0 -10px; padding: 8px 10px; border-radius: var(--radius-sm); transition: background var(--dur-fast) var(--ease); }
 .lib2-item.is-row:hover, .lib2-item.is-row:active{ background: var(--bg-elev-2); }
@@ -3944,7 +3931,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .lib2-item.is-row.is-round .lib2-art{ border-radius: 50%; }
 .lib2.is-desktop .lib2-list{ max-width: 820px; }
 
-/* ---------- bar lagu & tombol ---------- */
 .lib2-songbar{ display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .lib2-songbar .count{ margin-right: auto; font-size: 13px; color: var(--ink-faint); }
 .lib2-btn{ display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 18px; border-radius: var(--radius-pill); font-size: 13.5px; font-weight: 700; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
@@ -3953,7 +3939,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .lib2-btn.is-ghost:hover{ background: var(--bg-elev-2); border-color: var(--ink-faint); }
 .lib2-more{ display: flex; justify-content: center; padding: 18px 0 4px; }
 
-/* ---------- override mobile ---------- */
 .lib2.is-mobile .lib2-head{ padding: 10px 0 8px; }
 .lib2.is-mobile .lib2-head h1{ font-size: 1.5rem; }
 .lib2.is-mobile .lib2-actions{ margin-right: -8px; }
@@ -3968,10 +3953,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 @media (prefers-reduced-motion: reduce){
   .lib2 *, .lib2 *::after{ transition: none !important; }
 }
-
-/* =========================================================
-   Loader logo 3D (CosmicLoader)
-   ========================================================= */
 .cx-loader{ position: relative; display: inline-block; flex: none; line-height: 0; vertical-align: middle; }
 .cx-loader canvas{ position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity var(--dur-base) var(--ease); }
 .cx-loader.is-ready canvas{ opacity: 1; }
@@ -3984,7 +3965,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .cx-loader.is-static.is-ready .cx-loader-fallback{ opacity: 0; }
 .aivy-brand .cx-loader{ margin: -4px 0; }
 
-/* ---------- Label kualitas/codec di bawah bar durasi (ala Apple Music) ---------- */
 .aivy-quality{
   display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 20px; padding: 0 8px; box-sizing: border-box;
   border-radius: 6px; background: rgba(255,255,255,.18); color: rgba(255,255,255,.88);
@@ -3994,5 +3974,26 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 .aivy-quality .d{ font-weight: 600; color: rgba(255,255,255,.62); overflow: hidden; text-overflow: ellipsis; }
 .aivy-quality.is-hires .m{ color: #ffe3a3; }
 
-/* ---------- Dock (navbar + mini player) lebih ringkas ---------- */
+.aivy-quality.is-lossless, .aivy-quality.is-hires{ position: relative; }
+.aivy-quality.is-lossless .m, .aivy-quality.is-hires .m{
+  --q-base: rgba(255,255,255,.74); --q-glint: #fff;
+  background: linear-gradient(100deg, var(--q-base) 0%, var(--q-base) 38%, var(--q-glint) 50%, var(--q-base) 62%, var(--q-base) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: aivy-quality-text-shine 2.8s linear infinite;
+}
+.aivy-quality.is-hires .m{ --q-base: #ffd98a; --q-glint: #fffaf0; }
+.aivy-quality.is-lossless::after, .aivy-quality.is-hires::after{
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.34) 50%, transparent 62%);
+  transform: translateX(-120%);
+  animation: aivy-quality-sweep 3.4s ease-in-out infinite;
+}
+@keyframes aivy-quality-text-shine{ from{ background-position: 0% 0; } to{ background-position: 200% 0; } }
+@keyframes aivy-quality-sweep{ 0%, 55%{ transform: translateX(-120%); } 100%{ transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce){
+  .aivy-quality.is-lossless .m, .aivy-quality.is-hires .m{ animation: none; background: none; -webkit-text-fill-color: var(--q-base); color: var(--q-base); }
+  .aivy-quality.is-lossless::after, .aivy-quality.is-hires::after{ animation: none; display: none; }
+}
 .aivy-dock .aivy-mini-player .aivy-icon-btn{ width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }

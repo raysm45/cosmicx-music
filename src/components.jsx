@@ -25,7 +25,7 @@ import { Api } from "./lib/api.js";
 import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
 import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
-import { unifyAudioInfoFields, formatBadgeText, describeQuality } from "./lib/audioFormat.js";
+import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled } from "./lib/audioFormat.js";
 import { openDownload } from "./DownloadSheet.jsx";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
 import { MeshGradient, useCoverPalette } from "./lib/MeshGradient.jsx";
@@ -2917,31 +2917,68 @@ function TrackDetailInfoTab({ track }) {
   );
 }
 
-const audioInfoCache = new Map();
+const audioInfoStore = new Map();
+const AUDIO_INFO_RETRY_MS = [1000, 1500, 2500, 4000, 6000, 9000, 12000];
+const AUDIO_INFO_STORE_MAX = 300;
+
+function getAudioInfoEntry(videoId) {
+  let e = audioInfoStore.get(videoId);
+  if (!e) {
+    if (audioInfoStore.size >= AUDIO_INFO_STORE_MAX) {
+      for (const [k, v] of audioInfoStore) {
+        if (!v.listeners.size && !v.running) { audioInfoStore.delete(k); break; }
+      }
+    }
+    e = { value: null, done: false, attempt: 0, running: false, timer: null, listeners: new Set() };
+    audioInfoStore.set(videoId, e);
+  }
+  return e;
+}
+
+function pollAudioInfo(videoId, e) {
+  if (e.done || e.running || e.timer) return;
+  e.running = true;
+  import("./lib/api.js")
+    .then(({ Api }) => Api.trackAudioInfo(videoId))
+    .catch(() => "unavailable")
+    .then((v) => {
+      e.running = false;
+      const ok = !!v && v !== "unavailable";
+      if (ok) e.value = v;
+      const exhausted = e.attempt >= AUDIO_INFO_RETRY_MS.length;
+      if (ok && isAudioInfoSettled(v)) e.done = true;
+      else if (exhausted) {
+        if (ok) e.done = true;
+        else if (e.value == null) e.value = "unavailable";
+      }
+      e.listeners.forEach((fn) => fn(e.value));
+      if (!e.done && !exhausted && e.listeners.size) {
+        e.timer = setTimeout(() => {
+          e.timer = null;
+          e.attempt += 1;
+          pollAudioInfo(videoId, e);
+        }, AUDIO_INFO_RETRY_MS[e.attempt]);
+      }
+    });
+}
+
 export function useTrackAudioInfo(track) {
   const videoId = track?.videoId || track?.id || null;
   const [info, setInfo] = useState(null);
   useEffect(() => {
-    setInfo(null);
     if (!videoId) { setInfo("unavailable"); return undefined; }
-    let alive = true;
-    const applyResult = (v) => { if (alive) setInfo(v); };
-    const cached = audioInfoCache.get(videoId);
-    if (cached !== undefined) {
-      if (cached && typeof cached.then === "function") cached.then(applyResult);
-      else applyResult(cached);
-      return () => { alive = false; };
+    const e = getAudioInfoEntry(videoId);
+    const listener = (v) => setInfo(v);
+    setInfo(e.value ?? null);
+    e.listeners.add(listener);
+    if (!e.done) {
+      if (e.attempt >= AUDIO_INFO_RETRY_MS.length && !e.running && !e.timer) e.attempt = 0;
+      pollAudioInfo(videoId, e);
     }
-    const promise = import("./lib/api.js")
-      .then(({ Api }) => Api.trackAudioInfo(videoId))
-      .catch(() => "unavailable");
-    audioInfoCache.set(videoId, promise);
-    promise.then((v) => {
-      if (v === "unavailable") audioInfoCache.delete(videoId);
-      else audioInfoCache.set(videoId, v);
-      applyResult(v);
-    });
-    return () => { alive = false; };
+    return () => {
+      e.listeners.delete(listener);
+      if (!e.listeners.size && e.timer) { clearTimeout(e.timer); e.timer = null; }
+    };
   }, [videoId]);
   return info;
 }
@@ -2957,7 +2994,7 @@ export function QualityPill({ track, fallbackLabel = null, className = "" }) {
   return (
     <span className={`aivy-quality ${kind} ${className}`} title={[q.main, q.detail].filter(Boolean).join(" \u00b7 ")}>
       <span className="m">{q.main}</span>
-      {q.detail ? <span className="d">{q.detail}</span> : null}
+      {q.detail && !q.lossless ? <span className="d">{q.detail}</span> : null}
     </span>
   );
 }
