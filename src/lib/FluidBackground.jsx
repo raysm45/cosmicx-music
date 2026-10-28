@@ -5,7 +5,7 @@ const COLORS = 5;
 const RES_SCALE = 0.25;
 const MIN_W = 220;
 const MAX_W = 640;
-const COLOR_EASE = 1.7;
+const COLOR_EASE = 2.2;
 
 const VERT = `
 attribute vec2 aPos;
