@@ -52,6 +52,11 @@ const DEFAULT_KPOE_SOURCE_ORDER =
 
 const GENIUS_WORKER_URL = 'https://fetch-genius.samidy.workers.dev/';
 const LRC_RED_BASE = 'https://lrc.red';
+// BetterLyrics: endpoint resmi, lalu domain lama sebagai cadangan.
+const BETTER_LYRICS_BASES = [
+  'https://api.betterlyrics.org',
+  'https://lyrics-api.boidu.dev',
+];
 
 interface Syllable {
   text: string;
@@ -2449,6 +2454,22 @@ export class AmLyrics extends LitElement {
           collectedSources.push(lrcRedResult);
         }
 
+        // Fallback: kalau lrc.red kosong atau cuma punya lirik tanpa timing,
+        // coba BetterLyrics sebelum provider lain.
+        const lrcRedSynced =
+          !!lrcRedResult &&
+          lrcRedResult.lines.some(l => l.timestamp > 0 || l.endtime > 0);
+        if (!lrcRedSynced) {
+          const betterResult = await AmLyrics.fetchLyricsFromBetterLyrics(
+            title,
+            artist,
+            resolvedMetadata.metadata,
+          );
+          if (betterResult && betterResult.lines.length > 0) {
+            collectedSources.push(betterResult);
+          }
+        }
+
         const biniResult = await AmLyrics.fetchLyricsFromBiniLyrics(
           title,
           artist,
@@ -2603,6 +2624,11 @@ export class AmLyrics extends LitElement {
     if (isLrcRed && !hasWordSync && !isUnsynced) return 0.6;
     if (isLrcRed && isUnsynced) return 14.5;
 
+    const isBetter = lower.includes('betterlyrics');
+    if (isBetter && hasWordSync) return 0.7;
+    if (isBetter && !hasWordSync && !isUnsynced) return 0.8;
+    if (isBetter && isUnsynced) return 14.6;
+
     if (lower.includes('apple') && hasWordSync) return 1;
     if (lower.includes('bini') && hasWordSync) return 2;
     if (lower.includes('unison') && hasWordSync) return 3;
@@ -2750,6 +2776,21 @@ export class AmLyrics extends LitElement {
 
           if (
             !this.availableSources.some(s =>
+              s.source.toLowerCase().includes('betterlyrics'),
+            )
+          ) {
+            const betterResult = await AmLyrics.fetchLyricsFromBetterLyrics(
+              resolvedMetadata.metadata.title?.trim() || '',
+              resolvedMetadata.metadata.artist?.trim() || '',
+              resolvedMetadata.metadata,
+            );
+            if (betterResult && betterResult.lines.length > 0) {
+              newSources.push(betterResult);
+            }
+          }
+
+          if (
+            !this.availableSources.some(s =>
               s.source.toLowerCase().includes('unison'),
             )
           ) {
@@ -2849,9 +2890,17 @@ export class AmLyrics extends LitElement {
     key: string;
     label: string;
     match: string[];
-    group: 'lrcred' | 'bini' | 'unison' | 'kpoe' | 'lrclib' | 'genius';
+    group:
+      | 'lrcred'
+      | 'betterlyrics'
+      | 'bini'
+      | 'unison'
+      | 'kpoe'
+      | 'lrclib'
+      | 'genius';
   }[] = [
     { key: 'lrcred', label: 'lrc.red', match: ['lrc.red', 'lrcred'], group: 'lrcred' },
+    { key: 'betterlyrics', label: 'BetterLyrics', match: ['betterlyrics'], group: 'betterlyrics' },
     { key: 'cosmicx', label: 'Cosmicx-Lyrics', match: ['bini', 'cosmicx'], group: 'bini' },
     { key: 'apple', label: 'Apple Music', match: ['apple'], group: 'kpoe' },
     { key: 'qq', label: 'QQ', match: ['qq', 'lyricsplus'], group: 'kpoe' },
@@ -2957,6 +3006,13 @@ export class AmLyrics extends LitElement {
             title,
             artist,
             resolved.catalogIsrc,
+            metadata,
+          );
+          if (r && r.lines.length > 0) found = [r];
+        } else if (entry.group === 'betterlyrics') {
+          const r = await AmLyrics.fetchLyricsFromBetterLyrics(
+            title,
+            artist,
             metadata,
           );
           if (r && r.lines.length > 0) found = [r];
@@ -3442,6 +3498,57 @@ export class AmLyrics extends LitElement {
       }
     } catch (e) {
       console.error('lrc.red failed', e);
+    }
+    return null;
+  }
+
+  /**
+   * BetterLyrics — TTML dengan timing per suku kata.
+   * GET {base}/getLyrics?s=&a=&al=&d=  ->  { ttml }
+   * Lagu yang belum ada di cache server dijawab 401/404: dianggap tidak ada
+   * (bukan error). Parser TTML-nya sama dengan lrc.red.
+   */
+  private static async fetchLyricsFromBetterLyrics(
+    title: string,
+    artist: string,
+    metadata: { durationMs?: number; album?: string } = {},
+  ): Promise<YouLyPlusLyricsResult | null> {
+    if (!title || !artist) return null;
+
+    const params = new URLSearchParams({ s: title, a: artist });
+    if (metadata.album) params.set('al', metadata.album);
+    if (metadata.durationMs && metadata.durationMs > 0) {
+      params.set('d', Math.round(metadata.durationMs / 1000).toString());
+    }
+
+    for (const base of BETTER_LYRICS_BASES) {
+      try {
+        const res = await fetchWithTimeout(
+          `${base}/getLyrics?${params.toString()}`,
+        );
+        if (!res.ok) continue;
+
+        const text = await res.text();
+        let ttml = '';
+        try {
+          const data = JSON.parse(text);
+          ttml = typeof data?.ttml === 'string' ? data.ttml : '';
+        } catch {
+          ttml = text.trim().startsWith('<') ? text : '';
+        }
+        if (!ttml) continue;
+
+        const parsed = AmLyrics.parseTTML(ttml);
+        if (parsed && parsed.lines.length > 0) {
+          return {
+            lines: parsed.lines,
+            source: 'BetterLyrics',
+            songwriters: parsed.songwriters,
+          };
+        }
+      } catch {
+        // coba domain berikutnya
+      }
     }
     return null;
   }
