@@ -1,27 +1,11 @@
 import React, { memo, useEffect, useRef, useState } from "react";
 import { MeshGradient, useCoverPalette } from "./MeshGradient.jsx";
 
-/*
- * Background fluid ala Apple Music (layar penuh desktop).
- *
- * Bukan gambar cover yang digeser/diblur: yang bergerak adalah CAMPURAN WARNA.
- *  - Dari cover diambil 5 warna dominan (disaring supaya berbeda satu sama lain, lalu
- *    dijenuhkan dan dijaga kecerahannya supaya teks putih tetap terbaca).
- *  - Fragment shader menaruh 5 "titik warna" besar yang melayang di lintasan Lissajous
- *    berbeda, lalu mencampurnya dengan bobot gaussian ternormalisasi -> mesh gradient halus.
- *    Domain-warp membuat batas antar warna mengalir seperti cairan.
- *  - Ganti lagu: kelima warna di-lerp ke warna baru (±1,5 dtk) sementara waktu animasi
- *    tetap jalan, jadi gerakannya tidak pernah reset.
- *  - Render di resolusi rendah lalu di-upscale browser: ringan di GPU. Berhenti saat tab
- *    tersembunyi / player ditutup, statis saat reduced motion, melambat saat pause.
- *  - WebGL tidak tersedia / context hilang -> jatuh ke MeshGradient CSS yang sudah ada.
- */
-
 const COLORS = 5;
 const RES_SCALE = 0.25;
 const MIN_W = 220;
 const MAX_W = 640;
-const COLOR_EASE = 1.7;   // makin besar makin cepat pindah warna saat ganti lagu
+const COLOR_EASE = 1.7;
 
 const VERT = `
 attribute vec2 aPos;
@@ -92,7 +76,7 @@ void main(){
 
   // saturasi tipis + highlight rolloff supaya tidak neon
   float l = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(vec3(l), col, 1.12);
+  col = mix(vec3(l), col, 1.22);
   col = clamp(col, 0.0, 1.0);
 
   // vignette halus
@@ -150,12 +134,10 @@ function createRenderer(canvas) {
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
     destroy() {
-      try { gl.deleteBuffer(buf); gl.deleteProgram(prog); } catch { /* noop */ }
+      try { gl.deleteBuffer(buf); gl.deleteProgram(prog); } catch {}
     },
   };
 }
-
-/* ---------- ambil & rapikan warna cover ---------- */
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -187,16 +169,12 @@ function hslToRgb(h, s, l) {
   const p = 2 * l - q;
   return [f(p, q, h + 1 / 3), f(p, q, h), f(p, q, h - 1 / 3)];
 }
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
-// Jenuhkan warna tapi jaga kecerahan di rentang yang aman untuk teks putih.
-// Cover hitam-putih (sat rendah) dibiarkan netral, tidak dipaksa berwarna.
 function tuneRgb([r, g, b]) {
   const [h, sat0, l] = rgbToHsl(r, g, b);
-  // saturasi dinaikkan sedikit saja: cover sepia / pudar tetap kalem, cover pekat tetap pekat
-  const sat = clamp(sat0 * 1.1 + 0.03, 0, 0.95);
-  // Batas terang bergantung saturasi (pudar = redup, pekat = cerah). Sisi gelap dibiarkan lebar
-  // (hampir hitam), karena kontras terang-gelap antar blob itulah yang membuat efek alirannya terlihat.
-  const cap = 0.34 + 0.14 * sat;
+  const sat = clamp(sat0 * 1.05 + smooth(0.12, 0.32, sat0) * 0.22, 0, 0.92);
+  const cap = 0.34 + 0.16 * sat;
   const lum = 0.03 + (cap - 0.03) * Math.pow(clamp(l / 0.6, 0, 1), 1.1);
   return hslToRgb(h, sat, lum);
 }
@@ -235,8 +213,8 @@ function colorsFromImage(img) {
   buckets.forEach((e) => {
     const r = e.r / e.n / 255, g = e.g / e.n / 255, b = e.b / e.n / 255;
     const [, sat, l] = rgbToHsl(r, g, b);
-    const edge = l > 0.985 ? 0.25 : 1;   // putih polos kurang berguna
-    cands.push({ rgb: [r, g, b], n: e.n, l, score: e.n * (1 + sat * 2.4) * edge });
+    const edge = l > 0.985 ? 0.25 : 1;
+    cands.push({ rgb: [r, g, b], n: e.n, l, sat, score: e.n * (1 + sat * 2.4) * edge });
     total += e.n;
   });
   cands.sort((a, b) => b.score - a.score);
@@ -245,18 +223,17 @@ function colorsFromImage(img) {
   const picked = [];
   const add = (c, min) => { if (c && picked.length < COLORS && picked.every((p) => dist(p, c.rgb) > min)) { picked.push(c.rgb); return true; } return false; };
 
-  // urutan: warna dominan, lalu yang paling gelap dan paling terang (yang cukup berarti di cover),
-  // baru sisanya menurut skor. Begitu kontras terang-gelap cover ikut terbawa ke background.
   add(cands[0], 0);
   const sig = cands.filter((c) => c.n >= total * 0.012);
   const pool = sig.length ? sig : cands;
   add(pool.reduce((m, c) => (c.l < m.l ? c : m), pool[0]), 0.14);
   add(pool.reduce((m, c) => (c.l > m.l ? c : m), pool[0]), 0.14);
+  const colorful = sig.filter((c) => c.l > 0.12 && c.l < 0.9);
+  if (colorful.length) add(colorful.reduce((m, c) => (c.sat * Math.sqrt(c.n) > m.sat * Math.sqrt(m.n) ? c : m), colorful[0]), 0.14);
   for (const c of cands) { if (picked.length >= COLORS) break; add(c, 0.16); }
   return fillColors(picked.map(tuneRgb));
 }
 
-// Cadangan kalau cover tidak bisa dibaca (CORS): pakai palet dari MeshGradient / warna dominan server.
 function colorsFromPalette(palette) {
   const out = (palette || []).map((str) => {
     const m = /hsl\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/i.exec(str);
@@ -267,7 +244,6 @@ function colorsFromPalette(palette) {
   return fillColors(out);
 }
 
-/* ---------- komponen ---------- */
 
 export const FluidBackground = memo(function FluidBackground({ src, fallbackColor, active = true, playing = true, still = false }) {
   const canvasRef = useRef(null);
@@ -284,7 +260,6 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
   const rafRef = useRef(0);
   const kick = useRef(() => {});
 
-  // --- renderer + loop ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
@@ -309,7 +284,6 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
       c.speed += (target - c.speed) * Math.min(1, dt * 2.2);
       c.t += dt * c.speed;
 
-      // warna mengalir ke warna lagu baru
       const col = colors.current;
       let moving = 0;
       const k = Math.min(1, dt * COLOR_EASE);
@@ -354,7 +328,6 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
 
   useEffect(() => { kick.current(); }, [active, playing, still]);
 
-  // --- cover baru -> warna target baru ---
   useEffect(() => {
     let alive = true;
     const apply = (list) => {
