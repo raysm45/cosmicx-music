@@ -3,6 +3,7 @@ import React, { useSyncExternalStore,
 } from "react";
 import { io } from "socket.io-client";
 import { Api, SOCKET_ORIGIN, SOCKET_PATH, getAuthToken } from "./lib/api.js";
+import { isImpersonating, exitImpersonate } from "./lib/impersonate.js";
 import { setPreferredAudioFormat, getPreferredAudioFormat, audioLabelFromInfo, unifyAudioInfoFields } from "./lib/audioFormat.js";
 import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
 import { makeT } from "./lib/i18n.js";
@@ -365,6 +366,9 @@ export function UIProvider({ children }) {
   const loggingOutRef = useRef(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const logout = useCallback(async () => {
+    // Sedang dalam mode impersonate: jangan panggil /auth/logout — itu akan
+    // menghapus cookie sesi asli (admin) di browser ini. Cukup lepas token.
+    if (isImpersonating()) { exitImpersonate(); return; }
     if (loggingOutRef.current) return;
     loggingOutRef.current = true;
     setLoggingOut(true);

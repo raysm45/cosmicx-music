@@ -17,6 +17,7 @@ import {
 import { CookieConsent } from "./CookieConsent.jsx";
 import { NowPlayingDesktop } from "./NowPlayingDesktop.jsx";
 import { DownloadSheetHost } from "./DownloadSheet.jsx";
+import { ImpersonateBanner } from "./ImpersonateBanner.jsx";
 import { LandingPage, LoginPage } from "./pages/AuthPages.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { NewTrendingPage, BestAlbumsPage, EditorsPicksPage } from "./pages/FeedPages.jsx";
@@ -208,6 +209,7 @@ export default function App() {
             )}
           </PlayerProvider>
           <CookieConsent />
+          <ImpersonateBanner />
         </UIProvider>
       </RouterProvider>
     </ErrorBoundary>

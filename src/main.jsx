@@ -4,8 +4,13 @@ import App from "./App.jsx";
 import "./styles/global.css";
 import "./styles/nowplaying-mobile.css";
 import { applyLiquidGlass, readCachedLiquidGlass } from "./lib/perf.js";
+import { captureImpersonateToken } from "./lib/impersonate.js";
 
 applyLiquidGlass(readCachedLiquidGlass());
+
+// Mode impersonate: kalau panel admin membuka /?impersonate=<token>, pasang
+// token itu sebagai Bearer SEBELUM aplikasi memanggil /auth/me.
+captureImpersonateToken();
 
 function start() {
   ReactDOM.createRoot(document.getElementById("root")).render(
