@@ -12,6 +12,7 @@ import { formatTime, cleanTrackTitleForLyrics, hashStr } from "./lib/utils.js";
 import { lyricPhase } from "./lib/presenceLyrics.js";
 import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
 import { LiquidFilter } from "./lib/LiquidFilter.jsx";
+import { FluidBackground } from "./lib/FluidBackground.jsx";
 import {
   Scrubber, VolumeControl, MarqueeText, AppleLyricsPane, normLyricsFontSize,
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
@@ -304,6 +305,27 @@ function useCoverSwipe({ onNext, onPrev, disabled }) {
   };
 }
 
+/* ---------- transisi panel kanan (Now Playing <-> Lirik / Antrean / Artis) ---------- */
+const PANE_ORDER = { controls: 0, lyrics: 1, artist: 1, queue: 2 };
+const PANE_EXIT_MS = 280;
+
+// Panel lama tetap ter-mount selama animasi keluar (class is-leaving) sementara panel baru
+// masuk dari arah yang sama dengan urutan tombol di dock. Reduced motion = ganti langsung.
+function usePaneTransition(view, reduce) {
+  const [st, setSt] = useState({ cur: view, leaving: [], dir: 1 });
+  if (st.cur !== view) {
+    const leaving = reduce ? [] : [...st.leaving.filter((v) => v !== view), st.cur];
+    setSt({ cur: view, leaving, dir: PANE_ORDER[view] >= PANE_ORDER[st.cur] ? 1 : -1 });
+  }
+  const hasLeaving = st.leaving.length > 0;
+  useEffect(() => {
+    if (!hasLeaving) return undefined;
+    const id = setTimeout(() => setSt((p) => (p.leaving.length ? { ...p, leaving: [] } : p)), PANE_EXIT_MS + 60);
+    return () => clearTimeout(id);
+  }, [hasLeaving, st.cur]);
+  return { leaving: st.leaving, dir: st.dir };
+}
+
 const NPD_LG_SURFACES = [
   [".npd-round", "npd-lg-round", 44, 44],
   [".npd-seg", "npd-lg-seg", 130, 44],
@@ -379,6 +401,7 @@ function FullPlayer({ shown, onClose }) {
   const tx = useCallback((idText, enText) => (settings.language === "en" ? enText : idText), [settings.language]);
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
+  const pane = usePaneTransition(view, reduceMotion);
   const autoplayOn = settings.autoplay !== false;
   const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
 
@@ -426,7 +449,7 @@ function FullPlayer({ shown, onClose }) {
       onPointerCancel={drag.onPointerCancel} onClickCapture={drag.onClickCapture} onDragStart={drag.onDragStart}
     >
       {settings.coverBackground !== false && currentTrack.cover && (
-        <div key={currentTrack.id} className="npd-bg" style={{ backgroundImage: `url(${JSON.stringify(currentTrack.cover)})` }} aria-hidden="true" />
+        <FluidBackground src={currentTrack.cover} active={shown} playing={isPlaying} still={reduceMotion} />
       )}
       <div className="npd-scrim" aria-hidden="true" />
       {refract && <NpdGlassDefs />}
@@ -459,7 +482,7 @@ function FullPlayer({ shown, onClose }) {
             <div className="npd-seg" role="group">
               <GlassLayers />
               {queueMode ? (
-                <>
+                <React.Fragment key="seg-queue">
                   <button type="button" className={shuffle ? "active" : ""} onClick={toggleShuffle} disabled={!!room} aria-pressed={shuffle} aria-label={t("shuffle")} title={t("shuffle")}>
                     <Shuffle size={19} />
                   </button>
@@ -469,9 +492,9 @@ function FullPlayer({ shown, onClose }) {
                   <button type="button" className={autoplayOn ? "active" : ""} onClick={() => updateSettings({ autoplay: !autoplayOn })} aria-pressed={autoplayOn} aria-label="AutoPlay" title="AutoPlay">
                     <InfinityIcon size={21} />
                   </button>
-                </>
+                </React.Fragment>
               ) : (
-                <>
+                <React.Fragment key="seg-default">
                   <button
                     type="button" className={outputOpen ? "active" : ""} onClick={() => setOutputOpen(true)} aria-pressed={outputOpen} aria-haspopup="dialog"
                     aria-label={tx("Output audio", "Audio output")} title={tx("Output audio", "Audio output")}
@@ -484,7 +507,7 @@ function FullPlayer({ shown, onClose }) {
                   >
                     <IconPerson />
                   </button>
-                </>
+                </React.Fragment>
               )}
             </div>
 
@@ -499,11 +522,19 @@ function FullPlayer({ shown, onClose }) {
           </div>
         </div>
 
-        <div className="npd-right">
-          {view === "controls" && <ControlsPanel key="controls" track={currentTrack} tx={tx} onClose={onClose} onOpenLyrics={openLyricsAtLine} />}
-          {lyricsReady && <LyricsPanel track={currentTrack} active={view === "lyrics"} tx={tx} onOpenProviders={() => setProvidersOpen(true)} />}
-          {view === "queue" && <QueuePanel key="queue" track={currentTrack} tx={tx} />}
-          {view === "artist" && <ArtistPanel key="artist" track={currentTrack} onClose={onClose} />}
+        <div className="npd-right" style={{ "--dir": pane.dir }}>
+          {(view === "controls" || pane.leaving.includes("controls")) && (
+            <ControlsPanel key="controls" leaving={view !== "controls"} track={currentTrack} tx={tx} onClose={onClose} onOpenLyrics={openLyricsAtLine} />
+          )}
+          {lyricsReady && (
+            <LyricsPanel track={currentTrack} active={view === "lyrics"} leaving={view !== "lyrics" && pane.leaving.includes("lyrics")} tx={tx} onOpenProviders={() => setProvidersOpen(true)} />
+          )}
+          {(view === "queue" || pane.leaving.includes("queue")) && (
+            <QueuePanel key="queue" leaving={view !== "queue"} track={currentTrack} tx={tx} />
+          )}
+          {(view === "artist" || pane.leaving.includes("artist")) && (
+            <ArtistPanel key="artist" leaving={view !== "artist"} track={currentTrack} onClose={onClose} />
+          )}
         </div>
       </div>
 
@@ -642,7 +673,7 @@ function ScrubRow({ track }) {
   );
 }
 
-function ControlsPanel({ track, tx, onClose, onOpenLyrics }) {
+function ControlsPanel({ track, tx, onClose, onOpenLyrics, leaving }) {
   const { isPlaying, togglePlay, next, prev, room, liked, toggleLike, playSource } = usePlayer();
   const { authUser, t, openContextMenu } = useUI();
   const { navigate } = useRouter();
@@ -666,7 +697,7 @@ function ControlsPanel({ track, tx, onClose, onOpenLyrics }) {
   const openMenu = (e) => openContextMenu(e.clientX, e.clientY, menuItems);
 
   return (
-    <div className="npd-pane npd-controls npd-pane-anim">
+    <div className={`npd-pane npd-controls ${leaving ? "is-leaving" : "npd-pane-anim"}`} aria-hidden={leaving || undefined}>
       {sourceText && <div className="npd-source">{t("playingFromLabel")} {sourceText}</div>}
 
       <div className="npd-titlerow">
@@ -715,7 +746,7 @@ function ControlsPanel({ track, tx, onClose, onOpenLyrics }) {
   );
 }
 
-function LyricsPanel({ track, active, tx, onOpenProviders }) {
+function LyricsPanel({ track, active, leaving, tx, onOpenProviders }) {
   const { seekTo } = usePlayer();
   const { settings, t } = useUI();
   const time = usePlayerTime();
@@ -811,7 +842,7 @@ function LyricsPanel({ track, active, tx, onOpenProviders }) {
   }, [ui.src]);
 
   return (
-    <div className={`npd-pane npd-lyrics ${active ? "is-active npd-pane-anim" : ""}`} aria-hidden={!active}>
+    <div className={`npd-pane npd-lyrics ${active ? "is-active npd-pane-anim" : ""} ${leaving ? "is-leaving" : ""}`} aria-hidden={!active}>
       <div className="npd-lyrics-body">
         <AppleLyricsPane
           id={LYRICS_ID}
@@ -862,7 +893,7 @@ function LyricsPanel({ track, active, tx, onOpenProviders }) {
   );
 }
 
-function QueuePanel({ track, tx }) {
+function QueuePanel({ track, tx, leaving }) {
   const { upNext, suggestedQueue, promoteSuggestion, clearUpNext, room } = usePlayer();
   const { settings, t } = useUI();
   const autoplayOn = settings.autoplay !== false;
@@ -872,7 +903,7 @@ function QueuePanel({ track, tx }) {
   else if (!suggestedQueue.length) autoSub = tx("Lagu serupa dipilih otomatis saat antrean habis", "Similar songs are picked automatically when the queue ends");
 
   return (
-    <div className="npd-pane npd-queue npd-pane-anim">
+    <div className={`npd-pane npd-queue ${leaving ? "is-leaving" : "npd-pane-anim"}`} aria-hidden={leaving || undefined}>
       <h2 className="npd-queue-title">{t("tabQueue")}</h2>
       <div className="npd-queue-scroll aivy-scroll">
         <div className="npd-sec">{t("nowPlaying")}</div>
@@ -917,9 +948,9 @@ function QueuePanel({ track, tx }) {
   );
 }
 
-function ArtistPanel({ track, onClose }) {
+function ArtistPanel({ track, onClose, leaving }) {
   return (
-    <div className="npd-pane npd-artist-pane aivy-scroll npd-pane-anim">
+    <div className={`npd-pane npd-artist-pane aivy-scroll ${leaving ? "is-leaving" : "npd-pane-anim"}`} aria-hidden={leaving || undefined}>
       <AboutArtistSection track={track} onNavigate={onClose} glass />
     </div>
   );
