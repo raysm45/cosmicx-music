@@ -46,6 +46,15 @@ uniform vec3 uC4;
 uniform float uTime;
 uniform float uAspect;
 
+mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+
+// blob lonjong: diputar sebesar ang, lalu y diregangkan (stretch)
+float blob(vec2 d, float ang, float k, float stretch){
+  d = rot(ang) * d;
+  d.y *= stretch;
+  return exp(-dot(d, d) * k);
+}
+
 float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
 void main(){
@@ -53,29 +62,33 @@ void main(){
   float t = uTime;
 
   // domain warp: batas antar warna mengalir seperti cairan
-  p += 0.085 * vec2(sin(p.y * 2.6 + t * 0.29), cos(p.x * 2.3 + t * 0.25));
-  p += 0.040 * vec2(sin(p.y * 5.4 - t * 0.41 + 1.7), cos(p.x * 4.9 + t * 0.36));
+  p += 0.12 * vec2(sin(p.y * 2.6 + t * 0.33), cos(p.x * 2.3 + t * 0.29));
+  p += 0.055 * vec2(sin(p.y * 5.4 - t * 0.47 + 1.7), cos(p.x * 4.9 + t * 0.41));
 
   float ax = uAspect * 0.5;
 
-  // 5 titik warna yang melayang (kecepatan & lintasan berbeda-beda)
-  vec2 q0 = vec2(sin(t * 0.17 + 0.0) * 0.82 * ax, cos(t * 0.13 + 0.6) * 0.40);
-  vec2 q1 = vec2(cos(t * 0.15 + 2.1) * 0.88 * ax, sin(t * 0.19 + 1.3) * 0.42);
-  vec2 q2 = vec2(sin(t * 0.21 + 4.0) * 0.76 * ax, sin(t * 0.14 + 0.4) * 0.44);
-  vec2 q3 = vec2(cos(t * 0.12 + 5.2) * 0.84 * ax, cos(t * 0.23 + 3.1) * 0.40);
-  vec2 q4 = vec2(sin(t * 0.11 + 3.3) * 0.46 * ax, cos(t * 0.18 + 2.2) * 0.30);
+  // 7 blob lonjong yang melayang & berputar (lintasan / kecepatan berbeda-beda).
+  // Bentuk lonjong + rotasi inilah yang bikin tampak "mengalir", bukan sekadar gradien diam.
+  vec2 q0 = vec2(sin(t * 0.23 + 0.0) * 0.80 * ax, cos(t * 0.17 + 0.6) * 0.42);
+  vec2 q1 = vec2(cos(t * 0.20 + 2.1) * 0.86 * ax, sin(t * 0.25 + 1.3) * 0.44);
+  vec2 q2 = vec2(sin(t * 0.27 + 4.0) * 0.76 * ax, sin(t * 0.19 + 0.4) * 0.46);
+  vec2 q3 = vec2(cos(t * 0.16 + 5.2) * 0.84 * ax, cos(t * 0.29 + 3.1) * 0.42);
+  vec2 q4 = vec2(sin(t * 0.15 + 3.3) * 0.50 * ax, cos(t * 0.24 + 2.2) * 0.32);
+  vec2 q5 = vec2(cos(t * 0.31 + 1.1) * 0.70 * ax, sin(t * 0.21 + 5.0) * 0.40);
+  vec2 q6 = vec2(sin(t * 0.18 + 6.0) * 0.66 * ax, cos(t * 0.33 + 0.9) * 0.38);
 
-  float w0 = exp(-dot(p - q0, p - q0) * 3.60);
-  float w1 = exp(-dot(p - q1, p - q1) * 3.80);
-  float w2 = exp(-dot(p - q2, p - q2) * 4.00);
-  float w3 = exp(-dot(p - q3, p - q3) * 3.80);
-  float w4 = exp(-dot(p - q4, p - q4) * 5.00);
+  float w0 = blob(p - q0, t * 0.13 + 0.3, 3.4, 1.9);
+  float w1 = blob(p - q1, -t * 0.11 + 1.9, 3.6, 2.1);
+  float w2 = blob(p - q2, t * 0.15 + 3.4, 3.8, 1.8);
+  float w3 = blob(p - q3, -t * 0.12 + 4.8, 3.6, 2.0);
+  float w4 = blob(p - q4, t * 0.17 + 0.9, 4.6, 1.6);
+  float w5 = blob(p - q5, -t * 0.14 + 2.7, 3.8, 2.2);
+  float w6 = blob(p - q6, t * 0.10 + 5.6, 4.0, 1.9);
 
-  vec3 sum = uC0 * w0 + uC1 * w1 + uC2 * w2 + uC3 * w3 + uC4 * w4;
-  float wsum = w0 + w1 + w2 + w3 + w4;
-  // sedikit warna rata-rata sebagai alas, supaya area jauh dari titik mana pun tetap halus
+  vec3 sum = uC0 * w0 + uC1 * w1 + uC2 * w2 + uC3 * w3 + uC4 * w4 + uC2 * w5 + uC1 * w6;
+  float wsum = w0 + w1 + w2 + w3 + w4 + w5 + w6;
   vec3 avg = (uC0 + uC1 + uC2 + uC3 + uC4) * 0.2;
-  vec3 col = (sum + avg * 0.03) / (wsum + 0.03);
+  vec3 col = (sum + avg * 0.02) / (wsum + 0.02);
 
   // saturasi tipis + highlight rolloff supaya tidak neon
   float l = dot(col, vec3(0.299, 0.587, 0.114));
@@ -84,7 +97,7 @@ void main(){
 
   // vignette halus
   float v = 1.0 - smoothstep(0.25, 1.35, length((vUv - 0.5) * vec2(1.15, 1.0)));
-  col *= mix(0.68, 1.0, v);
+  col *= mix(0.80, 1.0, v);
 
   // dither tipis supaya tidak ada banding di gradien gelap
   col += (hash(gl_FragCoord.xy + fract(t)) - 0.5) * (2.0 / 255.0);
@@ -178,10 +191,13 @@ function hslToRgb(h, s, l) {
 // Jenuhkan warna tapi jaga kecerahan di rentang yang aman untuk teks putih.
 // Cover hitam-putih (sat rendah) dibiarkan netral, tidak dipaksa berwarna.
 function tuneRgb([r, g, b]) {
-  const [h, s, l] = rgbToHsl(r, g, b);
-  const neutral = s < 0.1;
-  const sat = neutral ? s : clamp(s * 1.18, 0.4, 0.95);
-  const lum = clamp(0.17 + l * 0.46, 0.2, 0.58);
+  const [h, sat0, l] = rgbToHsl(r, g, b);
+  // saturasi dinaikkan sedikit saja: cover sepia / pudar tetap kalem, cover pekat tetap pekat
+  const sat = clamp(sat0 * 1.1 + 0.03, 0, 0.95);
+  // Batas terang bergantung saturasi (pudar = redup, pekat = cerah). Sisi gelap dibiarkan lebar
+  // (hampir hitam), karena kontras terang-gelap antar blob itulah yang membuat efek alirannya terlihat.
+  const cap = 0.34 + 0.14 * sat;
+  const lum = 0.03 + (cap - 0.03) * Math.pow(clamp(l / 0.6, 0, 1), 1.1);
   return hslToRgb(h, sat, lum);
 }
 
@@ -193,7 +209,7 @@ function fillColors(list) {
   let i = 0;
   while (out.length < COLORS) {
     const [dh, dl] = shifts[i++ % shifts.length];
-    out.push(hslToRgb((h + dh + 1) % 1, s, clamp(l + dl, 0.2, 0.58)));
+    out.push(hslToRgb((h + dh + 1) % 1, s, clamp(l + dl * 2, 0.05, 0.5)));
   }
   return out;
 }
@@ -215,21 +231,28 @@ function colorsFromImage(img) {
     if (e) { e.r += r; e.g += g; e.b += b; e.n++; } else buckets.set(key, { r, g, b, n: 1 });
   }
   const cands = [];
+  let total = 0;
   buckets.forEach((e) => {
     const r = e.r / e.n / 255, g = e.g / e.n / 255, b = e.b / e.n / 255;
-    const [, s, l] = rgbToHsl(r, g, b);
-    // warna terlalu hitam / putih polos kurang berguna sebagai titik warna
-    const edge = l < 0.05 || l > 0.97 ? 0.25 : 1;
-    cands.push({ rgb: [r, g, b], score: e.n * (1 + s * 2.4) * edge });
+    const [, sat, l] = rgbToHsl(r, g, b);
+    const edge = l > 0.985 ? 0.25 : 1;   // putih polos kurang berguna
+    cands.push({ rgb: [r, g, b], n: e.n, l, score: e.n * (1 + sat * 2.4) * edge });
+    total += e.n;
   });
   cands.sort((a, b) => b.score - a.score);
 
+  const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
   const picked = [];
-  for (const cand of cands) {
-    const far = picked.every((p) => Math.hypot(p[0] - cand.rgb[0], p[1] - cand.rgb[1], p[2] - cand.rgb[2]) > 0.22);
-    if (far) picked.push(cand.rgb);
-    if (picked.length === COLORS) break;
-  }
+  const add = (c, min) => { if (c && picked.length < COLORS && picked.every((p) => dist(p, c.rgb) > min)) { picked.push(c.rgb); return true; } return false; };
+
+  // urutan: warna dominan, lalu yang paling gelap dan paling terang (yang cukup berarti di cover),
+  // baru sisanya menurut skor. Begitu kontras terang-gelap cover ikut terbawa ke background.
+  add(cands[0], 0);
+  const sig = cands.filter((c) => c.n >= total * 0.012);
+  const pool = sig.length ? sig : cands;
+  add(pool.reduce((m, c) => (c.l < m.l ? c : m), pool[0]), 0.14);
+  add(pool.reduce((m, c) => (c.l > m.l ? c : m), pool[0]), 0.14);
+  for (const c of cands) { if (picked.length >= COLORS) break; add(c, 0.16); }
   return fillColors(picked.map(tuneRgb));
 }
 
