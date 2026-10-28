@@ -3396,8 +3396,10 @@ export class AmLyrics extends LitElement {
     const collectCandidates = (data: any): string[] => {
       const list: any[] = Array.isArray(data)
         ? data
-        : Array.isArray(data?.results)
-          ? data.results
+        : Array.isArray(data?.hits)
+          ? data.hits
+          : Array.isArray(data?.results)
+            ? data.results
           : Array.isArray(data?.items)
             ? data.items
             : Array.isArray(data?.tracks)
@@ -3442,6 +3444,8 @@ export class AmLyrics extends LitElement {
           else if (diff <= 8) score += 1;
           else score -= 3;
         }
+        // skor bawaan lrc.red dipakai sebagai pembeda tipis antar kandidat
+        score += (Number(item?.score) || 0) * 0.1;
         scored.push({ code, score });
       }
       return scored
