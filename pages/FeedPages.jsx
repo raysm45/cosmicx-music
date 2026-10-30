@@ -17,16 +17,23 @@ export function FeedTabs({ active }) {
   const { t, settings } = useUI();
   const tabs = FEED_TABS.filter((tab) => !tab.settingKey || settings[tab.settingKey] !== false);
   return (
-    <div className="aivy-home-tabs">
-      {tabs.map((tab) => (
-        <button
-          key={tab.route}
-          className={active === tab.route ? "active" : ""}
-          onClick={() => navigate(tab.route)}
-        >
-          {t(tab.key)}
-        </button>
-      ))}
+    <div className="aivy-home-tabs" role="tablist">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = active === tab.route;
+        return (
+          <button
+            key={tab.route}
+            role="tab"
+            aria-selected={isActive}
+            className={isActive ? "active" : ""}
+            onClick={() => navigate(tab.route)}
+          >
+            {Icon && <Icon size={14} className="tab-ic" />}
+            <span>{t(tab.key)}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

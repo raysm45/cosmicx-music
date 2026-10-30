@@ -89,7 +89,7 @@ function AppInner() {
   } = useUI();
   const { currentTrack } = usePlayer();
   const isMobile = useIsMobile(860);
-  const isPanelCompact = useIsMobile(1240);
+  const isPanelCompact = useIsMobile(1060);
   useEffect(() => {
     if (isLowEndDevice()) return undefined;
     const run = () => ["search", "library", "catalog"].forEach((k) => pageLoaders[k]().catch(() => {}));
@@ -146,17 +146,17 @@ function AppInner() {
   };
   if (!isPanelCompact) {
     shellStyle["--rightpanel-w"] = rightPanelCollapsed
-      ? `${RIGHTPANEL_COLLAPSED_W + (rightPanelPeek ? RIGHTPANEL_PEEK_W : 0)}px`
-      : `${rightPanelWidth}px`;
+      ? `${RIGHTPANEL_COLLAPSED_W}px`
+      : `clamp(256px, min(${rightPanelWidth}px, 28vw), 410px)`;
   }
 
   return (
-    <div className={`aivy-shell ${isMobile ? "is-mobile" : ""} ${rightPanelCollapsed && rightPanelPeek ? "is-rightpanel-peeking" : ""}`} style={shellStyle}>
+    <div className={`aivy-shell ${isMobile ? "is-mobile" : ""}`} style={shellStyle}>
       {!isMobile && <Sidebar />}
       <main className="aivy-main">
         {!isImmersiveShorts && <TopBar isMobile={isMobile} />}
         <div id="aivy-content-scroll" className={`aivy-content aivy-scroll ${isMobile ? "is-mobile" : ""} ${name === "shorts" ? "no-pad" : ""} ${FULL_BLEED_ROUTES.has(name) ? "home-full" : ""}`}
-          style={{ paddingBottom: name === "shorts" ? 0 : (isMobile ? (currentTrack ? 150 : 84) : (currentTrack ? 118 : 24)) }}>
+          style={{ paddingBottom: name === "shorts" ? 0 : (isMobile ? (currentTrack ? 168 : 96) : (currentTrack ? 118 : 24)) }}>
           <ErrorBoundary key={name + JSON.stringify(params)}>
             <Suspense fallback={<ViewLoading />}><Page /></Suspense>
           </ErrorBoundary>
