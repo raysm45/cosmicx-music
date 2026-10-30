@@ -64,10 +64,10 @@ export function useUI() { return useContext(UICtx); }
 export const SIDEBAR_MIN_W = 200;
 export const SIDEBAR_MAX_W = 360;
 export const SIDEBAR_COLLAPSED_W = 72;
-export const RIGHTPANEL_MIN_W = 264;
-export const RIGHTPANEL_MAX_W = 420;
-export const RIGHTPANEL_COLLAPSED_W = 54;
-export const RIGHTPANEL_PEEK_W = 0;
+export const RIGHTPANEL_MIN_W = 260;
+export const RIGHTPANEL_MAX_W = 440;
+export const RIGHTPANEL_COLLAPSED_W = 56;
+export const RIGHTPANEL_PEEK_W = 52;
 const PANEL_PREFS_KEY = "aivy_panel_prefs";
 const SETTINGS_CACHE_KEY = "aivy_settings_cache_v1";
 const PLAYBACK_STATE_KEY = "aivy_playback_state_v1";

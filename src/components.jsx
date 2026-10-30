@@ -1219,15 +1219,11 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   } = useUI();
   const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
 
-  const rightPanelHidden = useIsMobile(1060);
+  const rightPanelHidden = useIsMobile(1240);
   const handleLyricsClick = () => {
     if (rightPanelHidden) { toggleLyrics(); return; }
     if (!sidebarLyricsOpen && rightPanelCollapsed) toggleRightPanelCollapsed();
     toggleSidebarLyrics();
-  };
-  const handleQueueClick = () => {
-    if (!sidebarQueueOpen && rightPanelCollapsed && !rightPanelHidden) toggleRightPanelCollapsed();
-    toggleSidebarQueue();
   };
 
   const nextUpTrack = upNext?.[0];
@@ -1320,7 +1316,7 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, width: "min(22%, 256px)", justifyContent: "flex-end" }}>
-        <button className={`aivy-icon-btn sm ${sidebarQueueOpen ? "active" : ""}`} onClick={handleQueueClick} aria-label={t("lyricsQueueBtn")} title={t("lyricsQueueBtn")}><ListMusic size={16} /></button>
+        <button className={`aivy-icon-btn sm ${sidebarQueueOpen ? "active" : ""}`} onClick={toggleSidebarQueue} aria-label={t("lyricsQueueBtn")} title={t("lyricsQueueBtn")}><ListMusic size={16} /></button>
         <button
           className={`aivy-icon-btn sm ${!rightPanelHidden && sidebarLyricsOpen ? "active" : ""}`}
           onClick={handleLyricsClick} disabled={lyricsDisabled} aria-pressed={!rightPanelHidden && !!sidebarLyricsOpen}
@@ -1335,21 +1331,16 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   );
 }
 
-// MiniPlayer mobile: Orbiting Vinyl Deck — GPU progress ring + scaleX laser bar + quick like/play/skip
+// MiniPlayer mobile: ringan (tanpa GlassLayers/MarqueeText/SVG ring), GPU scaleX progress + scaleY eq
 export function MiniPlayer({ onExpand }) {
-  const { currentTrack, isPlaying, togglePlay, next, liked, toggleLike, loadingAudio, registerProgressEl } = usePlayer();
+  const { currentTrack, isPlaying, togglePlay, next, loadingAudio, registerProgressEl } = usePlayer();
   const { t, settings } = useUI();
   const [pulsing, setPulsing] = useState(false);
   const miniRef = useRef(null);
   const fillCleanupRef = useRef(null);
-  const ringCleanupRef = useRef(null);
   const registerFill = useCallback((el) => {
     fillCleanupRef.current?.();
     fillCleanupRef.current = el ? registerProgressEl(el, "width") : null;
-  }, [registerProgressEl]);
-  const registerRing = useCallback((el) => {
-    ringCleanupRef.current?.();
-    ringCleanupRef.current = el ? registerProgressEl(el, "ring") : null;
   }, [registerProgressEl]);
   const justDragged = useRef(false);
   const handleExpand = () => onExpand?.();
@@ -1365,29 +1356,13 @@ export function MiniPlayer({ onExpand }) {
     onDragStart: sheetPeekStart, onDragMove: sheetPeekMove, onDragEnd: handleDragEnd,
   });
   if (!currentTrack) return null;
-  const isLiked = liked.has(String(currentTrack.videoId || currentTrack.id));
   return (
     <div
       className={`aivy-mini-player ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleClick} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
       onPointerDown={swipe.onPointerDown} onPointerMove={swipe.onPointerMove} onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
     >
-      {currentTrack.cover && (
-        <span
-          className="mini-ambient"
-          style={{ backgroundImage: `url(${JSON.stringify(currentTrack.cover)})` }}
-          aria-hidden="true"
-        />
-      )}
-      <span className="mini-grab" aria-hidden="true" />
-      <span key={`c-${currentTrack.id}`} className={`aivy-mini-disc ${settings.noRoundCover ? "no-round" : ""}`}>
-        <svg className="mini-disc-ring" viewBox="0 0 48 48" aria-hidden="true">
-          <circle className="ring-bg" cx="24" cy="24" r="22" pathLength="1" />
-          <circle className="ring-fg" cx="24" cy="24" r="22" pathLength="1" ref={registerRing} />
-        </svg>
-        <span className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
-          <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={40} radius={settings.noRoundCover ? 8 : 999} />
-        </span>
-        {!settings.noRoundCover && <span className="mini-disc-spindle" aria-hidden="true" />}
+      <span key={`c-${currentTrack.id}`} className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
+        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={36} radius={settings.noRoundCover ? 4 : 9} />
       </span>
       <div key={`m-${currentTrack.id}`} className="meta">
         <div className="t-row">
@@ -1395,19 +1370,12 @@ export function MiniPlayer({ onExpand }) {
           {currentTrack.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
           <span className="t">{currentTrack.title}</span>
         </div>
-        <span className="a">{currentTrack.artist?.name || "\u2014"}</span>
+        <span className="a">{currentTrack.artist?.name}</span>
       </div>
       <div className="mini-controls">
-        <button
-          className={`aivy-icon-btn like-btn ${isLiked ? "active" : ""}`}
-          onClick={(e) => { e.stopPropagation(); toggleLike(currentTrack); }}
-          aria-label={t("like")}
-        >
-          <Heart size={16} fill={isLiked ? "currentColor" : "none"} />
-        </button>
         <button className="aivy-icon-btn play-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? t("pause") : t("play")}>
           <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
-            {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" style={{ marginLeft: 1.5 }} />}
+            {isPlaying ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
           </span>
         </button>
         <button
@@ -1415,7 +1383,7 @@ export function MiniPlayer({ onExpand }) {
           onClick={(e) => { e.stopPropagation(); next(false); setPulsing(true); }}
           onAnimationEnd={() => setPulsing(false)}
           aria-label={t("next")}
-        ><SkipForward size={16} fill="currentColor" /></button>
+        ><SkipForward size={17} fill="currentColor" /></button>
       </div>
       <div className={`mini-progress ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true">
         <span className="fill" ref={registerFill} />
@@ -3223,11 +3191,11 @@ export function QueueSheet({ open, onClose }) {
 }
 
 export function RightPanel() {
-  const { room, currentTrack, isPlaying, currentTrackHasLyrics, upNext } = usePlayer();
+  const { room } = usePlayer();
   const {
-    sidebarQueueOpen, closeSidebarQueue, toggleSidebarQueue,
-    sidebarLyricsOpen, closeSidebarLyrics, toggleSidebarLyrics, t,
+    sidebarQueueOpen, closeSidebarQueue, sidebarLyricsOpen, closeSidebarLyrics, t,
     rightPanelWidth, setRightPanelWidth, rightPanelCollapsed, toggleRightPanelCollapsed,
+    rightPanelPeek, setRightPanelPeek,
   } = useUI();
   const [tab, setTab] = useState("now");
   useEffect(() => { if (room) setTab("room"); }, [!!room]);
@@ -3236,183 +3204,110 @@ export function RightPanel() {
     width: rightPanelWidth, setWidth: setRightPanelWidth, min: RIGHTPANEL_MIN_W, max: RIGHTPANEL_MAX_W, side: "right",
   });
 
-  const activeMode = sidebarLyricsOpen ? "lyrics" : sidebarQueueOpen ? "queue" : (room && tab === "room" ? "room" : "now");
-
-  const selectMode = (mode) => {
-    if (rightPanelCollapsed) toggleRightPanelCollapsed();
-    if (mode === "lyrics") {
-      if (!sidebarLyricsOpen) toggleSidebarLyrics();
-    } else if (mode === "queue") {
-      if (!sidebarQueueOpen) toggleSidebarQueue();
-    } else if (mode === "room") {
-      closeSidebarLyrics();
-      closeSidebarQueue();
-      setTab("room");
-    } else {
-      closeSidebarLyrics();
-      closeSidebarQueue();
-      setTab("now");
-    }
-  };
+  const resizeHandle = (
+    <div
+      className={`aivy-resize-handle left ${isDragging ? "active" : ""}`}
+      onMouseDown={onDragStart}
+      onTouchStart={onDragStart}
+    >
+      <span className="aivy-resize-grip"><GripVertical size={12} /></span>
+    </div>
+  );
+  const bodyContent = sidebarLyricsOpen ? (
+    <>
+      <div className="aivy-rightpanel-tabs">
+        <button
+          className="aivy-panel-icon-btn"
+          onClick={toggleRightPanelCollapsed}
+          aria-label={t("collapsePanel", "Tutup panel")}
+          title={t("collapsePanel", "Tutup panel")}
+        >
+          <PanelRight size={18} />
+        </button>
+        <span className="aivy-rightpanel-title">{t("lyrics")}</span>
+        <button className="aivy-icon-btn sm" onClick={closeSidebarLyrics} aria-label={t("close")}><X size={16} /></button>
+      </div>
+      <div className="aivy-rightpanel-body is-lyrics">
+        <SidebarLyricsPanel />
+      </div>
+    </>
+  ) : sidebarQueueOpen ? (
+    <>
+      <div className="aivy-rightpanel-tabs">
+        <button
+          className="aivy-panel-icon-btn"
+          onClick={toggleRightPanelCollapsed}
+          aria-label={t("collapsePanel", "Tutup panel")}
+          title={t("collapsePanel", "Tutup panel")}
+        >
+          <PanelRight size={18} />
+        </button>
+        <span className="aivy-rightpanel-title">{t("lyricsQueueBtn")}</span>
+        <button className="aivy-icon-btn sm" onClick={closeSidebarQueue} aria-label={t("close")}><X size={16} /></button>
+      </div>
+      <div className="aivy-rightpanel-body aivy-scroll">
+        <SidebarQueuePanel />
+      </div>
+    </>
+  ) : (
+    <>
+      <div className="aivy-rightpanel-tabs">
+        <button
+          className="aivy-panel-icon-btn"
+          onClick={toggleRightPanelCollapsed}
+          aria-label={t("collapsePanel", "Tutup panel")}
+          title={t("collapsePanel", "Tutup panel")}
+        >
+          <PanelRight size={18} />
+        </button>
+        {!room && tab === "now" && <RightPanelSourceLabel />}
+        {room && (
+          <>
+            <button className={`aivy-rightpanel-tab-icon ${tab === "now" ? "active" : ""}`} onClick={() => setTab("now")} aria-label={t("tabNowPlaying")} title={t("tabNowPlaying")}><Music2 size={15} /></button>
+            <button className={tab === "room" ? "active" : ""} onClick={() => setTab("room")}>{t("tabRoom")}</button>
+          </>
+        )}
+      </div>
+      <div className="aivy-rightpanel-body aivy-scroll">
+        {tab === "now" && <NowPlayingPane />}
+        {tab === "room" && room && <RoomPane />}
+      </div>
+    </>
+  );
 
   if (rightPanelCollapsed) {
     return (
       <aside className="aivy-rightpanel aivy-rightpanel-collapsed">
-        <div className="aivy-rightpanel-rail">
-          <button
-            type="button"
-            className="aivy-rp-rail-btn is-toggle"
-            onClick={toggleRightPanelCollapsed}
-            aria-label={t("expandPanel", "Buka panel")}
-            title={t("expandPanel", "Buka panel")}
-          >
-            <PanelRight size={17} />
-          </button>
-
-          <div className="aivy-rp-rail-modes">
-            <button
-              type="button"
-              className={`aivy-rp-rail-btn ${activeMode === "now" ? "active" : ""}`}
-              onClick={() => selectMode("now")}
-              title={t("tabNowPlaying")}
-              aria-label={t("tabNowPlaying")}
-            >
-              <Music2 size={16} />
-            </button>
-            <button
-              type="button"
-              className={`aivy-rp-rail-btn ${activeMode === "queue" ? "active" : ""}`}
-              onClick={() => selectMode("queue")}
-              title={t("lyricsQueueBtn")}
-              aria-label={t("lyricsQueueBtn")}
-            >
-              <ListMusic size={16} />
-              {upNext?.length > 0 && <span className="rp-rail-dot" />}
-            </button>
-            <button
-              type="button"
-              className={`aivy-rp-rail-btn ${activeMode === "lyrics" ? "active" : ""}`}
-              onClick={() => selectMode("lyrics")}
-              disabled={!currentTrack || !currentTrackHasLyrics}
-              title={t("lyrics")}
-              aria-label={t("lyrics")}
-            >
-              <Mic2 size={16} />
-            </button>
-            {room && (
-              <button
-                type="button"
-                className={`aivy-rp-rail-btn ${activeMode === "room" ? "active" : ""}`}
-                onClick={() => selectMode("room")}
-                title={t("tabRoom")}
-                aria-label={t("tabRoom")}
-              >
-                <Users size={16} />
-              </button>
-            )}
-          </div>
-
-          <div className="aivy-rp-rail-spacer" />
-
-          {currentTrack && (
-            <button
-              type="button"
-              className={`aivy-rp-rail-now ${isPlaying ? "is-playing" : ""}`}
-              onClick={() => selectMode("now")}
-              title={`${currentTrack.title} \u2014 ${currentTrack.artist?.name || ""}`}
-              aria-label={t("expandPanel", "Buka panel")}
-            >
-              <span className="rp-rail-eq" aria-hidden="true"><i /><i /><i /></span>
-              <span className="rp-rail-art">
-                <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={36} radius={8} />
-              </span>
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          className="aivy-rightpanel-rail"
+          onClick={toggleRightPanelCollapsed}
+          onMouseEnter={() => setRightPanelPeek(true)}
+          onMouseLeave={() => setRightPanelPeek(false)}
+          onFocus={() => setRightPanelPeek(true)}
+          onBlur={() => setRightPanelPeek(false)}
+          aria-label={t("expandPanel", "Buka panel")}
+          title={t("expandPanel", "Buka panel")}
+        >
+          {}
+          <span className="aivy-rightpanel-rail-peek-wrap">
+            <span className="aivy-rightpanel-rail-peek" style={{ width: rightPanelWidth }}>{bodyContent}</span>
+          </span>
+          <span className="aivy-rightpanel-rail-arrow-wrap">
+            <span className="aivy-rightpanel-rail-arrow">
+              <ChevronRight size={16} className="arrow-idle" />
+              <ChevronLeft size={16} className="arrow-hover" />
+            </span>
+          </span>
+        </button>
       </aside>
     );
   }
 
   return (
     <aside className="aivy-rightpanel">
-      <div className="aivy-rightpanel-header">
-        <button
-          type="button"
-          className="aivy-rp-collapse-btn"
-          onClick={toggleRightPanelCollapsed}
-          aria-label={t("collapsePanel", "Tutup panel")}
-          title={t("collapsePanel", "Tutup panel")}
-        >
-          <PanelRight size={16} />
-        </button>
-        <div className="aivy-rp-seg" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeMode === "now"}
-            className={`aivy-rp-seg-btn ${activeMode === "now" ? "active" : ""}`}
-            onClick={() => selectMode("now")}
-            title={t("tabNowPlaying")}
-          >
-            <Music2 size={13} />
-            <span>{t("tabNowPlaying")}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeMode === "queue"}
-            className={`aivy-rp-seg-btn ${activeMode === "queue" ? "active" : ""}`}
-            onClick={() => selectMode("queue")}
-            title={t("lyricsQueueBtn")}
-          >
-            <ListMusic size={13} />
-            <span>{t("lyricsQueueBtn")}</span>
-            {upNext?.length > 0 && <em className="rp-seg-badge">{upNext.length}</em>}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeMode === "lyrics"}
-            className={`aivy-rp-seg-btn ${activeMode === "lyrics" ? "active" : ""}`}
-            onClick={() => selectMode("lyrics")}
-            disabled={!currentTrack || !currentTrackHasLyrics}
-            title={t("lyrics")}
-          >
-            <Mic2 size={13} />
-            <span>{t("lyrics")}</span>
-          </button>
-          {room && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeMode === "room"}
-              className={`aivy-rp-seg-btn ${activeMode === "room" ? "active" : ""}`}
-              onClick={() => selectMode("room")}
-              title={t("tabRoom")}
-            >
-              <Users size={13} />
-              <span>{t("tabRoom")}</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {!room && activeMode === "now" && <RightPanelSourceLabel />}
-
-      <div className={`aivy-rightpanel-body ${activeMode === "lyrics" ? "is-lyrics" : "aivy-scroll"}`}>
-        {activeMode === "lyrics" && <SidebarLyricsPanel />}
-        {activeMode === "queue" && <SidebarQueuePanel />}
-        {activeMode === "now" && <NowPlayingPane />}
-        {activeMode === "room" && room && <RoomPane />}
-      </div>
-
-      <div
-        className={`aivy-resize-handle left ${isDragging ? "active" : ""}`}
-        onMouseDown={onDragStart}
-        onTouchStart={onDragStart}
-      >
-        <span className="aivy-resize-grip"><GripVertical size={12} /></span>
-      </div>
+      {bodyContent}
+      {resizeHandle}
     </aside>
   );
 }
@@ -3874,98 +3769,32 @@ export function QueueHistoryBody() {
 }
 
 function NowPlayingPane() {
-  const { currentTrack, isPreviewClip, liked, toggleLike, playRadio } = usePlayer();
-  const { t, settings, openAddToPlaylist, openContextMenu, pushToast } = useUI();
-  const { name: routeName, navigate } = useRouter();
+  const { currentTrack, isPreviewClip } = usePlayer();
+  const { t, settings } = useUI();
+  const { name: routeName } = useRouter();
   const isArtistView = routeName === "artist";
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  const menuItems = useTrackMenuItems(currentTrack || {});
   if (!currentTrack) return <div className="aivy-empty"><StarMark size={34} color="var(--ink-faint)" /><div className="title">{t("nothingPlaying")}</div></div>;
-  const isLiked = liked.has(String(currentTrack.videoId || currentTrack.id));
-  const goArtist = () => {
-    const target = currentTrack.artist?.id || currentTrack.artist?.name;
-    if (target) navigate("artist", { params: { id: target } });
-  };
   return (
     <div className="aivy-nowplaying-pane">
-      <div className="aivy-np-hero-card">
-        {currentTrack.cover && (
-          <div
-            className="aivy-np-hero-glow"
-            style={{ backgroundImage: `url(${JSON.stringify(currentTrack.cover)})` }}
-            aria-hidden="true"
-          />
-        )}
-        <div className="aivy-np-hero-art">
-          <AnimatedCover
-            src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={240} radius={14}
-            style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }}
-            song={currentTrack.title} artist={currentTrack.artist?.name}
-            animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
-          />
-        </div>
-        <div className="aivy-np-hero-meta">
-          <div className="aivy-np-hero-titles">
-            <MarqueeText
-              as="div"
-              className="t"
-              text={currentTrack.title}
-              prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
-              always
-            />
-            <MarqueeText
-              as="div"
-              className="a"
-              text={currentTrack.artist?.name || ""}
-              onClick={goArtist}
-              style={{ cursor: currentTrack.artist?.name ? "pointer" : "default" }}
-              always
-            />
-          </div>
-          {isPreviewClip && <div className="eyebrow" style={{ marginTop: 6 }}>{t("officialPreview")}</div>}
-          <div className="aivy-np-hero-actions">
-            <button
-              type="button"
-              className={`aivy-np-act-btn ${isLiked ? "active" : ""}`}
-              onClick={() => toggleLike(currentTrack)}
-              title={t("like")}
-              aria-label={t("like")}
-            >
-              <Heart size={15} fill={isLiked ? "currentColor" : "none"} />
-            </button>
-            <button
-              type="button"
-              className="aivy-np-act-btn"
-              onClick={() => openAddToPlaylist(currentTrack)}
-              title={t("menuAddPlaylist", "Tambah ke playlist")}
-              aria-label={t("menuAddPlaylist", "Tambah ke playlist")}
-            >
-              <ListPlus size={15} />
-            </button>
-            <button
-              type="button"
-              className="aivy-np-act-btn"
-              onClick={() => { playRadio(currentTrack); pushToast(t("toastPlayingFullSong")); }}
-              title={t("startInfiniteRadio")}
-              aria-label={t("startInfiniteRadio")}
-            >
-              <Radio size={15} />
-            </button>
-            <button
-              type="button"
-              className="aivy-np-act-btn"
-              onClick={(e) => openContextMenu(e.clientX, e.clientY, menuItems)}
-              title={t("menuMore")}
-              aria-label={t("menuMore")}
-            >
-              <MoreHorizontal size={15} />
-            </button>
-          </div>
-        </div>
-      </div>
-      <NextUpPreview compact />
+      <AnimatedCover
+        src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={240} radius={16}
+        style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }}
+        song={currentTrack.title} artist={currentTrack.artist?.name}
+        animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+      />
+      <MarqueeText
+        as="div"
+        className="t"
+        text={currentTrack.title}
+        prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        always
+      />
+      <MarqueeText as="div" className="a" text={currentTrack.artist?.name || ""} always />
+      {isPreviewClip && <div className="eyebrow" style={{ marginTop: 10 }}>{t("officialPreview")}</div>}
       <AboutArtistSection track={currentTrack} glass={isArtistView} />
       <CreditsCard track={currentTrack} glass={isArtistView} />
+      <NextUpPreview compact />
     </div>
   );
 }
@@ -4392,7 +4221,7 @@ export function MobileDock({ onExpandPlayer }) {
   const { t, settings } = useUI();
   const { currentTrack } = usePlayer();
   const hasTrack = !!currentTrack;
-  const [collapsed, setCollapsed] = useDockCollapse(name, hasTrack);
+  const [collapsed] = useDockCollapse(name, hasTrack);
 
   const tabItems = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
   const activeTabIdx = tabItems.findIndex((i) => i.route === name);
@@ -4404,16 +4233,6 @@ export function MobileDock({ onExpandPlayer }) {
           <MiniPlayer onExpand={onExpandPlayer} />
         </div>
       )}
-      {collapsed && (
-        <button
-          type="button"
-          className="aivy-dock-wake"
-          onClick={() => setCollapsed(false)}
-          aria-label={t("navHome")}
-        >
-          <span className="wake-bar" />
-        </button>
-      )}
       <div className="aivy-dock-slot slot-tabs">
         <nav
           className="aivy-tabbar"
@@ -4421,25 +4240,21 @@ export function MobileDock({ onExpandPlayer }) {
           style={{ "--n": Math.max(1, tabItems.length), "--i": Math.max(0, activeTabIdx) }}
         >
           <span className="aivy-tab-lens" aria-hidden="true" />
-          {tabItems.map(({ route, labelKey, icon: Icon }) => {
-            const isActive = name === route;
-            return (
-              <Link
-                key={route}
-                to={route}
-                className={`aivy-tab ${isActive ? "active" : ""}`}
-                aria-label={t(labelKey)}
-                tabIndex={collapsed ? -1 : undefined}
-              >
-                <span className="aivy-tab-pill">
-                  <span className="aivy-tab-icon">
-                    <Icon size={18} strokeWidth={isActive ? 2.4 : 1.9} />
-                  </span>
-                  <span className="aivy-tab-label">{t(labelKey)}</span>
-                </span>
-              </Link>
-            );
-          })}
+          {tabItems.map(({ route, labelKey, icon: Icon }) => (
+            <Link
+              key={route}
+              to={route}
+              className={`aivy-tab ${name === route ? "active" : ""}`}
+              aria-label={t(labelKey)}
+              tabIndex={collapsed ? -1 : undefined}
+            >
+              <span className="aivy-tab-icon">
+                <Icon size={19} />
+                <i className="aivy-tab-dot" aria-hidden="true" />
+              </span>
+              <span className="aivy-tab-label">{t(labelKey)}</span>
+            </Link>
+          ))}
         </nav>
       </div>
     </div>
