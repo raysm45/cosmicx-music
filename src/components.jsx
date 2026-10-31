@@ -252,7 +252,7 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
   }
   return (
     <div
-      ref={trackRef} className={`aivy-scrubber ${dragging ? "dragging" : ""} ${waveformSeed ? "has-waveform" : ""} ${hasMix ? "has-mix" : ""} ${hasMix && isMixing ? "is-mixing" : ""} ${className}`}
+      ref={trackRef} className={`aivy-scrubber ${dragging ? "dragging" : ""} ${waveformSeed ? "has-waveform" : ""} ${hasMix && !isMixing ? "has-mix" : ""} ${hasMix && isMixing ? "is-mixing" : ""} ${className}`}
       style={hasMix ? { "--mix-zone": `${((1 - mixMarkerRatio) * 100).toFixed(3)}%` } : undefined}
       onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragging(true); onSeekRatio(ratioFromEvent(e)); }}
       onPointerMove={(e) => { if (dragging) onSeekRatio(ratioFromEvent(e)); }}
@@ -265,8 +265,9 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
         <div className="fill" ref={registerFill}>
           {waveformSeed && <WaveformBars seed={waveformSeed} className="wave-fg" />}
         </div>
+        {/* Penanda di dalam track (tidak keluar dari bar) & hilang saat mix berjalan */}
+        {hasMix && !isMixing && <div className="mix-marker" style={{ left: `calc(${mixMarkerRatio.toFixed(5)} * (100% - 3px))` }} aria-hidden="true" />}
       </div>
-      {hasMix && <div className="mix-marker" style={{ left: `${(mixMarkerRatio * 100).toFixed(3)}%` }} aria-hidden="true" />}
       <div className="thumb" ref={registerThumb} />
     </div>
   );
