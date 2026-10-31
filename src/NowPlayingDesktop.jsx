@@ -381,8 +381,8 @@ function useNpdGlass(rootRef, enabled, hasTrack, queueMode) {
 }
 
 /* ---------- crossfade thumbnail ---------- */
-// Cover lama tetap ter-mount (frozen) di bawah, cover baru fade-in di atasnya (opacity + scale + blur halus),
-// lalu yang lama dibuang. Semua layer dirender dalam SATU array ber-key supaya React tidak me-remount
+// Cover lama tetap ter-mount (frozen) dan DI ATAS, dibalik seperti halaman buku (CSS .is-out) sampai menghilang,
+// cover baru menunggu di bawahnya (.is-in), lalu yang lama dibuang. Semua layer dirender dalam SATU array ber-key supaya React tidak me-remount
 // layer yang berpindah dari "current" ke "leaving" (kalau di-remount, gambar akan berkedip).
 function CoverCrossfade({ layerKey, reduce, children }) {
   const [st, setSt] = useState({ gen: 0, leaving: [] });
@@ -407,7 +407,7 @@ function CoverCrossfade({ layerKey, reduce, children }) {
 
   const items = st.leaving
     .filter((l) => l.key !== layerKey)
-    .map((l) => <div key={l.key} className={`npd-cover-layer ${l.animated ? "is-in" : ""}`} aria-hidden="true">{l.node}</div>);
+    .map((l) => <div key={l.key} className="npd-cover-layer is-out" aria-hidden="true">{l.node}</div>);
   items.push(<div key={layerKey} className={`npd-cover-layer ${st.gen > 0 ? "is-in" : ""}`}>{children}</div>);
 
   return <div className="npd-cover-layers" style={{ "--npd-xfade": `${COVER_FADE_MS}ms`, "--npd-ease": EASE_CSS }}>{items}</div>;

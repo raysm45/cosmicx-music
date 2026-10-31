@@ -16,6 +16,7 @@ import {
 } from "./components.jsx";
 import { CookieConsent } from "./CookieConsent.jsx";
 import { NowPlayingDesktop } from "./NowPlayingDesktop.jsx";
+import { useCoverTheme } from "./lib/coverTheme.js";
 import { DownloadSheetHost } from "./DownloadSheet.jsx";
 import { ImpersonateBanner } from "./ImpersonateBanner.jsx";
 import { LandingPage, LoginPage } from "./pages/AuthPages.jsx";
@@ -83,6 +84,7 @@ const PAGE_BY_ROUTE = {
 function AppInner() {
   const { name, params } = useRouter();
   useRouteSeo(name, params.id);
+  useCoverTheme();
   const {
     authChecked, authUser, sidebarWidth, sidebarCollapsed, rightPanelWidth, rightPanelCollapsed, rightPanelPeek,
     mobileQueueOpen, openMobileQueue, closeMobileQueue, lyricsOpen, closeLyrics, sidebarQueueOpen, closeSidebarQueue, settings,

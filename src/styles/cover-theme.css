@@ -1,0 +1,56 @@
+/* Theme ikut warna lagu. Variabel diisi dari src/lib/coverTheme.js; durasi & easing dari motion.js
+   (--cv-dur-ms = BG_FADE_MS, --cv-ease = EASE_CSS) supaya menyatu dengan latar WebGL.
+   Semua aturan di bawah dipagari :root[data-cover-theme] -> kalau fitur mati, tampilan 100% seperti semula. */
+
+@property --accent        { syntax: "<color>"; inherits: true; initial-value: #E6E6E6; }
+@property --accent-strong { syntax: "<color>"; inherits: true; initial-value: #FFFFFF; }
+@property --accent-ink    { syntax: "<color>"; inherits: true; initial-value: #000000; }
+@property --accent-soft   { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.10); }
+@property --cv-dk-accent  { syntax: "<color>"; inherits: true; initial-value: #E6E6E6; }
+@property --cv-dk-strong  { syntax: "<color>"; inherits: true; initial-value: #FFFFFF; }
+@property --cv-dk-ink     { syntax: "<color>"; inherits: true; initial-value: #000000; }
+@property --cv-dk-soft    { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.10); }
+
+:root{
+  --cv-dur: var(--cv-dur-ms, 1700ms);
+  --cv-ease: cubic-bezier(.45, .05, .2, 1);
+  transition:
+    --accent var(--cv-dur) var(--cv-ease), --accent-strong var(--cv-dur) var(--cv-ease),
+    --accent-ink var(--cv-dur) var(--cv-ease), --accent-soft var(--cv-dur) var(--cv-ease),
+    --cv-dk-accent var(--cv-dur) var(--cv-ease), --cv-dk-strong var(--cv-dur) var(--cv-ease),
+    --cv-dk-ink var(--cv-dur) var(--cv-ease), --cv-dk-soft var(--cv-dur) var(--cv-ease);
+}
+:root[data-reduced-motion="true"]{ --cv-dur: 0ms; }
+@media (prefers-reduced-motion: reduce){ :root{ --cv-dur: 0ms; } }
+:root[data-cv-snap]{ transition: none; }
+
+/* Pulau gelap (Now Playing): pakai set --cv-dk-* sebagai --accent*, bukan set permukaan theme */
+:root[data-cover-theme] .npd,
+:root[data-cover-theme] .aivy-sheet.npx-v2{
+  --accent: var(--cv-dk-accent); --accent-strong: var(--cv-dk-strong);
+  --accent-ink: var(--cv-dk-ink); --accent-soft: var(--cv-dk-soft);
+}
+
+/* Scrubber & volume: isian ikut aksen (sebelumnya baru berwarna saat hover) */
+:root[data-cover-theme] .aivy-scrubber .fill,
+:root[data-cover-theme] .aivy-vol .fill,
+:root[data-cover-theme] .npd .aivy-scrubber .fill,
+:root[data-cover-theme] .npd .npd-volume .aivy-vol .fill,
+:root[data-cover-theme] .aivy-sheet.npx-v2 .aivy-scrubber .fill,
+:root[data-cover-theme] .aivy-sheet.npx-v2 .aivy-scrubber:hover .fill,
+:root[data-cover-theme] .aivy-sheet.npx-v2 .aivy-vol .fill,
+:root[data-cover-theme] .aivy-sheet.npx-v2 .aivy-vol:hover .fill{ background: var(--accent-strong); }
+:root[data-cover-theme] .npd .aivy-scrubber .thumb{ background: var(--accent-strong); }
+
+/* Now Playing desktop: tombol aktif, like, transport */
+:root[data-cover-theme] .npd .npd-round:hover,
+:root[data-cover-theme] .npd .npd-round.active,
+:root[data-cover-theme] .npd .npd-mini:hover,
+:root[data-cover-theme] .npd .npd-mini.active,
+:root[data-cover-theme] .npd .npd-chip.active,
+:root[data-cover-theme] .npd .npd-tbtn{ color: var(--accent-strong); }
+:root[data-cover-theme] .npd .npd-chip.active::after,
+:root[data-cover-theme] .npd .npd-mini.active::after{ background: color-mix(in srgb, var(--accent-strong) 30%, transparent); }
+
+/* Highlight lirik (am-lyrics membaca --am-lyrics-highlight-color lewat shadow DOM) */
+:root[data-cover-theme] .aivy-am-lyrics{ --am-lyrics-highlight-color: var(--accent-strong); }

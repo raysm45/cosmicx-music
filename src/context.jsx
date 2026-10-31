@@ -176,6 +176,7 @@ const DEFAULT_SETTINGS = {
 
   waveformSeekbar: false,
   coverBackground: true,
+  coverTheme: true,
   dynamicColors: false,
   noRoundCover: false,
   tiltCover: false,

@@ -56,7 +56,7 @@
 
 .npd-left{ position: relative; height: 100%; display: flex; align-items: center; justify-content: center; padding-bottom: 9vh; touch-action: none; }
 .npd-cover{
-  position: relative; width: var(--npd-cover); height: var(--npd-cover); border-radius: 8px; overflow: hidden; flex-shrink: 0;
+  position: relative; width: var(--npd-cover); height: var(--npd-cover); border-radius: 8px; flex-shrink: 0;   /* tanpa overflow:hidden -> halaman bisa terayun keluar bingkai; tiap layer memotong dirinya sendiri */
   box-shadow: 0 22px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06);
   transform: scale(1); transform-origin: 50% 50%; will-change: transform;
   transition: transform .7s cubic-bezier(.34,1.3,.64,1), box-shadow .6s ease;
@@ -68,19 +68,41 @@
 }
 .npd.reduce .npd-cover.is-paused{ transform: none; }
 
-/* Crossfade thumbnail: durasi & kurva dikirim dari JS (lib/motion.js) supaya identik dengan transisi warna latar */
-.npd-cover-layers{ position: absolute; inset: 0; isolation: isolate; }
-.npd-cover-layer{ position: absolute; inset: 0; }
+/* Ganti thumbnail = membalik halaman buku. Cover lama (.is-out) terengsel di tepi kiri dan terbuka ke arah penonton,
+   cover baru (.is-in) menunggu di bawahnya. Durasi & kurva dikirim dari JS (lib/motion.js), sama dengan transisi warna latar. */
+.npd-cover-layers{ position: absolute; inset: 0; isolation: isolate; perspective: calc(var(--npd-cover) * 4.5); }
+.npd-cover-layer{ position: absolute; inset: 0; z-index: 1; border-radius: 8px; overflow: hidden; }
 .npd-cover-layer.is-in{
-  animation: npd-cover-in var(--npd-xfade, 1100ms) var(--npd-ease, cubic-bezier(.45,.05,.2,1)) backwards;
-  will-change: opacity, transform, filter;
+  animation: npd-page-reveal var(--npd-xfade, 1100ms) var(--npd-ease, cubic-bezier(.45,.05,.2,1)) backwards;
+  will-change: transform, filter;
 }
-@keyframes npd-cover-in{
-  from{ opacity: 0; transform: scale(1.05); filter: blur(10px); }
-  to{ opacity: 1; transform: scale(1); filter: blur(0); }
+.npd-cover-layer.is-out{
+  z-index: 2; transform-origin: 0% 50%; pointer-events: none;
+  animation:
+    npd-page-turn var(--npd-xfade, 1100ms) var(--npd-ease, cubic-bezier(.45,.05,.2,1)) forwards,
+    npd-page-fade var(--npd-xfade, 1100ms) linear forwards;
+  will-change: transform, opacity;
 }
+/* bayangan halaman yang sedang terbuka jatuh di atas cover baru, memudar saat halaman menjauh */
+.npd-cover-layer.is-in::after{
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(0,0,0,.5), rgba(0,0,0,0) 72%);
+  animation: npd-page-cast var(--npd-xfade, 1100ms) var(--npd-ease, cubic-bezier(.45,.05,.2,1)) forwards;
+}
+/* sisi belakang halaman (tampak setelah >90deg) = cover tercermin yang makin gelap seperti kertas */
+.npd-cover-layer.is-out::after{
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.2));
+  animation: npd-page-shade var(--npd-xfade, 1100ms) var(--npd-ease, cubic-bezier(.45,.05,.2,1)) forwards;
+}
+@keyframes npd-page-turn{ from{ transform: rotateY(0deg); } to{ transform: rotateY(-165deg); } }
+@keyframes npd-page-fade{ 0%, 62%{ opacity: 1; } 100%{ opacity: 0; } }
+@keyframes npd-page-shade{ from{ opacity: 0; } to{ opacity: 1; } }
+@keyframes npd-page-cast{ from{ opacity: 1; } to{ opacity: 0; } }
+@keyframes npd-page-reveal{ from{ transform: scale(.94); filter: brightness(.6); } to{ transform: scale(1); filter: brightness(1); } }
+.npd.reduce .npd-cover-layer, .npd.reduce .npd-cover-layer::after{ animation: none; }
 .npd-quality{
-  position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 8px 8px; text-align: center; z-index: 3;
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 8px 8px; text-align: center; z-index: 3; border-radius: 0 0 8px 8px;
   font-size: 11px; font-weight: 700; letter-spacing: .01em; color: rgba(255,255,255,.82); pointer-events: none;
   background: linear-gradient(180deg, transparent, rgba(0,0,0,.42));
   text-shadow: 0 1px 2px rgba(0,0,0,.6);
