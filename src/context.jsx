@@ -827,12 +827,23 @@ export function PlayerProvider({ children }) {
     if (saved.muted) setMuted(true);
     if (saved.playSource) setPlaySource(saved.playSource);
     pendingResumeTimeRef.current = typeof saved.currentTime === "number" ? saved.currentTime : 0;
+    // Pulihkan state AutoPlay. Tanpa ini, refresh menjatuhkan pemutar ke lagu
+    // antrean (lagu AutoPlay hidup di autoList, bukan di queueList) — lagu
+    // AutoPlay yang sedang diputar "hilang" dan balik ke lagu antrean.
+    if (saved.inAuto && Array.isArray(saved.autoList) && saved.autoList.length) {
+      const cur = Math.min(Math.max(saved.autoCursor || 0, 0), saved.autoList.length - 1);
+      setAutoList(saved.autoList);
+      setAutoCursor(cur);
+      setInAuto(true);
+      // Patok kunci seed supaya efek AutoPlay tidak membuat ulang daftar.
+      if (saved.autoSeedKey) autoSeedKeyRef.current = saved.autoSeedKey;
+    }
   }, []);
 
   const playbackSnapshotRef = useRef(null);
   useEffect(() => {
-    playbackSnapshotRef.current = { queueList, order, posInOrder, shuffle, repeat, volume, muted, playSource };
-  }, [queueList, order, posInOrder, shuffle, repeat, volume, muted, playSource]);
+    playbackSnapshotRef.current = { queueList, order, posInOrder, shuffle, repeat, volume, muted, playSource, inAuto, autoCursor, autoList };
+  }, [queueList, order, posInOrder, shuffle, repeat, volume, muted, playSource, inAuto, autoCursor, autoList]);
   const orderPosRef = useRef({ order, posInOrder });
   useEffect(() => {
     orderPosRef.current = { order, posInOrder };
@@ -841,7 +852,7 @@ export function PlayerProvider({ children }) {
   const savePlaybackSnapshotNow = useCallback(() => {
     const snap = playbackSnapshotRef.current;
     if (!snap || !snap.queueList?.length || !snap.order?.length) { clearPlaybackState(); return; }
-    savePlaybackState({ ...snap, currentTime: audioRef.current?.currentTime || 0 });
+    savePlaybackState({ ...snap, autoSeedKey: autoSeedKeyRef.current, currentTime: audioRef.current?.currentTime || 0 });
   }, []);
 
   useEffect(() => {
