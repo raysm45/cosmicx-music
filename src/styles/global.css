@@ -408,14 +408,14 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
   position: absolute; top: 0; bottom: 0; width: 3px; border-radius: 2px; pointer-events: none; z-index: 2;
   background: var(--accent-strong, var(--ink));
 }
-/* Saat mix berjalan: progress yang berjalan DIHAPUS. Bar langsung penuh (full bar) dan "shining" menyapu seluruh bar
-   berulang-ulang sampai mix selesai (kelas is-mixing dilepas). Masuk/keluar memakai transisi agar mulus. */
+/* Saat mix berjalan: progress yang berjalan DIHAPUS. Bar langsung penuh (full bar), "shining" menyapu SELURUH bar 2x,
+   lalu seluruh bar berkedip sampai mix selesai (kelas is-mixing dilepas). Masuk/keluar memakai transisi agar mulus. */
 .aivy-scrubber{ --mix-shine: color-mix(in srgb, var(--ink) 85%, transparent); }
 .aivy-sheet .aivy-scrubber{ --mix-shine: color-mix(in srgb, var(--sheet-ink, var(--ink)) 85%, transparent); }
 .aivy-lyrics-scrubber-row .aivy-scrubber{ --mix-shine: color-mix(in srgb, var(--lyr-ink, var(--ink)) 85%, transparent); }
 
 /* Bar penuh: fill dipaksa 100% (menimpa transform inline dari writeProgress) dan diredupkan supaya kilau terlihat jelas. */
-.aivy-scrubber.is-mixing .track{ overflow: hidden; }
+.aivy-scrubber.is-mixing .track{ overflow: hidden; animation: aivy-mix-blink .9s ease-in-out 2.6s infinite; }
 .aivy-scrubber.is-mixing .fill{
   transform: scaleX(1) !important; opacity: .5;
   transition: transform .7s cubic-bezier(.22,.9,.32,1), opacity .5s ease;
@@ -424,9 +424,10 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-scrubber.is-mixing .track::after{
   content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 45%; transform: translateX(-100%); pointer-events: none; z-index: 3;
   background: linear-gradient(90deg, transparent, var(--mix-shine), transparent);
-  opacity: 0; animation: aivy-mix-shine 1.8s cubic-bezier(.45,.05,.35,1) .25s infinite, aivy-mix-shine-in .5s ease .25s forwards;
+  opacity: 0; animation: aivy-mix-shine 1.1s ease-in-out .25s 2 both, aivy-mix-shine-in .4s ease .25s forwards;
 }
-@keyframes aivy-mix-shine{ 0%{ transform: translateX(-100%); } 70%, 100%{ transform: translateX(223%); } }
+@keyframes aivy-mix-shine{ 0%{ transform: translateX(-100%); } 100%{ transform: translateX(223%); } }
+@keyframes aivy-mix-blink{ 0%, 100%{ opacity: 1; } 50%{ opacity: .3; } }
 @keyframes aivy-mix-shine-in{ to{ opacity: 1; } }
 
 /* Setelah mix selesai: bar menyusut mulus dari penuh ke posisi lagu baru, thumb muncul kembali. */
@@ -435,6 +436,7 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 @media (prefers-reduced-motion: reduce){
   .aivy-scrubber.is-mixing .track::after{ animation: none; opacity: 0; display: none; }
   .aivy-scrubber.is-mixing .fill, .aivy-scrubber.mix-settle .fill{ transition: none; }
+  .aivy-scrubber.is-mixing .track{ animation-duration: 1.8s; animation-delay: 0s; }
 }
 :root[data-reduced-motion="true"] .aivy-scrubber.is-mixing .track::after{ animation: none; opacity: 0; display: none; }
 :root[data-reduced-motion="true"] .aivy-scrubber.is-mixing .fill,
