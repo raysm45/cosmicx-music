@@ -284,6 +284,7 @@
 .aivy-sheet.npx-v2 .aivy-scrubber .fill,
 .aivy-sheet.npx-v2 .aivy-scrubber:hover .fill{ background: rgba(255,255,255,.92); }
 .aivy-sheet.npx-v2 .aivy-scrubber .thumb{ display: none; }
+.aivy-sheet.npx-v2 .aivy-scrubber{ --mix-shine: rgba(255,255,255,.95); }
 .aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time{ grid-row: 2; width: auto; font-size: calc(var(--u) * 16.5); font-weight: 600; line-height: calc(var(--u) * 22); padding-top: calc(var(--u) * 2); color: rgba(255,255,255,.53); }
 .aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time:not(.right){ grid-column: 1; }
 .aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-time.right{ grid-column: 2; justify-self: end; }

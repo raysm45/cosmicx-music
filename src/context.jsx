@@ -1,2215 +1,5762 @@
-import React, { useSyncExternalStore,
-  createContext, useContext, useState, useEffect, useRef, useMemo, useCallback,
-} from "react";
-import { io } from "socket.io-client";
-import { Api, SOCKET_ORIGIN, SOCKET_PATH, getAuthToken } from "./lib/api.js";
-import { isImpersonating, exitImpersonate } from "./lib/impersonate.js";
-import { setPreferredAudioFormat, getPreferredAudioFormat, audioLabelFromInfo, unifyAudioInfoFields } from "./lib/audioFormat.js";
-import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
-import { makeT } from "./lib/i18n.js";
-import { seoState } from "./lib/seo.js";
-import { trackArtistsReady, loadTrackArtists } from "./lib/artistProfile.js";
-import { useDiscordPresence } from "./lib/discordPresence.js";
-import { applyLiquidGlass, isLowEndDevice } from "./lib/perf.js";
-import { applyCustomFont, useLocalFont } from "./lib/fonts.js";
-
-export const EQ_BANDS_HZ = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-export const EQ_PRESETS = {
-  flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  bass: [7, 6, 5, 3, 1, 0, 0, 0, 0, 0],
-  treble: [0, 0, 0, 0, 0, 1, 3, 5, 6, 7],
-  vocal: [-2, -2, -1, 2, 4, 4, 2, 0, -1, -2],
-  electronic: [5, 4, 0, -2, -3, 0, 2, 3, 4, 5],
-};
-const DEFAULT_EQ = { enabled: false, preset: "flat", preamp: 0, bands: [...EQ_PRESETS.flat] };
-
-export const FONT_STACKS = {
-  default: null,
-  inter: "'Inter', -apple-system, sans-serif",
-  applemusic: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  roboto: "'Roboto', -apple-system, sans-serif",
-  opensans: "'Open Sans', -apple-system, sans-serif",
-  lato: "'Lato', -apple-system, sans-serif",
-  montserrat: "'Montserrat', -apple-system, sans-serif",
-  poppins: "'Poppins', -apple-system, sans-serif",
-  systemui: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-};
-const GOOGLE_FONT_QUERY = {
-  inter: "Inter:wght@400;500;600;700;800",
-  roboto: "Roboto:wght@400;500;700",
-  opensans: "Open+Sans:wght@400;500;600;700",
-  lato: "Lato:wght@400;500;700",
-  montserrat: "Montserrat:wght@400;500;600;700",
-  poppins: "Poppins:wght@400;500;600;700",
-};
-const playbackTimeStore = { value: 0, subs: new Set() };
-function setPlaybackTime(v) {
-  const next = typeof v === "number" && isFinite(v) ? v : 0;
-  if (playbackTimeStore.value === next) return;
-  playbackTimeStore.value = next;
-  playbackTimeStore.subs.forEach((fn) => fn());
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, Component } from "react";
+import { createPortal } from "react-dom";
+import {
+  Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Volume2, Volume1,
+  VolumeX, Heart, Search, Home as HomeIcon, Library, ListMusic, ChevronDown,
+  ChevronLeft, ChevronRight, X, Plus, Users, LogIn, MoreHorizontal, Clock,
+  Check, ArrowLeft, Sun, Moon, Music2, Share2, UserPlus, Radio, Settings as SettingsIcon,
+  Lock, Globe, Crown, Mic2, AlertTriangle, GripVertical, Trash2, Film, Send,
+  PanelLeft, PanelRight, Type, Star, Airplay, Mic, MessageSquareQuote, Smile,
+  Cast, Info, Copy, ListPlus, SlidersHorizontal, Gauge, Maximize, Minimize, Github, Sparkles, RefreshCw,
+  ExternalLink, Rewind, FastForward,
+  Headphones, User, List, Infinity as InfinityIcon, AudioLines, Languages, Music, Volume as VolumeNone,
+  Download,
+} from "lucide-react";
+import {
+  usePlayer, usePlayerTime, useUI,
+  SIDEBAR_MIN_W, SIDEBAR_MAX_W, RIGHTPANEL_MIN_W, RIGHTPANEL_MAX_W,
+} from "./context.jsx";
+import { useRouter, Link } from "./router.jsx";
+import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, AnimatedLogo, prefetchAnimatedArtwork } from "./lib/brand.jsx";
+import { peekArtistProfile, loadArtistProfile, loadTrackArtists, menuArtists } from "./lib/artistProfile.js";
+import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
+import { runAiAssistantTurn } from "./lib/aiAssistant.js";
+import { Api } from "./lib/api.js";
+import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
+import { LiquidFilter } from "./lib/LiquidFilter.jsx";
+import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
+import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled } from "./lib/audioFormat.js";
+import { openDownload } from "./DownloadSheet.jsx";
+import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
+import { MeshGradient, useCoverPalette } from "./lib/MeshGradient.jsx";
+export function resolveAvatarUrl(user) {
+  if (!user) return null;
+  const raw = user.avatarUrl || user.avatar_url || user.picture || user.photo || user.photoUrl
+    || user.image || user.imageUrl || user.avatar || null;
+  if (!raw || typeof raw !== "string") return null;
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith("data:") || raw.startsWith("/")) {
+    return raw.startsWith("//") ? `https:${raw}` : raw;
+  }
+  const discordId = user.discordId || user.discord_id || user.providerId || user.provider_id || user.id;
+  if (discordId) {
+    const ext = raw.startsWith("a_") ? "gif" : "png";
+    return `https://cdn.discordapp.com/avatars/${discordId}/${raw}.${ext}?size=128`;
+  }
+  return null;
 }
-function subscribePlaybackTime(fn) {
-  playbackTimeStore.subs.add(fn);
-  return () => playbackTimeStore.subs.delete(fn);
-}
-const getPlaybackTime = () => playbackTimeStore.value;
-export function usePlayerTime() {
-  return useSyncExternalStore(subscribePlaybackTime, getPlaybackTime, getPlaybackTime);
+export function resolveDisplayName(user) {
+  if (!user) return "";
+  return user.displayName || user.display_name || user.global_name || user.globalName
+    || user.name || user.username || "";
 }
 
-const UICtx = createContext(null);
-export function useUI() { return useContext(UICtx); }
+export function Avatar({ user, className = "", title }) {
+  const url = resolveAvatarUrl(user);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [url]);
+  const name = resolveDisplayName(user);
+  const showImg = url && !failed;
+  return (
+    <span className={`aivy-avatar ${showImg ? "has-img" : ""} ${className}`.trim()} title={title}>
+      {showImg
+        ? <img src={url} alt={name} referrerPolicy="no-referrer" draggable={false} onError={() => setFailed(true)} />
+        : name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
 
-export const SIDEBAR_MIN_W = 240;
-export const SIDEBAR_MAX_W = 420;
-export const SIDEBAR_COLLAPSED_W = 80;
-export const RIGHTPANEL_MIN_W = 260;
-export const RIGHTPANEL_MAX_W = 440;
-export const RIGHTPANEL_COLLAPSED_W = 56;
-export const RIGHTPANEL_PEEK_W = 52;
-const PANEL_PREFS_KEY = "aivy_panel_prefs";
-const SETTINGS_CACHE_KEY = "aivy_settings_cache_v1";
-const PLAYBACK_STATE_KEY = "aivy_playback_state_v1";
-const PLAYBACK_STATE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-const DEFAULT_PANEL_PREFS = {
-  sidebarWidth: 300,
-  sidebarCollapsed: false,
-  rightPanelWidth: 300,
-  rightPanelCollapsed: false,
-};
-function loadPanelPrefs() {
-  try {
-    const raw = localStorage.getItem(PANEL_PREFS_KEY);
-    if (!raw) return DEFAULT_PANEL_PREFS;
-    const parsed = JSON.parse(raw);
-    return {
-      sidebarWidth: clamp(Number(parsed.sidebarWidth) || DEFAULT_PANEL_PREFS.sidebarWidth, SIDEBAR_MIN_W, SIDEBAR_MAX_W),
-      sidebarCollapsed: !!parsed.sidebarCollapsed,
-      rightPanelWidth: clamp(Number(parsed.rightPanelWidth) || DEFAULT_PANEL_PREFS.rightPanelWidth, RIGHTPANEL_MIN_W, RIGHTPANEL_MAX_W),
-      rightPanelCollapsed: !!parsed.rightPanelCollapsed,
+function usePanelResize({ width, setWidth, min, max, side }) {
+  const draggingRef = useRef(false);
+  const startRef = useRef({ x: 0, width: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    function onMove(e) {
+      if (!draggingRef.current) return;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const delta = clientX - startRef.current.x;
+      const next = side === "left" ? startRef.current.width + delta : startRef.current.width - delta;
+      setWidth(clamp(Math.round(next), min, max));
+    }
+    function onUp() {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      setIsDragging(false);
+      document.body.classList.remove("aivy-resizing");
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
     };
-  } catch { return DEFAULT_PANEL_PREFS; }
+  }, [min, max, setWidth, side]);
+
+  const onDragStart = useCallback((e) => {
+    e.preventDefault();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    draggingRef.current = true;
+    startRef.current = { x: clientX, width };
+    setIsDragging(true);
+    document.body.classList.add("aivy-resizing");
+  }, [width]);
+
+  return { onDragStart, isDragging };
 }
 
-function savePlaybackState(state) {
-  try {
-    localStorage.setItem(PLAYBACK_STATE_KEY, JSON.stringify({ ...state, savedAt: Date.now() }));
-  } catch { }
+function useVerticalSwipe({ active, direction = "down", onTrigger, dragRef, scrollRef, threshold = 90, velocityThreshold = 0.45, moveSelf = true, onDragStart, onDragMove, onDragEnd }) {
+  const stRef = useRef({ pointerId: null, dragging: false, startY: 0, startTime: 0, dragStartTime: 0, delta: 0, blocked: false });
+
+  const reset = () => { stRef.current = { pointerId: null, dragging: false, startY: 0, startTime: 0, dragStartTime: 0, delta: 0, blocked: false }; };
+
+  const onPointerDown = useCallback((e) => {
+    if (!active) return;
+    const blocked = direction === "down" && !!scrollRef?.current && scrollRef.current.scrollTop > 0;
+    stRef.current = { pointerId: e.pointerId, dragging: false, startY: e.clientY, startTime: Date.now(), dragStartTime: 0, delta: 0, blocked };
+  }, [active, direction, scrollRef]);
+
+  const onPointerMove = useCallback((e) => {
+    const st = stRef.current;
+    if (st.pointerId !== e.pointerId) return;
+    if (st.blocked) return;
+    const raw = e.clientY - st.startY;
+    const signed = direction === "down" ? raw : -raw;
+    if (!st.dragging) {
+      if (Math.abs(raw) < 6) return;
+      if (signed < 0) { reset(); return; }
+      st.dragging = true;
+      st.dragStartTime = Date.now();
+      if (moveSelf && dragRef?.current) {
+        dragRef.current.style.transition = "none";
+        dragRef.current.style.willChange = "transform";
+      }
+      onDragStart?.();
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+    }
+    if (st.dragging) { try { e.preventDefault(); } catch {} }
+    st.delta = Math.max(0, signed);
+    if (moveSelf && dragRef?.current) {
+      const px = direction === "down" ? st.delta : -st.delta;
+      dragRef.current.style.transform = `translate3d(0, ${px}px, 0)`;
+    }
+    onDragMove?.(st.delta);
+  }, [direction, dragRef, moveSelf, onDragStart, onDragMove]);
+
+  const finish = useCallback((commit) => {
+    const wasDragging = stRef.current.dragging;
+    if (moveSelf && dragRef?.current) { dragRef.current.style.transition = ""; dragRef.current.style.transform = ""; dragRef.current.style.willChange = ""; }
+    if (wasDragging) onDragEnd?.(commit);
+    if (commit) onTrigger();
+    reset();
+  }, [dragRef, onTrigger, moveSelf, onDragEnd]);
+
+  const onPointerUp = useCallback((e) => {
+    const st = stRef.current;
+    if (st.pointerId !== e.pointerId) return;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+    if (!st.dragging) { reset(); return; }
+    const elapsed = Math.max(1, Date.now() - st.dragStartTime);
+    const velocity = st.delta / elapsed;
+    finish(st.delta > threshold || velocity > velocityThreshold);
+  }, [finish, threshold, velocityThreshold]);
+
+  const onPointerCancel = useCallback((e) => {
+    const st = stRef.current;
+    if (st.pointerId !== e.pointerId) return;
+    finish(false);
+  }, [finish]);
+
+  return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel };
 }
 
-function loadPlaybackState() {
-  try {
-    const raw = localStorage.getItem(PLAYBACK_STATE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.queueList) || !parsed.queueList.length) return null;
-    if (!Array.isArray(parsed.order) || !parsed.order.length) return null;
-    if (!parsed.savedAt || Date.now() - parsed.savedAt > PLAYBACK_STATE_MAX_AGE_MS) return null;
-    return parsed;
-  } catch { return null; }
+export class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("cosmicx crashed:", error, info); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="aivy-crash">
+        <StarMark size={40} color="var(--ink-faint)" />
+        <div className="title">Ada yang salah di halaman ini</div>
+        <div className="sub">Coba muat ulang. Kalau masih kejadian, kabarin ke kami ya.</div>
+        <button className="aivy-btn-primary" onClick={() => { this.setState({ error: null }); window.location.href = "/beranda"; }}>
+          Kembali ke beranda
+        </button>
+      </div>
+    );
+  }
 }
 
-function clearPlaybackState() {
-  try { localStorage.removeItem(PLAYBACK_STATE_KEY); } catch { }
+/* Boundary ringan untuk potongan UI kosmetik (mis. lirik satu baris): kalau error, cukup hilang, bukan menjatuhkan seluruh aplikasi. */
+class SoftBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null, key: props.resetKey }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  static getDerivedStateFromProps(props, state) {
+    return props.resetKey !== state.key ? { error: null, key: props.resetKey } : null;
+  }
+  componentDidCatch(error) { console.error("cosmicx soft-fail:", error); }
+  render() { return this.state.error ? (this.props.fallback ?? null) : this.props.children; }
 }
 
-// Musim Halloween: 1 Okt - 2 Nov, pengunjung yang belum pernah memilih tema otomatis dapat tema Halloween.
-function defaultThemeForSeason() {
-  try {
-    const d = new Date();
-    const m = d.getMonth(), day = d.getDate();
-    if ((m === 9) || (m === 10 && day <= 2)) return "halloween";
-  } catch {}
-  return "black";
+function seededRand(seed) {
+  let h = 0;
+  const s = String(seed || "x");
+  for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; }
+  return () => {
+    h = (h * 1103515245 + 12345) & 0x7fffffff;
+    return (h % 1000) / 1000;
+  };
 }
 
-const OUTPUT_DEVICE_KEY = "aivy_output_device";
-
-// ---- MIX: kurva equal-power untuk overlap lagu aktif -> lagu berikutnya ----
-const MIX_CURVE_LEN = 64;
-const MIX_CURVE_OUT = new Float32Array(MIX_CURVE_LEN);
-const MIX_CURVE_IN = new Float32Array(MIX_CURVE_LEN);
-for (let i = 0; i < MIX_CURVE_LEN; i++) {
-  const p = i / (MIX_CURVE_LEN - 1);
-  MIX_CURVE_OUT[i] = Math.cos(p * Math.PI / 2);
-  MIX_CURVE_IN[i] = Math.sin(p * Math.PI / 2);
-}
-// WAV senyap kecil: dipakai "membuka kunci" elemen audio kedua lewat gestur pengguna (iOS/Safari).
-const SILENT_WAV = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
-function readSavedOutputDevice() {
-  try {
-    const raw = localStorage.getItem(OUTPUT_DEVICE_KEY);
-    const v = raw ? JSON.parse(raw) : null;
-    return v && typeof v.id === "string" && v.id ? { id: v.id, label: String(v.label || "") } : null;
-  } catch { return null; }
-}
-
-const DEFAULT_SETTINGS = {
-  audioQuality: "full",
-  audioFormat: "flac",
-  autoplay: true,
-  crossfadeSeconds: 0,
-  mixEnabled: false,
-  mixSeconds: 8,
-  volumeDefault: 0.7,
-  normalizeVolume: true,
-  explicitContent: true,
-  equalizer: DEFAULT_EQ,
-
-  theme: defaultThemeForSeason(),
-  customThemeCss: "",
-  language: "en",
-  fontFamily: "default",
-  fontUrl: "",
-  fontScale: 100,
-  compactRows: false,
-  compactArtists: false,
-  compactAlbums: false,
-  artistBanners: true,
-  reducedMotion: false,
-  highContrast: false,
-  liquidGlass: false,
-
-  waveformSeekbar: false,
-  coverBackground: true,
-  dynamicColors: false,
-  noRoundCover: false,
-  tiltCover: false,
-  tiltDistance: 10,
-  tiltSpeed: 240,
-  cdCoverSpin: false,
-  animatedArtwork: true,
-
-  visualizerEnabled: false,
-  visualizerStyle: "butterchurn",
-  visualizerMode: "solid",
-  visualizerPreset: "auto",
-  visualizerSensitivity: 60,
-  visualizerBrightness: 100,
-  cyclePresets: false,
-  cycleDuration: 30,
-  randomizePresets: false,
-
-  showRecommendedSongs: true,
-  showRecommendedAlbums: true,
-  showRecommendedArtists: true,
-  showJumpBackIn: true,
-  showEditorsPicks: false,
-  shuffleEditorsPicks: false,
-  editorsPicksSource: "current",
-
-  showNavHome: true,
-  showNavSearch: true,
-  showNavLibrary: true,
-  showNavRooms: true,
-  showNavShorts: true,
-  showSideAbout: false,
-  showSideDiscord: false,
-  showSideGithub: false,
-  donationReminders: false,
-  closeModalsOnNavigation: false,
-  interceptBackToCloseModals: false,
-  nowPlayingView: "album",
-  fullscreenCoverClick: "exit",
-  lyricsFontSize: "md",
-
-  notifyRoomInvite: true,
-  autoJoinRoomAudio: true,
-  hostOnlyControlDefault: false,
-  roomVisibilityDefault: "public",
-  historyEnabled: true,
-  searchHistoryEnabled: true,
-  discordPresence: false,
-  discordPresenceLyrics: true,
-};
-
-function migrateSettings(obj) {
-  const next = { ...obj };
-  if (next.theme === "forest") next.theme = "black";
-  if (next.visualizerPreset === "matrix") next.visualizerPreset = "auto";
-  return next;
-}
-// Migrasi sekali: pengguna yang sebelumnya tersimpan liquidGlass=false (default lama untuk perangkat low-end)
-// dinyalakan ulang. Setelah ada penyimpanan pertama, pilihan pengguna dihormati lagi.
-const LG_FLAG = "aivy_lg_v2";
-function forceLiquidGlassOnce(obj) {
-  return obj;
-}
-function loadCachedSettings() {
-  try {
-    const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return DEFAULT_SETTINGS;
-    return forceLiquidGlassOnce(migrateSettings({ ...DEFAULT_SETTINGS, ...parsed }));
-  } catch { return DEFAULT_SETTINGS; }
-}
-function saveCachedSettings(s) {
-  try { localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(s)); localStorage.setItem(LG_FLAG, "1"); } catch {}
+function WaveformBars({ seed, className }) {
+  const bars = useMemo(() => {
+    const rand = seededRand(seed);
+    const n = 64;
+    const out = [];
+    let last = 0.5;
+    for (let i = 0; i < n; i++) {
+      const jitter = (rand() - 0.5) * 0.7;
+      last = Math.max(0.14, Math.min(1, last * 0.55 + 0.45 * (0.55 + jitter)));
+      out.push(last);
+    }
+    return out;
+  }, [seed]);
+  return (
+    <div className={`aivy-waveform ${className || ""}`} aria-hidden="true">
+      {bars.map((h, i) => <span key={i} style={{ height: `${Math.round(h * 100)}%` }} />)}
+    </div>
+  );
 }
 
-export function UIProvider({ children }) {
-  const [authUser, setAuthUser] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [settings, setSettings] = useState(loadCachedSettings);
-  const [theme, setTheme] = useState(() => {
-    const cached = loadCachedSettings();
-    return typeof cached.theme === "string" && cached.theme && cached.theme !== "dark" ? cached.theme : "black";
-  });
-  const [toasts, setToasts] = useState([]);
-  const [contextMenu, setContextMenu] = useState(null);
-  const [addToPlaylistTarget, setAddToPlaylistTarget] = useState(null);
-  const [creditsTrack, setCreditsTrack] = useState(null);
-  const [lyricsOpen, setLyricsOpen] = useState(false);
-  const [sidebarQueueOpen, setSidebarQueueOpen] = useState(false);
-  const [sidebarLyricsOpen, setSidebarLyricsOpen] = useState(false);
-  const [mobileQueueOpen, setMobileQueueOpen] = useState(false);
-  const [panelPrefs, setPanelPrefs] = useState(loadPanelPrefs);
+export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, className = "", loading = false, waveformSeed = null }) {
+  const trackRef = useRef(null);
+  // Drag disimpan di ref (sinkron, tidak telat render) + state hanya untuk kelas CSS.
+  const dragIdRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  // Mix: penanda di bar = titik mulai mix; saat mix berjalan seluruh bar jadi penuh & "shining" sampai mix selesai.
+  const { mixMarkerRatio, isMixing } = usePlayer();
+  const hasMix = mixMarkerRatio != null;
+  // Setelah mix selesai bar menyusut mulus ke posisi lagu baru (bukan loncat).
+  const [settling, setSettling] = useState(false);
+  const wasMixingRef = useRef(false);
+  useEffect(() => {
+    if (wasMixingRef.current && !isMixing) {
+      setSettling(true);
+      const id = setTimeout(() => setSettling(false), 700);
+      wasMixingRef.current = isMixing;
+      return () => clearTimeout(id);
+    }
+    wasMixingRef.current = isMixing;
+  }, [isMixing]);
+
+  const ratioFromEvent = (e) => {
+    const rect = trackRef.current.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  };
+  const endDrag = useCallback((e) => {
+    if (dragIdRef.current == null) return;
+    const id = dragIdRef.current;
+    dragIdRef.current = null;
+    setDragging(false);
+    try { trackRef.current?.releasePointerCapture(e?.pointerId ?? id); } catch {}
+  }, []);
+  // Pengaman: kalau pointerup hilang (elemen di-render ulang, kursor lepas di luar jendela, tab blur), drag tetap berhenti.
+  useEffect(() => {
+    if (!dragging) return;
+    const stop = (e) => endDrag(e);
+    window.addEventListener("pointerup", stop, true);
+    window.addEventListener("pointercancel", stop, true);
+    window.addEventListener("blur", stop);
+    return () => {
+      window.removeEventListener("pointerup", stop, true);
+      window.removeEventListener("pointercancel", stop, true);
+      window.removeEventListener("blur", stop);
+    };
+  }, [dragging, endDrag]);
+
+  // Skeleton loading tidak boleh mengganti elemen (itu penyebab pointerup hilang). Selama drag, skeleton disembunyikan.
+  const showSkeleton = loading && !dragging;
+  const cls = [
+    "aivy-scrubber",
+    dragging ? "dragging" : "",
+    waveformSeed ? "has-waveform" : "",
+    showSkeleton ? "is-loading" : "",
+    hasMix && !isMixing ? "has-mix" : "",
+    hasMix && isMixing ? "is-mixing" : "",
+    settling ? "mix-settle" : "",
+    className,
+  ].filter(Boolean).join(" ");
+  return (
+    <div
+      ref={trackRef} className={cls}
+      style={hasMix ? { "--mix-zone": `${((1 - mixMarkerRatio) * 100).toFixed(3)}%` } : undefined}
+      onPointerDown={(e) => {
+        if (loading) return;
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+        dragIdRef.current = e.pointerId;
+        setDragging(true);
+        onSeekRatio(ratioFromEvent(e));
+      }}
+      onPointerMove={(e) => {
+        if (dragIdRef.current !== e.pointerId) return;
+        // Mouse sudah tidak ditekan tapi drag masih aktif -> berhenti, jangan ngikut kursor.
+        if (e.pointerType === "mouse" && (e.buttons & 1) === 0) { endDrag(e); return; }
+        onSeekRatio(ratioFromEvent(e));
+      }}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onLostPointerCapture={endDrag}
+      role="slider" aria-label="Posisi lagu" aria-busy={showSkeleton || undefined} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((getRatio ? getRatio() : 0) * 100)}
+    >
+      <div className="track">
+        {waveformSeed && <WaveformBars seed={waveformSeed} className="wave-bg" />}
+        <div className="fill" ref={registerFill}>
+          {waveformSeed && <WaveformBars seed={waveformSeed} className="wave-fg" />}
+        </div>
+        {/* Penanda di dalam track (tidak keluar dari bar) & hilang saat mix berjalan */}
+        {hasMix && !isMixing && <div className="mix-marker" style={{ left: `calc(${mixMarkerRatio.toFixed(5)} * (100% - 3px))` }} aria-hidden="true" />}
+        {showSkeleton && <div className="skeleton-shine scrub-skel" aria-hidden="true" />}
+      </div>
+      <div className="thumb" ref={registerThumb} />
+    </div>
+  );
+}
+
+export function VolumeControl({ showEndIcon = false, coneAtZero = false }) {
+  const { volume, muted, setVolume, toggleMute } = usePlayer();
+  const { t } = useUI();
+  const trackRef = useRef(null);
+  const rootRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const [bumping, setBumping] = useState(false);
+  const bumpTimerRef = useRef(null);
+  const effective = muted ? 0 : volume;
+  const ratioFromEvent = (e) => { const r = trackRef.current.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
+  const VolIcon = effective === 0 ? ((coneAtZero && !muted) ? VolumeNone : VolumeX) : effective < 0.5 ? Volume1 : Volume2;
 
   useEffect(() => {
-    try { localStorage.setItem(PANEL_PREFS_KEY, JSON.stringify(panelPrefs)); } catch {}
-  }, [panelPrefs]);
+    const root = rootRef.current;
+    if (!root) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? -e.deltaY : e.deltaX;
+      const step = delta > 0 ? 0.05 : -0.05;
+      setVolume(clamp(effective + step, 0, 1));
+      setBumping(true);
+      clearTimeout(bumpTimerRef.current);
+      bumpTimerRef.current = setTimeout(() => setBumping(false), 260);
+    };
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => { root.removeEventListener("wheel", onWheel); clearTimeout(bumpTimerRef.current); };
+  }, [effective, setVolume]);
+
+  return (
+    <div className={`aivy-vol ${bumping ? "is-bumping" : ""} ${dragging ? "dragging" : ""}`} ref={rootRef}>
+      <button className="aivy-icon-btn sm" onClick={toggleMute} aria-label={muted ? t("unmute") : t("mute")}>{coneAtZero ? <NpxVolLowIcon /> : <VolIcon size={17} />}</button>
+      <div
+        ref={trackRef} className="track"
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragging(true); setVolume(ratioFromEvent(e)); }}
+        onPointerMove={(e) => { if (dragging) setVolume(ratioFromEvent(e)); }}
+        onPointerUp={(e) => { setDragging(false); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {} }}
+        onPointerCancel={(e) => { setDragging(false); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {} }}
+        role="slider" aria-label={t("volume")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(effective * 100)}
+      >
+        <div className="fill" style={{ width: `${effective * 100}%` }} />
+      </div>
+      {showEndIcon && <span className="vol-end">{coneAtZero ? <NpxVolHighIcon /> : <Volume2 size={17} />}</span>}
+    </div>
+  );
+}
+
+export function useScrubberBinding() {
+  const { duration, seekRatio, registerProgressEl } = usePlayer();
+  const currentTime = usePlayerTime();
+  const fillCleanupRef = useRef(null);
+  const thumbCleanupRef = useRef(null);
+  const registerFill = useCallback((el) => {
+    fillCleanupRef.current?.();
+    fillCleanupRef.current = el ? registerProgressEl(el, "width") : null;
+  }, [registerProgressEl]);
+  const registerThumb = useCallback((el) => {
+    thumbCleanupRef.current?.();
+    thumbCleanupRef.current = el ? registerProgressEl(el, "left") : null;
+  }, [registerProgressEl]);
+  const getRatio = useCallback(() => (duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0), [currentTime, duration]);
+  return { registerFill, registerThumb, getRatio, onSeekRatio: seekRatio, currentTime, duration };
+}
+
+function useArtistProfile(artist) {
+  const [data, setData] = useState(() => { const c = peekArtistProfile(artist); return c === undefined ? null : c; });
+  useEffect(() => {
+    const c = peekArtistProfile(artist);
+    if (c !== undefined) { setData(c); return; }
+    let alive = true;
+    loadArtistProfile(artist).then((d) => { if (alive) setData(d); });
+    return () => { alive = false; };
+  }, [artist]);
+  return data;
+}
+
+function TrackMenuArtistRow({ artist, onGo }) {
+  const { t } = useUI();
+  const info = useArtistProfile(artist);
+  const image = artist.image || artist.avatar || artist.thumbnail || info?.image || null;
+  const target = artist.id || info?.id || (info ? artist.name : null);
+  return (
+    <button className="aivy-trackmenu-link" disabled={!target} onClick={() => onGo(target)}>
+      <span className="thumb round">
+        {image && <SmartCover src={image} seed={String(artist.id || artist.name)} size={64} radius={999} style={{ width: "100%", height: "100%" }} />}
+      </span>
+      <span className="txt"><small>{t("artistLabel")}</small><b>{artist.name}</b></span>
+    </button>
+  );
+}
+
+function TrackMenuSheet({ menu, onClose }) {
+  const { liked, toggleLike, addToQueueEnd, playNextInQueue, playSingle } = usePlayer();
+  const { openAddToPlaylist, pushToast, t } = useUI();
+  const { navigate } = useRouter();
+  const track = menu.track;
+  const isLiked = liked.has(String(track.videoId || track.id));
+  const artists = track.artists?.length ? track.artists : (track.artist ? [track.artist] : []);
+  const allArtists = menuArtists(track);
+  const artistName = artists.map((a) => a.name).filter(Boolean).join(", ");
+  const albumTitle = track.album?.title || track.albumTitle || "";
+  const removeItem = menu.items?.removeItem || null;
+  const run = (fn) => () => { onClose(); fn && fn(); };
+
+  return createPortal(
+    <div className="aivy-trackmenu-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }} onContextMenu={(e) => { e.preventDefault(); if (e.target === e.currentTarget) onClose(); }}>
+      <div className="aivy-trackmenu" role="dialog" aria-label={track.title}>
+        <div className="aivy-trackmenu-head">
+          <span className="cover"><SmartCover src={track.cover} seed={track.id + track.title} size={96} radius={6} style={{ width: "100%", height: "100%" }} /></span>
+          <div className="txt">
+            <div className="t">{track.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}{track.title}</div>
+            <div className="a">{artistName || "\u2014"}</div>
+          </div>
+          <button className={`like ${isLiked ? "on" : ""}`} onClick={() => toggleLike(track)} aria-label={t("like")}>
+            <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
+          </button>
+        </div>
+
+        <div className="aivy-trackmenu-list">
+          <button className="aivy-trackmenu-item" onClick={run(() => playSingle(track))}>
+            <Play size={20} fill="currentColor" /><span>{t("menuPlayNow")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => playNextInQueue(track))}>
+            <ListMusic size={20} /><span>{t("menuPlayNext")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => addToQueueEnd(track))}>
+            <ListPlus size={20} /><span>{t("menuAddQueue")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => openAddToPlaylist(track))}>
+            <ListPlus size={20} /><span>{t("menuAddPlaylist")}</span><ChevronRight size={18} className="chev" />
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => { shareTrack(track, pushToast, t); })}>
+            <Share2 size={20} /><span>{t("menuShareSong")}</span>
+          </button>
+          <button className="aivy-trackmenu-item" onClick={run(() => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); })}>
+            <Copy size={20} /><span>{t("menuCopyLink")}</span>
+          </button>
+          {removeItem && (
+            <button className="aivy-trackmenu-item danger" onClick={run(removeItem.onSelect)}>
+              <X size={20} /><span>{removeItem.label}</span>
+            </button>
+          )}
+        </div>
+
+        {(albumTitle || allArtists.length > 0) && (
+          <div className="aivy-trackmenu-foot">
+            {albumTitle && (
+              <button className="aivy-trackmenu-link" disabled={!track.album?.id} onClick={run(() => navigate("album", { params: { id: track.album.id } }))}>
+                <span className="thumb"><SmartCover src={track.cover} seed={track.id + track.title} size={64} radius={4} style={{ width: "100%", height: "100%" }} /></span>
+                <span className="txt"><small>{t("albumLabel")}</small><b>{albumTitle}</b></span>
+              </button>
+            )}
+            {allArtists.map((a) => (
+              <TrackMenuArtistRow key={a.id || a.name} artist={a} onGo={(target) => { onClose(); navigate("artist", { params: { id: target } }); }} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+function MenuSheet({ menu, onClose }) {
+  const sheet = menu.items.sheet;
+  const run = (fn) => () => { onClose(); fn && fn(); };
+  return createPortal(
+    <div className="aivy-trackmenu-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }} onContextMenu={(e) => { e.preventDefault(); if (e.target === e.currentTarget) onClose(); }}>
+      <div className="aivy-trackmenu" role="dialog" aria-label={sheet.title}>
+        <div className="aivy-trackmenu-head">
+          <span className="cover"><SmartCover src={sheet.cover} seed={sheet.seed || sheet.title} size={96} radius={6} style={{ width: "100%", height: "100%" }} /></span>
+          <div className="txt">
+            <div className="t">{sheet.title}</div>
+            {sheet.subtitle ? <div className="a">{sheet.subtitle}</div> : null}
+          </div>
+        </div>
+        <div className="aivy-trackmenu-list">
+          {menu.items.map((item, i) => (
+            item.divider ? <div key={i} className="aivy-trackmenu-divider" /> : (
+              <button key={i} className={`aivy-trackmenu-item ${item.danger ? "danger" : ""}`} disabled={item.disabled} onClick={run(item.onSelect)}>
+                {item.icon}<span>{item.label}</span>
+              </button>
+            )
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+export function GlobalContextMenu() {
+  const { contextMenu, closeContextMenu } = useUI();
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const isSheet = !!contextMenu.track || !!contextMenu.items?.sheet;
+    function onDown(e) { if (!isSheet && menuRef.current && !menuRef.current.contains(e.target)) closeContextMenu(); }
+    function onKey(e) { if (e.key === "Escape") closeContextMenu(); }
+    function onScroll() { if (!isSheet) closeContextMenu(); }
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey); window.removeEventListener("scroll", onScroll, true); };
+  }, [contextMenu, closeContextMenu]);
+
+  if (!contextMenu) return null;
+  if (contextMenu.track) return <TrackMenuSheet menu={contextMenu} onClose={closeContextMenu} />;
+  if (contextMenu.items?.sheet) return <MenuSheet menu={contextMenu} onClose={closeContextMenu} />;
+
+  const menuW = 240;
+  const left = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
+  const top = Math.min(contextMenu.y, window.innerHeight - contextMenu.items.length * 38 - 16);
+
+  return (
+    <div ref={menuRef} className="aivy-ctxmenu" style={{ top, left, width: menuW }}>
+      {contextMenu.items.map((item, i) => (
+        item.divider ? <div key={i} className="aivy-ctxmenu-divider" /> : (
+          <button key={i} className="aivy-menu-item" onClick={() => { item.onSelect?.(); closeContextMenu(); }} disabled={item.disabled}>
+            {item.icon}<span>{item.label}</span>
+          </button>
+        )
+      ))}
+    </div>
+  );
+}
+
+export function CustomSelect({ value, options, onChange, placeholder, className = "", disabled = false }) {
+  const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [rect, setRect] = useState(null);
+  const [highlight, setHighlight] = useState(-1);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const closeTimerRef = useRef(null);
+
+  const selectedIndex = options.findIndex((o) => o.value === value);
+  const selected = selectedIndex >= 0 ? options[selectedIndex] : null;
+
+  const doClose = useCallback(() => {
+    setOpen((wasOpen) => {
+      if (!wasOpen) return wasOpen;
+      setClosing(true);
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = setTimeout(() => setClosing(false), 160);
+      return false;
+    });
+  }, []);
+
+  const doOpen = () => {
+    if (disabled) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    setRect(r);
+    setHighlight(selectedIndex >= 0 ? selectedIndex : 0);
+    clearTimeout(closeTimerRef.current);
+    setClosing(false);
+    setOpen(true);
+  };
+
+  const toggle = () => { if (!disabled) (open ? doClose() : doOpen()); };
 
   useEffect(() => {
-    Api.me()
-      .then((u) => setAuthUser(u))
-      .catch(() => setAuthUser(null))
-      .finally(() => setAuthChecked(true));
+    if (!open) return;
+    function onDown(e) {
+      if (triggerRef.current?.contains(e.target)) return;
+      if (menuRef.current?.contains(e.target)) return;
+      doClose();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); doClose(); triggerRef.current?.focus(); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setHighlight((h) => Math.min(options.length - 1, h + 1)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setHighlight((h) => Math.max(0, h - 1)); }
+      else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const o = options[highlight];
+        if (o) { onChange(o.value); doClose(); triggerRef.current?.focus(); }
+      }
+    }
+    function onReflow() { if (triggerRef.current) setRect(triggerRef.current.getBoundingClientRect()); }
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onReflow, true);
+    window.addEventListener("resize", onReflow);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
+    };
+  }, [open, options, highlight, onChange, doClose]);
+
+  useEffect(() => () => clearTimeout(closeTimerRef.current), []);
+
+  const showMenu = open || closing;
+  const menuStyle = useMemo(() => {
+    if (!rect) return { display: "none" };
+    const gap = 6;
+    const estHeight = Math.min(280, options.length * 38 + 10);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const openUp = spaceBelow < estHeight + 12 && spaceAbove > spaceBelow;
+    const style = {
+      left: rect.left,
+      width: Math.max(rect.width, 160),
+      maxHeight: Math.min(280, (openUp ? spaceAbove : spaceBelow) - 16),
+    };
+    if (openUp) { style.bottom = window.innerHeight - rect.top + gap; style.transformOrigin = "bottom"; }
+    else { style.top = rect.bottom + gap; style.transformOrigin = "top"; }
+    return style;
+  }, [rect, options.length]);
+
+  return (
+    <div className={`aivy-cselect ${className}`}>
+      <button
+        type="button"
+        ref={triggerRef}
+        className={`aivy-cselect-trigger ${open ? "is-open" : ""} ${disabled ? "is-disabled" : ""}`}
+        onClick={toggle}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-disabled={disabled || undefined}
+      >
+        <span className="aivy-cselect-value">{selected ? selected.label : (placeholder || "")}</span>
+        <ChevronDown size={15} className="aivy-cselect-chevron" />
+      </button>
+      {showMenu && createPortal(
+        <div
+          ref={menuRef}
+          className={`aivy-cselect-menu ${closing ? "is-closing" : "is-opening"}`}
+          style={menuStyle}
+          role="listbox"
+        >
+          {options.map((o, i) => (
+            <div
+              key={o.value}
+              role="option"
+              aria-selected={o.value === value}
+              className={`aivy-cselect-option ${o.value === value ? "is-selected" : ""} ${i === highlight ? "is-highlighted" : ""}`}
+              onMouseEnter={() => setHighlight(i)}
+              onClick={() => { onChange(o.value); doClose(); triggerRef.current?.focus(); }}
+            >
+              <span>{o.label}</span>
+              {o.value === value && <Check size={14} className="aivy-cselect-check" />}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+export function Checkbox({ checked, onChange, label, disabled = false, className = "" }) {
+  return (
+    <label className={`aivy-checkbox ${checked ? "is-checked" : ""} ${disabled ? "is-disabled" : ""} ${className}`}>
+      <button
+        type="button"
+        className="aivy-checkbox-box"
+        role="checkbox"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => !disabled && onChange(!checked)}
+      >
+        <Check size={13} className="aivy-checkbox-mark" />
+      </button>
+      {label && <span className="aivy-checkbox-label">{label}</span>}
+    </label>
+  );
+}
+
+export function buildShareUrl(track) {
+  const origin = window.location.origin;
+  if (track.album?.id) return `${origin}/album/${track.album.id}?track=${encodeURIComponent(track.id)}`;
+  if (track.artist?.id) return `${origin}/artist/${track.artist.id}?track=${encodeURIComponent(track.id)}`;
+  return `${origin}/cari?q=${encodeURIComponent(track.title)}`;
+}
+export async function shareLink({ title, text, url }) {
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title, text, url });
+      return "shared";
+    } catch (err) {
+      if (err?.name === "AbortError") return "cancelled";
+    }
+  }
+  try { await navigator.clipboard?.writeText(url); return "copied"; } catch { return "cancelled"; }
+}
+
+export function shareTrack(track, pushToast, t) {
+  const artistName = (track.artists?.length ? track.artists : (track.artist ? [track.artist] : [])).map((a) => a.name).filter(Boolean).join(", ");
+  return shareLink({
+    title: track.title,
+    text: artistName ? `${track.title} \u2014 ${artistName}` : track.title,
+    url: buildShareUrl(track),
+  }).then((r) => { if (r === "copied") pushToast(t("linkCopied")); return r; });
+}
+
+export function useTrackMenuItems(track, opts = {}) {
+  const { liked, toggleLike, addToQueueEnd, playNextInQueue } = usePlayer();
+  const { openAddToPlaylist, pushToast, t } = useUI();
+  const { navigate } = useRouter();
+  const isLiked = liked.has(String(track.videoId || track.id));
+
+  const items = [
+    { label: isLiked ? t("menuRemoveLiked") : t("menuSaveLiked"), icon: <Heart size={15} fill={isLiked ? "currentColor" : "none"} />, onSelect: () => toggleLike(track) },
+    { label: t("menuPlayNext"), icon: <ListMusic size={15} />, onSelect: () => playNextInQueue(track) },
+    { label: t("menuAddQueue"), icon: <Plus size={15} />, onSelect: () => addToQueueEnd(track) },
+    { label: t("menuAddPlaylist"), icon: <Library size={15} />, onSelect: () => openAddToPlaylist(track) },
+    { divider: true },
+    { label: t("menuShareSong"), icon: <Share2 size={15} />, onSelect: () => { shareTrack(track, pushToast, t); } },
+    { label: t("menuCopyLink"), icon: <Copy size={15} />, onSelect: () => { navigator.clipboard?.writeText(buildShareUrl(track)); pushToast(t("linkCopied")); } },
+  ];
+  if (track.artist?.id) items.push({ label: t("menuGoArtist"), icon: <Music2 size={15} />, onSelect: () => navigate("artist", { params: { id: track.artist.id } }) });
+  if (track.album?.id) items.push({ label: t("menuGoAlbum"), icon: <Music2 size={15} />, onSelect: () => navigate("album", { params: { id: track.album.id } }) });
+  if (opts.onRemove) { items.push({ divider: true }); items.push({ label: opts.removeLabel || t("menuRemovePlaylist"), icon: <X size={15} />, onSelect: opts.onRemove }); }
+  items.track = track;
+  items.removeItem = opts.onRemove ? { label: opts.removeLabel || t("menuRemovePlaylist"), onSelect: opts.onRemove } : null;
+  return items;
+}
+
+export function filterExplicit(tracks, settings) {
+  if (!Array.isArray(tracks)) return tracks;
+  if (settings?.explicitContent !== false) return tracks;
+  return tracks.filter((tr) => !tr?.explicit);
+}
+
+export function TrackRow({ track, index, list, showIndex = true, showThumb = true, showAlbum = false, onRemove, removeLabel, queueMode = "single", source = null, note = null, shuffleOverride = null }) {
+  const { currentTrack, isPlaying, togglePlay, playSingle, playList, playRadio, selectQueuePosition, liked, toggleLike } = usePlayer();
+  const { openContextMenu, t } = useUI();
+  const { navigate } = useRouter();
+  const isCurrent = currentTrack && currentTrack.id === track.id;
+  const isLiked = liked.has(String(track.videoId || track.id));
+  const items = useTrackMenuItems(track, { onRemove, removeLabel });
+
+  const handlePlay = () => {
+    if (isCurrent) { togglePlay(); return; }
+    if (queueMode === "context" && list && list.length) { playList(list, index, source, shuffleOverride); return; }
+    if (queueMode === "radio") { playRadio(track, source); return; }
+    if (queueMode === "queue") { selectQueuePosition(index); return; }
+    playSingle(track, source);
+  };
+  const handleContext = (e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); };
+
+  return (
+    <div className={`aivy-row ${isCurrent ? "is-current" : ""} ${showThumb ? "" : "is-no-thumb"}`} onContextMenu={handleContext} onPointerEnter={() => { loadTrackArtists(track); }}>
+      {showIndex && (
+        <div className="idx" onClick={showThumb ? undefined : handlePlay}>
+          <span className="num">{index + 1}</span>
+          {!showThumb && <span className="play"><Play size={13} fill="currentColor" /></span>}
+          <span className="eq"><EqBars playing={isPlaying} /></span>
+        </div>
+      )}
+      {showThumb && (
+        <button className="thumb" onClick={handlePlay} aria-label={isCurrent && isPlaying ? t("pause") : t("play")}>
+          <SmartCover src={track.cover} seed={track.id + track.title} size={40} radius={6} />
+          <span className="hover-play">{isCurrent && isPlaying ? <Pause size={15} /> : <Play size={15} />}</span>
+        </button>
+      )}
+      <div className="meta" onClick={handlePlay} style={{ cursor: "pointer" }}>
+        <MarqueeText
+          as="span" className="t" text={track.title}
+          prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        />
+        <span className="a">
+          {(track.artists?.length ? track.artists : (track.artist ? [track.artist] : [])).map((a, i, arr) => (
+            <React.Fragment key={a.id || a.name || i}>
+              <span
+                onClick={(e) => { e.stopPropagation(); a.id && navigate("artist", { params: { id: a.id } }); }}
+                style={{ cursor: a.id ? "pointer" : "default" }}
+              >
+                {a.name}
+              </span>
+              {i < arr.length - 1 ? ", " : ""}
+            </React.Fragment>
+          ))}
+          {!track.artists?.length && !track.artist && "\u2014"}
+        </span>
+        {note && <span className="row-note">{note}</span>}
+      </div>
+      {showAlbum && (
+        <div className="col-album">
+          {track.album?.id ? <span onClick={() => navigate("album", { params: { id: track.album.id } })} style={{ cursor: "pointer" }}>{track.album.title}</span> : (track.album?.title || "")}
+        </div>
+      )}
+      <div className="right">
+        <div className={`row-actions ${isLiked ? "liked" : ""}`}>
+          <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={() => toggleLike(track)} aria-label={t("like")}><Heart size={15} fill={isLiked ? "currentColor" : "none"} /></button>
+          <button className="aivy-icon-btn sm" onClick={handleContext} aria-label={t("menuMore")}><MoreHorizontal size={15} /></button>
+        </div>
+        <span className="dur font-mono">{formatDuration(track.duration)}</span>
+      </div>
+    </div>
+  );
+}
+
+function EqBars({ playing }) {
+  return (
+    <span className="eq-bars" aria-hidden="true">
+      <span style={{ animationPlayState: playing ? "running" : "paused" }} />
+      <span style={{ animationPlayState: playing ? "running" : "paused" }} />
+      <span style={{ animationPlayState: playing ? "running" : "paused" }} />
+    </span>
+  );
+}
+
+export function thumbBlur(src) {
+  if (!src || typeof src !== "string") return { className: "", style: undefined };
+  return { className: "has-blur", style: { "--card-thumb": `url(${JSON.stringify(src)})` } };
+}
+
+function CardTrackBase({ track, list }) {
+  const { currentTrack, isPlaying, togglePlay, playSingle, playList } = usePlayer();
+  const { openContextMenu } = useUI();
+  const isCurrent = currentTrack && currentTrack.id === track.id;
+  const items = useTrackMenuItems(track);
+  const blur = thumbBlur(track.cover);
+  const handlePlay = () => {
+    if (isCurrent) { togglePlay(); return; }
+    if (list && list.length) {
+      const idx = list.findIndex((t) => t.id === track.id);
+      playList(list, idx === -1 ? 0 : idx);
+    } else {
+      playSingle(track);
+    }
+  };
+  return (
+    <div className={`aivy-card ${blur.className}`} style={blur.style} onContextMenu={(e) => { e.preventDefault(); openContextMenu(e.clientX, e.clientY, items); }}>
+      <div className="art-wrap">
+        <SmartCover src={track.cover} seed={track.id + track.title} size={140} radius={8} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
+        <button className="aivy-card-play" onClick={handlePlay} aria-label="Putar">{isCurrent && isPlaying ? <Pause size={16} /> : <Play size={16} />}</button>
+      </div>
+      <MarqueeText
+        as="div" className="title" text={track.title}
+        prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+      />
+      <div className="sub">{track.artist?.name}</div>
+    </div>
+  );
+}
+
+export const CardTrack = React.memo(CardTrackBase);
+
+export function shuffleArray(arr) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+export function FlipList({ items, getKey, renderItem, className, as: Tag = "div" }) {
+  const containerRef = useRef(null);
+  const prevRectsRef = useRef(new Map());
+  const animsRef = useRef(new Map());
+  const firstRef = useRef(true);
+  const orderKey = items.map((it) => getKey(it)).join("|");
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const nodes = Array.from(container.children);
+
+    nodes.forEach((node) => {
+      const k = node.getAttribute("data-flip-key");
+      const prevAnim = animsRef.current.get(k);
+      if (prevAnim) {
+        prevAnim.cancel();
+        animsRef.current.delete(k);
+      }
+    });
+
+    const newRects = new Map();
+    nodes.forEach((node) => {
+      const k = node.getAttribute("data-flip-key");
+      if (k != null) newRects.set(k, node.getBoundingClientRect());
+    });
+
+    if (!firstRef.current && typeof nodes[0]?.animate === "function") {
+      let moved = 0;
+      nodes.forEach((node) => {
+        const k = node.getAttribute("data-flip-key");
+        const oldRect = prevRectsRef.current.get(k);
+        const newRect = newRects.get(k);
+        if (!oldRect || !newRect) return;
+        const dx = oldRect.left - newRect.left;
+        const dy = oldRect.top - newRect.top;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+
+        const delay = Math.min(moved * 9, 160);
+        const anim = node.animate(
+          [
+            { transform: `translate(${dx}px, ${dy}px)` },
+            { transform: "translate(0, 0)" },
+          ],
+          { duration: 560, delay, easing: "cubic-bezier(.22,1,.36,1)", fill: "backwards" }
+        );
+        animsRef.current.set(k, anim);
+        const clear = () => { if (animsRef.current.get(k) === anim) animsRef.current.delete(k); };
+        anim.addEventListener("finish", clear);
+        anim.addEventListener("cancel", clear);
+        moved++;
+      });
+    }
+    prevRectsRef.current = newRects;
+    firstRef.current = false;
+  }, [orderKey]);
+
+  return (
+    <Tag ref={containerRef} className={className}>
+      {items.map((item, idx) => (
+        <div key={getKey(item)} data-flip-key={String(getKey(item))}>
+          {renderItem(item, idx)}
+        </div>
+      ))}
+    </Tag>
+  );
+}
+
+/**
+ * Judul lagu yang kepanjangan akan berjalan (marquee) secara otomatis,
+ * tapi HANYA di layar mobile (<=860px) dan HANYA jika teksnya memang
+ * overflow dari kontainernya. Di desktop selalu statis (ellipsis "...").
+ *
+ * `as`/`className` menggantikan elemen judul yang biasanya dipakai (mis. "t", "title", "ttl")
+ * supaya style lama (font-weight, font-size, dll) tetap kepakai.
+ * `prefix`/`suffix` untuk elemen non-teks yang harus tetap diam di tempat (badge "E", "Preview", dll).
+ */
+export function MarqueeText({ text, className = "", as: Tag = "span", prefix = null, suffix = null, gap = 40, pxPerSecond = 42, always = false, onClick, style }) {
+  const isMobile = useIsMobile(860);
+  const wrapRef = useRef(null);
+  const segRef = useRef(null);
+  const [overflow, setOverflow] = useState(false);
+  const [duration, setDuration] = useState(10);
+
+  useEffect(() => {
+    const measure = () => {
+      const wrap = wrapRef.current, seg = segRef.current;
+      if (!wrap || !seg) return;
+      const over = seg.scrollWidth - wrap.clientWidth > 2;
+      setOverflow(over);
+      if (over) setDuration(Math.max(6, (seg.scrollWidth + gap) / pxPerSecond));
+    };
+    measure();
+    let raf = 0;
+    let lastW = -1;
+    const schedule = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = 0; measure(); });
+    };
+    let ro;
+    if (typeof ResizeObserver !== "undefined" && wrapRef.current) {
+      ro = new ResizeObserver((entries) => {
+        const w = Math.round(entries[0]?.contentRect?.width ?? -1);
+        if (w === lastW) return;
+        lastW = w;
+        schedule();
+      });
+      ro.observe(wrapRef.current);
+    }
+    window.addEventListener("resize", schedule);
+    return () => { if (raf) cancelAnimationFrame(raf); ro && ro.disconnect(); window.removeEventListener("resize", schedule); };
+  }, [text, gap, pxPerSecond]);
+
+  const animate = (isMobile || always) && overflow;
+
+  return (
+    <Tag className={`aivy-marquee-row ${className}`} onClick={onClick} style={style}>
+      {prefix}
+      <span ref={wrapRef} className="aivy-marquee">
+        <span
+          className={`aivy-marquee-track ${animate ? "is-animating" : ""} ${always ? "is-always" : ""}`}
+          style={animate ? { animationDuration: `${duration}s` } : undefined}
+        >
+          <span ref={segRef} className="aivy-marquee-seg">{text}</span>
+          {animate && <span className="aivy-marquee-seg" aria-hidden="true">{text}</span>}
+        </span>
+      </span>
+      {suffix}
+    </Tag>
+  );
+}
+
+function CardAlbumBase({ album }) {
+  const { navigate } = useRouter();
+  const { playList } = usePlayer();
+  const { settings } = useUI();
+  const compact = !!settings.compactAlbums;
+  const blur = thumbBlur(album.cover);
+  const handlePlay = async (e) => {
+    e.stopPropagation();
+    const { Api } = await import("./lib/api.js");
+    const full = await Api.album(album.id);
+    if (full?.tracks?.length) playList(full.tracks, 0);
+  };
+  return (
+    <div className={`aivy-card ${compact ? "is-compact" : ""} ${blur.className}`} onClick={() => navigate("album", { params: { id: album.id } })} style={{ cursor: "pointer", ...blur.style }}>
+      <div className="art-wrap">
+        <SmartCover src={album.cover} seed={"album" + album.id + album.title} size={compact ? 96 : 220} radius={compact ? 6 : 8} style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }} />
+        <button className="aivy-card-play" onClick={handlePlay} aria-label="Putar album"><Play size={compact ? 13 : 16} /></button>
+      </div>
+      <div className="title">
+        {album.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+        {album.title}
+      </div>
+      {!compact && <div className="sub">{album.artist?.name || album.artistLine || ""}{album.releaseDate ? ` \u00b7 ${String(album.releaseDate).slice(0, 4)}` : ""}</div>}
+    </div>
+  );
+}
+
+export const CardAlbum = React.memo(CardAlbumBase);
+
+function CardArtistBase({ artist }) {
+  const { navigate } = useRouter();
+  const { t, settings } = useUI();
+  const compact = !!settings.compactArtists;
+  const blur = thumbBlur(artist.image);
+  if (compact) {
+    return (
+      <div className={`aivy-card aivy-card-artist is-compact is-row ${blur.className}`} onClick={() => navigate("artist", { params: { id: artist.id } })} style={{ cursor: "pointer", ...blur.style }}>
+        <div className="art-wrap round">
+          <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={44} radius={999} style={{ width: 44, height: 44, borderRadius: "50%" }} />
+        </div>
+        <div className="row-meta">
+          <div className="title">{artist.name}</div>
+          <div className="sub">{artist.audience || t("artistLabel")}</div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`aivy-card ${blur.className}`} onClick={() => navigate("artist", { params: { id: artist.id } })} style={{ cursor: "pointer", ...blur.style }}>
+      <div className="art-wrap round">
+        <SmartCover src={artist.image} seed={"artist" + artist.id + artist.name} size={180} radius={999} style={{ width: "100%", height: "100%", aspectRatio: "1 / 1", borderRadius: "50%" }} />
+      </div>
+      <div className="title" style={{ textAlign: "center" }}>{artist.name}</div>
+      <div className="sub" style={{ textAlign: "center" }}>{artist.audience || t("artistLabel")}</div>
+    </div>
+  );
+}
+
+export const CardArtist = React.memo(CardArtistBase);
+
+export function HoverRail({ children, className = "", step = 0.86 }) {
+  const ref = useRef(null);
+  const [edge, setEdge] = useState({ start: true, end: true });
+  const childCount = React.Children.count(children);
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setEdge({ start: el.scrollLeft <= 2, end: max <= 2 || el.scrollLeft >= max - 2 });
   }, []);
 
   useEffect(() => {
-    if (!authUser) return;
-    Api.getSettings()
-      .then((s) => {
-        const local = loadCachedSettings();
-        const base = migrateSettings({ ...DEFAULT_SETTINGS, ...local, ...(s || {}) });
-        const merged = forceLiquidGlassOnce(base);
-        setSettings(merged);
-        saveCachedSettings(merged);
-        setTheme(typeof merged.theme === "string" && merged.theme && merged.theme !== "dark" ? merged.theme : "black");
-      })
-      .catch(() => {});
-  }, [authUser]);
+    const el = ref.current;
+    if (!el) return undefined;
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", measure); ro.disconnect(); };
+  }, [measure, childCount]);
+
+  const scrollBy = (dir) => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * step, behavior: "smooth" });
+  };
+
+  return (
+    <div className={`aivy-hoverrail ${className}`}>
+      <button
+        type="button"
+        className="aivy-hoverrail-btn prev"
+        onClick={() => scrollBy(-1)}
+        disabled={edge.start}
+        aria-label="Sebelumnya"
+      >
+        <ChevronLeft size={20} />
+      </button>
+      <div className="aivy-hoverrail-track" ref={ref}>{children}</div>
+      <button
+        type="button"
+        className="aivy-hoverrail-btn next"
+        onClick={() => scrollBy(1)}
+        disabled={edge.end}
+        aria-label="Berikutnya"
+      >
+        <ChevronRight size={20} />
+      </button>
+    </div>
+  );
+}
+
+export function ToastHost({ isMobile }) {
+  const { toasts } = useUI();
+  if (!toasts.length) return null;
+  return (
+    <div className={`aivy-toast-host ${isMobile ? "is-mobile" : ""}`}>
+      {toasts.map((t) => <div key={t.id} className="aivy-toast">{t.message}</div>)}
+    </div>
+  );
+}
+
+/* ============================================================
+   Playlist cover, helper library, dan modal "Simpan ke playlist"
+   ============================================================ */
+const trLang = (settings, id, en) => (settings?.language === "en" ? en : id);
+
+export function PlaylistCover({ playlist, size = 48, radius = 6, className = "" }) {
+  const own = playlist?.cover_thumbnail || null;
+  const songs = playlist?.songs;
+  const covers = useMemo(() => {
+    if (own) return [];
+    const seen = new Set();
+    const out = [];
+    for (const s of songs || []) {
+      const c = s && s.cover;
+      if (c && !seen.has(c)) { seen.add(c); out.push(c); if (out.length === 4) break; }
+    }
+    return out;
+  }, [own, songs]);
+  const box = { width: size, height: size, borderRadius: radius };
+  if (!own && covers.length >= 4) {
+    return (
+      <span className={`sp-plcover is-mosaic ${className}`} style={box} aria-hidden="true">
+        {covers.map((c) => <SmartCover key={c} src={c} seed={c} size={Math.ceil(size / 2)} radius={0} />)}
+      </span>
+    );
+  }
+  const src = own || covers[0] || (songs && songs[0] && songs[0].cover) || null;
+  return (
+    <span className={`sp-plcover ${className}`} style={box} aria-hidden="true">
+      <SmartCover src={src} seed={`pl${playlist?.id}${playlist?.name}`} size={size} radius={0} />
+      {!src && <Music2 className="sp-plcover-ico" size={Math.max(14, Math.round(size * 0.38))} />}
+    </span>
+  );
+}
+
+export function LikedCover({ size = 48, radius = 6, className = "" }) {
+  return (
+    <span className={`sp-plcover sp-liked-cover ${className}`} style={{ width: size, height: size, borderRadius: radius }} aria-hidden="true">
+      <Heart className="sp-liked-heart" size={Math.max(14, Math.round(size * 0.42))} fill="currentColor" />
+    </span>
+  );
+}
+
+// Playlist dari /api/playlists biasanya belum membawa daftar lagu. Ambil detailnya
+// (4 sekaligus) supaya cover & jumlah lagu bisa tampil di sidebar / modal.
+function usePlaylistDetails(playlists) {
+  const { setPlaylistDetail } = usePlayer();
+  const requestedRef = useRef(new Set());
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
+  useEffect(() => {
+    const pending = playlists.filter((pl) => !Array.isArray(pl.songs) && !requestedRef.current.has(String(pl.id)));
+    if (!pending.length) return;
+    pending.forEach((pl) => requestedRef.current.add(String(pl.id)));
+    (async () => {
+      for (let i = 0; i < pending.length; i += 4) {
+        await Promise.all(pending.slice(i, i + 4).map((pl) =>
+          Api.playlist(pl.id)
+            .then((detail) => { if (aliveRef.current) setPlaylistDetail(detail); })
+            .catch(() => {})
+        ));
+        if (!aliveRef.current) return;
+      }
+    })();
+  }, [playlists, setPlaylistDetail]);
+}
+
+const trackKey = (x) => String(x?.videoId || x?.id);
+const playlistHas = (pl, track) => (pl.songs || []).find((s) => trackKey(s) === trackKey(track) || String(s.id) === String(track.id)) || null;
+const playlistCount = (pl) => (Array.isArray(pl.songs) ? pl.songs.length : (pl.song_count ?? 0));
+
+function AddToPlaylistSheet({ targets, onClose }) {
+  const { pushToast, t, settings } = useUI();
+  const { playlists, addToPlaylist, removeFromPlaylist, createPlaylist, setPlaylistDetail } = usePlayer();
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(() => new Set());
+  const inputRef = useRef(null);
+  const multi = targets.length > 1;
+  const tt = (id, en) => trLang(settings, id, en);
+
+  usePlaylistDetails(playlists);
+  useEffect(() => { if (creating) inputRef.current?.focus(); }, [creating]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const first = targets[0];
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return needle ? playlists.filter((pl) => (pl.name || "").toLowerCase().includes(needle)) : playlists;
+  }, [playlists, q]);
+
+  const toggle = async (pl) => {
+    const key = String(pl.id);
+    if (busy.has(key)) return;
+    setBusy((s) => new Set(s).add(key));
+    try {
+      let songs = pl.songs;
+      if (!Array.isArray(songs)) {
+        try {
+          const detail = await Api.playlist(pl.id);
+          setPlaylistDetail(detail);
+          songs = (detail.songs || []).map((s) => ({ id: s.video_id, videoId: s.video_id }));
+        } catch { songs = []; }
+      }
+      const current = { ...pl, songs };
+      if (multi) {
+        const missing = targets.filter((tr) => !playlistHas(current, tr));
+        if (!missing.length) { pushToast(tt("Semua lagu sudah ada di playlist ini", "All songs are already in this playlist")); return; }
+        missing.forEach((tr) => addToPlaylist(pl.id, tr));
+        return;
+      }
+      const existing = playlistHas(current, first);
+      if (existing) {
+        await removeFromPlaylist(pl.id, existing.id);
+        pushToast(`${tt("Dihapus dari", "Removed from")} ${pl.name}`);
+      } else {
+        await addToPlaylist(pl.id, first);
+      }
+    } finally {
+      setBusy((s) => { const n = new Set(s); n.delete(key); return n; });
+    }
+  };
+
+  const handleCreate = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const id = await createPlaylist(trimmed);
+    if (id) {
+      targets.forEach((tr) => addToPlaylist(id, tr));
+      onClose();
+    }
+  };
+
+  return (
+    <div className="sp-atp-backdrop" onClick={onClose} role="presentation">
+      <div className="sp-atp" role="dialog" aria-modal="true" aria-label={tt("Simpan ke playlist", "Save to playlist")} onClick={(e) => e.stopPropagation()}>
+        <span className="sp-atp-grab" aria-hidden="true" />
+        <div className="sp-atp-head">
+          <div className="sp-atp-title">{tt("Simpan ke playlist", "Save to playlist")}</div>
+          <button className="sp-icon-btn" onClick={onClose} aria-label={t("close")}><X size={18} /></button>
+        </div>
+
+        <div className="sp-atp-track">
+          {multi ? (
+            <span className="sp-plcover sp-atp-multi" style={{ width: 44, height: 44, borderRadius: 6 }}><ListPlus size={20} /></span>
+          ) : (
+            <span className="sp-plcover" style={{ width: 44, height: 44, borderRadius: 6 }}>
+              <SmartCover src={first?.cover} seed={`${first?.id}${first?.title}`} size={44} radius={0} />
+            </span>
+          )}
+          <div className="sp-atp-track-meta">
+            <div className="t">{multi ? `${targets.length} ${t("songsCount")}` : first?.title}</div>
+            {!multi && <div className="s">{first?.artist?.name || ""}</div>}
+          </div>
+        </div>
+
+        {playlists.length > 5 && (
+          <div className="sp-atp-search">
+            <Search size={16} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tt("Cari playlist", "Find a playlist")} />
+            {q && <button className="sp-icon-btn sm" onClick={() => setQ("")} aria-label={t("clear")}><X size={14} /></button>}
+          </div>
+        )}
+
+        <div className="sp-atp-list aivy-scroll">
+          {creating ? (
+            <div className="sp-atp-create">
+              <span className="sp-plcover sp-atp-plus" style={{ width: 48, height: 48, borderRadius: 6 }}><Plus size={22} /></span>
+              <input
+                ref={inputRef} value={name} onChange={(e) => setName(e.target.value)} maxLength={80}
+                placeholder={t("newPlaylistNamePlaceholder")}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") { e.stopPropagation(); setCreating(false); } }}
+              />
+              <button className="sp-pill-btn primary" onClick={handleCreate} disabled={!name.trim()}>{tt("Buat", "Create")}</button>
+            </div>
+          ) : (
+            <button className="sp-atp-row sp-atp-new" onClick={() => setCreating(true)}>
+              <span className="sp-plcover sp-atp-plus" style={{ width: 48, height: 48, borderRadius: 6 }}><Plus size={22} /></span>
+              <span className="sp-atp-meta"><span className="t">{t("newPlaylist")}</span></span>
+            </button>
+          )}
+
+          {shown.map((pl) => {
+            const has = Array.isArray(pl.songs) ? targets.every((tr) => !!playlistHas(pl, tr)) : false;
+            return (
+              <button key={pl.id} className={`sp-atp-row ${has ? "is-on" : ""}`} onClick={() => toggle(pl)} aria-pressed={has} disabled={busy.has(String(pl.id))}>
+                <PlaylistCover playlist={pl} size={48} radius={6} />
+                <span className="sp-atp-meta">
+                  <span className="t">{pl.name}</span>
+                  <span className="s">{playlistCount(pl)} {t("songsCount")}</span>
+                </span>
+                <span className={`sp-atp-check ${has ? "on" : ""}`} aria-hidden="true">{has && <Check size={14} strokeWidth={3} />}</span>
+              </button>
+            );
+          })}
+
+          {!playlists.length && !creating && <div className="sp-atp-empty">{t("noPlaylistsYet")}</div>}
+          {!!playlists.length && !shown.length && <div className="sp-atp-empty">{tt("Playlist tidak ditemukan", "No playlists found")}</div>}
+        </div>
+
+        <div className="sp-atp-foot">
+          <button className="sp-pill-btn primary wide" onClick={onClose}>{tt("Selesai", "Done")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AddToPlaylistModal() {
+  const { addToPlaylistTarget, closeAddToPlaylist } = useUI();
+  if (!addToPlaylistTarget) return null;
+  const targets = Array.isArray(addToPlaylistTarget) ? addToPlaylistTarget : [addToPlaylistTarget];
+  if (!targets.length) return null;
+  return <AddToPlaylistSheet targets={targets} onClose={closeAddToPlaylist} />;
+}
+
+export function ConfirmDialog(
+  { open, title, message, confirmLabel, cancelLabel, danger = true, onConfirm, onCancel }
+) {
+  const { t } = useUI();
+  if (!open) return null;
+  return (
+    <div className="aivy-modal-backdrop" onClick={onCancel}>
+      <div className="aivy-modal aivy-confirm-modal" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
+        <div className="aivy-confirm-icon"><AlertTriangle size={22} color="var(--berry)" /></div>
+        <div className="aivy-modal-title">{title}</div>
+        {message && <p className="aivy-confirm-msg">{message}</p>}
+        <div className="aivy-confirm-actions">
+          <button className="aivy-btn-ghost" onClick={onCancel}>{cancelLabel || t("cancel")}</button>
+          <button className={`aivy-btn-primary ${danger ? "danger" : ""}`} onClick={onConfirm}>{confirmLabel || t("confirmDeleteDefault")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SkeletonTrackRow() {
+  return (
+    <div className="aivy-skel-row">
+      <div className="aivy-skel-thumb aivy-skeleton" />
+      <div className="aivy-skel-lines">
+        <div className="aivy-skel-line w60 aivy-skeleton" />
+        <div className="aivy-skel-line w35 aivy-skeleton" />
+      </div>
+    </div>
+  );
+}
+export function SkeletonList({ count = 8 }) {
+  return <div>{Array.from({ length: count }).map((_, i) => <SkeletonTrackRow key={i} />)}</div>;
+}
+
+export function SkeletonHeroPage({ round = false, rows = 6 }) {
+  return (
+    <div className="aivy-view-enter aivy-skel-hero-page">
+      <div className="aivy-hero">
+        <div className={`aivy-skel-hero-art aivy-skeleton ${round ? "round" : ""}`} />
+        <div className="aivy-hero-meta" style={{ flex: 1, minWidth: 0 }}>
+          <div className="aivy-skel-line w35 aivy-skeleton" style={{ height: 12, marginBottom: 14 }} />
+          <div className="aivy-skel-line aivy-skeleton" style={{ height: 30, width: "70%", marginBottom: 10 }} />
+          <div className="aivy-skel-line w35 aivy-skeleton" style={{ height: 12 }} />
+        </div>
+      </div>
+      <div className="aivy-hero-actions">
+        <div className="aivy-skeleton" style={{ width: 52, height: 52, borderRadius: "50%" }} />
+        <div className="aivy-skeleton" style={{ width: 90, height: 36, borderRadius: "var(--radius-pill, 999px)" }} />
+      </div>
+      <SkeletonList count={rows} />
+    </div>
+  );
+}
+
+export function TransportButtons({ big = false, minimal = false, variant = "default" }) {
+  const { isPlaying, togglePlay, next, prev, shuffle, toggleShuffle, repeat, cycleRepeat, currentTrack, room } = usePlayer();
+  const { authUser, t } = useUI();
+  const [pulse, setPulse] = useState(null);
+  const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
+  const PrevIcon = variant === "apple" ? Rewind : SkipBack;
+  const NextIcon = variant === "apple" ? FastForward : SkipForward;
+  const isHost = !room || !authUser || room.hostId === authUser.id;
+  const controlLocked = room && room.hostOnlyControl && !isHost;
+  const handlePrev = () => { prev(); setPulse("prev"); };
+  const handleNext = () => { next(false); setPulse("next"); };
+  const clearPulse = () => setPulse(null);
+  return (
+    <div className="aivy-transport-btns">
+      {!minimal && <button className={`aivy-icon-btn ${shuffle ? "active" : ""}`} onClick={toggleShuffle} aria-label={t("shuffle")} aria-pressed={shuffle} disabled={!!room}><Shuffle size={big ? 18 : 16} /></button>}
+      <button className={`aivy-icon-btn skip-prev ${pulse === "prev" ? "is-pulsing" : ""}`} onClick={handlePrev} onAnimationEnd={clearPulse} disabled={!currentTrack || controlLocked} aria-label={t("previous")}><PrevIcon size={big ? 22 : 18} fill="currentColor" /></button>
+      <button className="aivy-play-btn" onClick={togglePlay} disabled={!currentTrack || controlLocked} aria-label={isPlaying ? t("pause") : t("play")}>
+        {isPlaying ? <Pause size={big ? 24 : 16} fill="currentColor" /> : <Play size={big ? 24 : 16} fill="currentColor" />}
+      </button>
+      <button className={`aivy-icon-btn skip-next ${pulse === "next" ? "is-pulsing" : ""}`} onClick={handleNext} onAnimationEnd={clearPulse} disabled={!currentTrack || controlLocked} aria-label={t("next")}><NextIcon size={big ? 22 : 18} fill="currentColor" /></button>
+      {!minimal && <button className={`aivy-icon-btn ${repeat !== "off" ? "active" : ""}`} onClick={cycleRepeat} aria-label={t("repeat")} aria-pressed={repeat !== "off"} disabled={!!room}><RepeatIcon size={big ? 18 : 16} /></button>}
+    </div>
+  );
+}
+
+export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
+  const { currentTrack, liked, toggleLike, isPreviewClip, loadingAudio, currentTrackHasLyrics, isPlaying, upNext } = usePlayer();
+  const { navigate } = useRouter();
+  const {
+    toggleLyrics, sidebarQueueOpen, toggleSidebarQueue, t, settings,
+    sidebarLyricsOpen, toggleSidebarLyrics, rightPanelCollapsed, toggleRightPanelCollapsed,
+  } = useUI();
+  const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
+
+  const rightPanelHidden = useIsMobile(1240);
+  const handleLyricsClick = () => {
+    if (rightPanelHidden) { toggleLyrics(); return; }
+    if (!sidebarLyricsOpen && rightPanelCollapsed) toggleRightPanelCollapsed();
+    toggleSidebarLyrics();
+  };
+
+  const nextUpTrack = upNext?.[0];
+  useEffect(() => {
+    if (!settings.animatedArtwork || settings.reducedMotion) return;
+    if (!nextUpTrack?.title) return;
+    const id = setTimeout(() => prefetchAnimatedArtwork(nextUpTrack.title, nextUpTrack.artist?.name), 1500);
+    return () => clearTimeout(id);
+  }, [nextUpTrack?.title, nextUpTrack?.artist?.name, settings.animatedArtwork, settings.reducedMotion]);
+  const handleCoverClick = () => {
+    if (!currentTrack) return;
+    const mode = settings.nowPlayingView || "album";
+    if (mode === "lyrics") handleLyricsClick();
+    else if (mode === "fullscreen") onOpenNowPlaying?.();
+    else if (currentTrack.album?.id) navigate("album", { params: { id: currentTrack.album.id } });
+    else onOpenNowPlaying?.();
+  };
+  const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
+  const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
+
+  const refract = settings?.liquidGlass === true && supportsRefraction();
+  const barRef = useRef(null);
+  const [lg, setLg] = useState("off");
+  useEffect(() => {
+    const el = barRef.current;
+    if (!refract || !el) { setLg("off"); return undefined; }
+    let tm = 0;
+    const regen = () => {
+      const flt = el.querySelector("#lg-player");
+      const w = el.offsetWidth, h = el.offsetHeight;
+      if (!flt || w < 8 || h < 8) return;
+      applyLiquidFilter(flt, w, h);
+      setLg("ready");
+    };
+    const onSize = () => {
+      setLg((v) => (v === "ready" ? "busy" : v));
+      clearTimeout(tm);
+      tm = setTimeout(regen, 180);
+    };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onSize) : null;
+    if (ro) ro.observe(el); else onSize();
+    return () => { clearTimeout(tm); if (ro) ro.disconnect(); };
+  }, [refract]);
+
+  return (
+    <div ref={barRef} className={`aivy-player ${isPlaying ? "is-playing" : ""} ${lg === "ready" ? "lg-ready" : ""}`}>
+      {refract && <LiquidGlassDefs ids={LG_PLAYER_IDS} />}
+      <GlassLayers />
+      <div className="now">
+        {currentTrack ? (
+          <>
+            <span
+              className={`aivy-player-cover ${settings.cdCoverSpin ? "cd-spin" : ""} ${settings.noRoundCover ? "no-round" : ""}`}
+              onClick={handleCoverClick} role="button" tabIndex={0} style={{ cursor: "pointer" }}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCoverClick(); }}
+            >
+              <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={52} radius={settings.noRoundCover ? 0 : 8} />
+            </span>
+            <div className="meta">
+              <MarqueeText
+                as="span" className="t" text={currentTrack.title} always
+                prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+              />
+              <MarqueeText
+                as="span" className="a" text={currentTrack.artist?.name || ""} always
+                onClick={() => currentTrack.artist?.id && navigate("artist", { params: { id: currentTrack.artist.id } })} style={{ cursor: "pointer" }}
+                suffix={isPreviewClip ? <span className="preview-tag">{` \u00b7 ${t("previewTag")}`}</span> : null}
+              />
+            </div>
+            <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={() => toggleLike(currentTrack)} aria-label={t("like")}><Heart size={16} fill={isLiked ? "currentColor" : "none"} /></button>
+          </>
+        ) : (
+          <>
+            <div style={{ width: 52, height: 52, borderRadius: 8, background: "var(--bg-elev-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <StarMark size={22} color="var(--ink-faint)" />
+            </div>
+            <span className="placeholder">{t("nothingPlaying")}</span>
+          </>
+        )}
+      </div>
+      <div className="aivy-transport">
+        <TransportButtons />
+        <div className="aivy-scrubber-row">
+          <span className="aivy-time font-mono">{loadingAudio ? "\u2013\u2013" : formatTime(currentTime)}</span>
+          <Scrubber
+            getRatio={getRatio} onSeekRatio={onSeekRatio} registerFill={registerFill} registerThumb={registerThumb} loading={loadingAudio}
+            waveformSeed={settings.waveformSeekbar && currentTrack ? String(currentTrack.id || currentTrack.title || "") : null}
+          />
+          <span className="aivy-time right font-mono">{loadingAudio ? "\u2013\u2013" : formatTime(duration)}</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, width: "min(22%, 256px)", justifyContent: "flex-end" }}>
+        <button className={`aivy-icon-btn sm ${sidebarQueueOpen ? "active" : ""}`} onClick={toggleSidebarQueue} aria-label={t("lyricsQueueBtn")} title={t("lyricsQueueBtn")}><ListMusic size={16} /></button>
+        <button
+          className={`aivy-icon-btn sm ${!rightPanelHidden && sidebarLyricsOpen ? "active" : ""}`}
+          onClick={handleLyricsClick} disabled={lyricsDisabled} aria-pressed={!rightPanelHidden && !!sidebarLyricsOpen}
+          aria-label={t("lyrics")} title={lyricsDisabled && currentTrack ? t("lyricsUnavailable") : t("lyrics")}
+        ><Mic2 size={16} /></button>
+        <VolumeControl />
+        {onOpenFullscreen && (
+          <button className="aivy-icon-btn sm" onClick={onOpenFullscreen} disabled={!currentTrack} aria-label={settings.language === "en" ? "Full screen player" : "Pemutar layar penuh"} title={settings.language === "en" ? "Full screen player" : "Pemutar layar penuh"}><Maximize size={16} /></button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// MiniPlayer mobile: ringan (tanpa GlassLayers/MarqueeText/SVG ring), GPU scaleX progress + scaleY eq
+export function MiniPlayer({ onExpand }) {
+  const { currentTrack, isPlaying, togglePlay, next, loadingAudio, registerProgressEl, liked, toggleLike } = usePlayer();
+  const { t, settings } = useUI();
+  const palette = useCoverPalette(currentTrack?.cover, null);
+  const miniRef = useRef(null);
+  const fillCleanupRef = useRef(null);
+  const registerFill = useCallback((el) => {
+    fillCleanupRef.current?.();
+    fillCleanupRef.current = el ? registerProgressEl(el, "width") : null;
+  }, [registerProgressEl]);
+  const justDragged = useRef(false);
+  const handleExpand = () => onExpand?.();
+  const handleClick = () => { if (justDragged.current) return; handleExpand(); };
+  const handleDragEnd = useCallback(() => {
+    justDragged.current = true;
+    setTimeout(() => { justDragged.current = false; }, 120);
+    sheetPeekEnd();
+  }, []);
+  const swipe = useVerticalSwipe({
+    active: !!currentTrack, direction: "up", onTrigger: handleExpand, dragRef: miniRef,
+    threshold: 56, velocityThreshold: 0.32, moveSelf: false,
+    onDragStart: sheetPeekStart, onDragMove: sheetPeekMove, onDragEnd: handleDragEnd,
+  });
+  if (!currentTrack) return null;
+  const isLiked = liked.has(String(currentTrack.videoId || currentTrack.id));
+  const tint = Array.isArray(palette) && palette[0] ? palette[0] : null;
+  return (
+    <div
+      className={`sp-mini ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleClick} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
+      style={tint ? { "--mini-tint": tint } : undefined}
+      onPointerDown={swipe.onPointerDown} onPointerMove={swipe.onPointerMove} onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
+    >
+      <span key={`c-${currentTrack.id}`} className={`sp-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
+        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={44} radius={0} />
+      </span>
+      <div key={`m-${currentTrack.id}`} className="sp-mini-meta">
+        <div className="t-row">
+          {currentTrack.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+          <span className="t">{currentTrack.title}</span>
+        </div>
+        <span className="a">{currentTrack.artist?.name}</span>
+      </div>
+      <div className="sp-mini-actions">
+        <button
+          className={`sp-mini-btn ${isLiked ? "is-liked" : ""}`}
+          onClick={(e) => { e.stopPropagation(); toggleLike(currentTrack); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={isLiked ? t("unlike", "Hapus dari disukai") : t("like", "Sukai")} aria-pressed={isLiked}
+        >
+          <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
+        </button>
+        <button
+          className="sp-mini-btn play"
+          onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={isPlaying ? t("pause") : t("play")}
+        >
+          <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
+            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+          </span>
+        </button>
+        <button
+          className="sp-mini-btn"
+          onClick={(e) => { e.stopPropagation(); next(false); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={t("next")}
+        ><SkipForward size={22} fill="currentColor" /></button>
+      </div>
+      <div className={`sp-mini-progress ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true">
+        <span className="fill" ref={registerFill} />
+      </div>
+    </div>
+  );
+}
+
+export function MobileNowPlayingIconRow({ lyricsActive, onToggleLyrics, lyricsDisabled, onOpenQueue, pill = false }) {
+  const { t, pushToast } = useUI();
+  const { shuffle, toggleShuffle, repeat, cycleRepeat, room } = usePlayer();
+  const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
+  const handleAirplay = () => pushToast(t("airplayUnavailable", "Output perangkat tidak tersedia di browser"));
+  const airplayBtn = <button className="aivy-icon-btn" onClick={handleAirplay} aria-label="AirPlay"><Airplay size={18} /></button>;
+  const modePill = (
+    <div className="aivy-sheet-pill">
+      <button className={`aivy-icon-btn ${shuffle ? "active" : ""}`} onClick={toggleShuffle} aria-label={t("shuffle")} aria-pressed={shuffle} disabled={!!room}><Shuffle size={18} /></button>
+      <button className={`aivy-icon-btn ${repeat !== "off" ? "active" : ""}`} onClick={cycleRepeat} aria-label={t("repeat")} aria-pressed={repeat !== "off"} disabled={!!room}><RepeatIcon size={18} /></button>
+    </div>
+  );
+  return (
+    <div className="aivy-sheet-icon-row">
+      <button
+        className={`aivy-icon-btn ${lyricsActive ? "active" : ""}`}
+        onClick={onToggleLyrics}
+        disabled={lyricsDisabled}
+        aria-label={t("lyrics")}
+        title={lyricsDisabled ? t("lyricsUnavailable") : t("lyrics")}
+      >
+        <MessageSquareQuote size={18} />
+      </button>
+      {pill ? modePill : airplayBtn}
+      <button className="aivy-icon-btn" onClick={onOpenQueue} aria-label={t("openQueue")}><ListMusic size={18} /></button>
+    </div>
+  );
+}
+
+const HERO_FLIP_MS = 520;
+
+function useHeroFlip(mode, targets) {
+  const firstRects = useRef(null);
+  const cleanupTimer = useRef(null);
+
+  const resetStyles = () => {
+    targets.forEach(({ ref }) => {
+      const el = ref.current;
+      if (!el) return;
+      el.style.transition = "";
+      el.style.transform = "";
+      el.style.transformOrigin = "";
+      el.style.backfaceVisibility = "";
+      el.style.willChange = "";
+    });
+  };
+
+  const capture = () => {
+    const reduceMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) { firstRects.current = null; return; }
+    const rects = targets.map(({ ref }) => (ref.current ? ref.current.getBoundingClientRect() : null));
+    targets.forEach(({ ref }) => {
+      const el = ref.current;
+      if (!el) return;
+      el.style.willChange = "transform";
+      el.style.backfaceVisibility = "hidden";
+    });
+    firstRects.current = rects;
+  };
+
+  useLayoutEffect(() => {
+    const firstRectsList = firstRects.current;
+    firstRects.current = null;
+    if (!firstRectsList) return undefined;
+    const endHeavy = beginHeavyTransition(HERO_FLIP_MS + 200);
+    const plans = [];
+    targets.forEach(({ ref, uniform }, i) => {
+      const el = ref.current;
+      const firstRect = firstRectsList[i];
+      if (!el || !firstRect || !firstRect.width || !firstRect.height) return;
+      const last = el.getBoundingClientRect();
+      if (!last.width || !last.height) return;
+      const sy = firstRect.height / last.height;
+      plans.push({
+        el,
+        dx: firstRect.left - last.left,
+        dy: firstRect.top - last.top,
+        sx: uniform ? sy : firstRect.width / last.width,
+        sy,
+      });
+    });
+
+    if (!plans.length) { resetStyles(); endHeavy(); return undefined; }
+    plans.forEach(({ el, dx, dy, sx, sy }) => {
+      el.style.transition = "none";
+      el.style.transformOrigin = "top left";
+      el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+    });
+    void plans[0].el.offsetWidth;
+    plans.forEach(({ el }) => {
+      el.style.transition = `transform ${HERO_FLIP_MS}ms cubic-bezier(.22,.85,.32,1)`;
+      el.style.transform = "translate(0px, 0px) scale(1, 1)";
+    });
+
+    clearTimeout(cleanupTimer.current);
+    cleanupTimer.current = setTimeout(() => { resetStyles(); endHeavy(); }, HERO_FLIP_MS + 40);
+
+    return () => { clearTimeout(cleanupTimer.current); endHeavy(); };
+  }, [mode]);
+
+  return capture;
+}
+
+function useDominantColor(src) {
+  const [color, setColor] = useState(null);
+  useEffect(() => {
+    if (!src) { setColor(null); return; }
+    let alive = true;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if (!alive) return;
+      try {
+        const canvas = document.createElement("canvas");
+        const size = 24;
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const alpha = data[i + 3];
+          if (alpha < 32) continue;
+          r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+        }
+        if (!n) return;
+        r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const boost = max - min < 28 ? 1.25 : 1.08;
+        const cl = (v) => Math.max(0, Math.min(255, Math.round(128 + (v - 128) * boost)));
+        if (alive) setColor(`rgb(${cl(r)}, ${cl(g)}, ${cl(b)})`);
+      } catch {  }
+    };
+    img.onerror = () => {};
+    img.src = src;
+    return () => { alive = false; };
+  }, [src]);
+  return color;
+}
+
+function useTilt({ enabled, distance = 10, speed = 240 }) {
+  const ref = useRef(null);
+  const [style, setStyle] = useState({});
+  const onMove = useCallback((e) => {
+    if (!enabled || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    setStyle({
+      transform: `perspective(700px) rotateX(${(-py * distance).toFixed(2)}deg) rotateY(${(px * distance).toFixed(2)}deg) scale3d(1.02,1.02,1.02)`,
+      transition: `transform ${Math.max(30, speed / 8)}ms ease-out`,
+    });
+  }, [enabled, distance, speed]);
+  const onLeave = useCallback(() => {
+    if (!enabled) return;
+    setStyle({ transform: "perspective(700px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)", transition: `transform ${speed}ms ease` });
+  }, [enabled, speed]);
+  useEffect(() => { if (!enabled) setStyle({}); }, [enabled]);
+  return { ref, style, onMove, onLeave };
+}
+function themeColorSet() {
+  if (typeof window === "undefined") return ["#B5B5B5", "#E6E6E6", "#FFFFFF"];
+  const cs = getComputedStyle(document.body);
+  const pick = (name, fallback) => (cs.getPropertyValue(name) || "").trim() || fallback;
+  return [
+    pick("--artist-accent", pick("--ink-dim", "#A6A6A6")),
+    pick("--accent", "#E6E6E6"),
+    pick("--accent-strong", "#FFFFFF"),
+  ];
+}
+
+const VISUALIZER_COLOR_SETS = {
+  auto: null,
+  ocean: ["#4fa3e3", "#7fd3ff", "#dfe9f5"],
+  martian: ["#e36f4f", "#ffb27f", "#f5ded0"],
+  sunset: ["#e35f8a", "#ffb27f", "#fff0d6"],
+  kaleido: ["#a78bfa", "#f472b6", "#7fd1e6"],
+};
+
+export function VisualizerCanvas({ style, mode = "solid", sensitivity = 60, brightness = 100, preset = "auto", height = 220, running = true }) {
+  const { getAnalyser, isPlaying } = usePlayer();
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+  const phaseRef = useRef(0);
+  const historyRef = useRef([]);
+  const heavyRef = useRef(isHeavyTransition());
+
+  useEffect(() => subscribeHeavyTransition((active) => { heavyRef.current = active; }), []);
 
   useEffect(() => {
-    if (theme !== "system") {
-      document.documentElement.dataset.theme = theme || "black";
-      const tc = document.querySelector('meta[name="theme-color"]');
-      if (tc) tc.setAttribute("content", theme === "halloween" ? "#0D0714" : theme === "premium" ? "#F6F2EC" : ["white", "latte", "salmon"].includes(theme) ? "#FFFFFF" : "#000000");
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    if (!running) return undefined;
+    const ctx2d = canvas.getContext("2d");
+    if (!ctx2d) return undefined;
+    const dpr = Math.min(isLowEndDevice() ? 1 : 2, window.devicePixelRatio || 1);
+    const colors = VISUALIZER_COLOR_SETS[preset] || themeColorSet();
+    const sens = Math.max(0.1, sensitivity / 60);
+    const bright = Math.max(0.2, brightness / 100);
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, rect.width * dpr);
+      canvas.height = Math.max(1, rect.height * dpr);
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+    let freqBuf = null;
+    let timeBuf = null;
+
+    const draw = () => {
+      rafRef.current = requestAnimationFrame(draw);
+      if (heavyRef.current) return;
+      try {
+        drawFrame();
+      } catch (err) {
+        console.error("visualizer draw error:", err);
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+    const drawFrame = () => {
+      const w = canvas.width, h = canvas.height;
+      const analyser = getAnalyser?.();
+      let freq = null, time = null;
+      if (analyser) {
+        const bins = analyser.frequencyBinCount;
+        if (!freqBuf || freqBuf.length !== bins) {
+          freqBuf = new Uint8Array(bins);
+          timeBuf = new Uint8Array(bins);
+        }
+        freq = freqBuf;
+        time = timeBuf;
+        analyser.getByteFrequencyData(freq);
+        analyser.getByteTimeDomainData(time);
+      }
+      const active = isPlaying && analyser;
+      phaseRef.current += 0.02;
+
+      ctx2d.clearRect(0, 0, w, h);
+      if (mode === "solid") {
+        ctx2d.fillStyle = "rgba(10,12,8,1)";
+        ctx2d.fillRect(0, 0, w, h);
+      }
+      ctx2d.globalAlpha = bright;
+
+      if (style === "lcd") {
+        const bars = 32;
+        const gap = w / bars;
+        for (let i = 0; i < bars; i++) {
+          const v = active ? (freq[Math.floor((i / bars) * freq.length)] / 255) : 0.06 + 0.03 * Math.sin(phaseRef.current + i);
+          const barH = Math.min(h, v * h * sens);
+          ctx2d.fillStyle = colors[i % colors.length];
+          const segH = h / 22;
+          const segs = Math.floor(barH / segH);
+          for (let s = 0; s < segs; s++) {
+            ctx2d.fillRect(i * gap + gap * 0.15, h - (s + 1) * segH + segH * 0.15, gap * 0.7, segH * 0.7);
+          }
+        }
+      } else if (style === "pixels") {
+        const cols = 24, rows = 14;
+        const cw = w / cols, ch = h / rows;
+        for (let x = 0; x < cols; x++) {
+          const v = active ? (freq[Math.floor((x / cols) * freq.length)] / 255) : 0.15 + 0.1 * Math.sin(phaseRef.current + x * 0.5);
+          const litRows = Math.floor(v * rows * sens);
+          for (let y = 0; y < rows; y++) {
+            const lit = y >= rows - litRows;
+            ctx2d.fillStyle = lit ? colors[(x + y) % colors.length] : "rgba(255,255,255,.04)";
+            ctx2d.fillRect(x * cw + cw * 0.08, y * ch + ch * 0.08, cw * 0.84, ch * 0.84);
+          }
+        }
+      } else if (style === "particles") {
+        const n = 60;
+        for (let i = 0; i < n; i++) {
+          const bin = active ? freq[Math.floor((i / n) * freq.length)] / 255 : 0.15;
+          const angle = (i / n) * Math.PI * 2 + phaseRef.current * 0.3;
+          const r = (h * 0.15) + bin * h * 0.35 * sens;
+          const cx = w / 2 + Math.cos(angle) * r;
+          const cy = h / 2 + Math.sin(angle) * r;
+          ctx2d.fillStyle = colors[i % colors.length];
+          ctx2d.beginPath();
+          ctx2d.arc(cx, cy, 2 + bin * 6 * sens, 0, Math.PI * 2);
+          ctx2d.fill();
+        }
+      } else if (style === "unknown") {
+        const rows = 10;
+        historyRef.current.unshift(time ? Array.from(time) : new Array(64).fill(128));
+        if (historyRef.current.length > rows) historyRef.current.length = rows;
+        historyRef.current.forEach((row, ri) => {
+          ctx2d.beginPath();
+          const yBase = h * (0.25 + (ri / rows) * 0.6);
+          const step = w / row.length;
+          row.forEach((v, i) => {
+            const amp = active ? ((v - 128) / 128) * h * 0.18 * sens : 0.01 * Math.sin(phaseRef.current + i * 0.3) * h;
+            const x = i * step, y = yBase - amp - ri * (h * 0.02);
+            if (i === 0) ctx2d.moveTo(x, y); else ctx2d.lineTo(x, y);
+          });
+          ctx2d.strokeStyle = `rgba(255,255,255,${0.9 - ri * 0.07})`;
+          ctx2d.lineWidth = 1.4;
+          ctx2d.stroke();
+        });
+      } else if (style === "butterchurn") {
+        const blobs = 5;
+        for (let i = 0; i < blobs; i++) {
+          const bin = active ? freq[Math.floor((i / blobs) * freq.length)] / 255 : 0.2;
+          const ang = phaseRef.current * (0.4 + i * 0.15) + i;
+          const cx = w / 2 + Math.cos(ang) * w * 0.22;
+          const cy = h / 2 + Math.sin(ang * 1.3) * h * 0.22;
+          const rad = (h * 0.18 + bin * h * 0.28 * sens);
+          const grad = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, rad);
+          grad.addColorStop(0, colors[i % colors.length] + "cc");
+          grad.addColorStop(1, "transparent");
+          ctx2d.fillStyle = grad;
+          ctx2d.beginPath();
+          ctx2d.arc(cx, cy, rad, 0, Math.PI * 2);
+          ctx2d.fill();
+        }
+      } else if (style === "kawarp") {
+        const cols = 20, rows = 12;
+        ctx2d.strokeStyle = colors[0];
+        ctx2d.lineWidth = 1;
+        for (let y = 0; y <= rows; y++) {
+          ctx2d.beginPath();
+          for (let x = 0; x <= cols; x++) {
+            const bin = active ? freq[Math.floor(((x + y) % freq.length))] / 255 : 0.1;
+            const warp = Math.sin(phaseRef.current + x * 0.4 + y * 0.4) * (8 + bin * 30 * sens);
+            const px = (x / cols) * w;
+            const py = (y / rows) * h + warp;
+            if (x === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
+          }
+          ctx2d.globalAlpha = bright * 0.5;
+          ctx2d.stroke();
+        }
+        ctx2d.globalAlpha = bright;
+      }
+    };
+    draw();
+    return () => { cancelAnimationFrame(rafRef.current); ro.disconnect(); };
+  }, [style, mode, sensitivity, brightness, preset, getAnalyser, isPlaying, running]);
+
+  return <canvas ref={canvasRef} className={`aivy-visualizer-canvas ${mode}`} style={{ height }} />;
+}
+
+export function NowPlayingVisualizer({ running = true }) {
+  const { settings } = useUI();
+  const [cyclePreset, setCyclePreset] = useState(settings.visualizerPreset || "auto");
+  const presets = Object.keys(VISUALIZER_COLOR_SETS);
+
+  useEffect(() => {
+    if (!running) return undefined;
+    if (!settings.cyclePresets) { setCyclePreset(settings.visualizerPreset || "auto"); return undefined; }
+    const durMs = Math.max(3, Number(settings.cycleDuration) || 30) * 1000;
+    const id = setInterval(() => {
+      setCyclePreset((prev) => {
+        if (settings.randomizePresets) {
+          const opts = presets.filter((p) => p !== prev);
+          return opts[Math.floor(Math.random() * opts.length)] || prev;
+        }
+        const idx = presets.indexOf(prev);
+        return presets[(idx + 1) % presets.length];
+      });
+    }, durMs);
+    return () => clearInterval(id);
+  }, [running, settings.cyclePresets, settings.cycleDuration, settings.randomizePresets, settings.visualizerPreset]);
+
+  if (!settings.visualizerEnabled) return null;
+  return (
+    <VisualizerCanvas
+      mode={settings.visualizerMode || "solid"}
+      style={settings.visualizerStyle || "butterchurn"}
+      sensitivity={Number(settings.visualizerSensitivity) || 60}
+      brightness={Number(settings.visualizerBrightness) || 100}
+      preset={cyclePreset}
+      running={running}
+    />
+  );
+}
+
+const NPX_COVER_FILL_STYLE = { width: "100%", height: "100%" };
+
+// ==========================================================================
+// Now playing mobile — potongan UI yang mengikuti referensi video
+// (mode player / lirik / antrean dalam satu sheet)
+// ==========================================================================
+
+/* Ikon custom: ukuran viewBox = piksel video referensi supaya proporsinya sama persis */
+function NpxPrevIcon() {
+  return (
+    <svg viewBox="0 0 67 38" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="5" strokeLinejoin="round">
+      <path d="M33 2.5v33L2.5 19z" /><path d="M64.5 2.5v33L34 19z" />
+    </svg>
+  );
+}
+function NpxNextIcon() {
+  return (
+    <svg viewBox="0 0 67 38" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="5" strokeLinejoin="round">
+      <path d="M34 2.5v33L64.5 19z" /><path d="M2.5 2.5v33L33 19z" />
+    </svg>
+  );
+}
+function NpxPlayIcon() {
+  return (
+    <svg viewBox="0 0 44 54" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="8" strokeLinejoin="round">
+      <path d="M4 4l36 23L4 50z" />
+    </svg>
+  );
+}
+function NpxPauseIcon() {
+  return (
+    <svg viewBox="0 0 44 54" aria-hidden="true" fill="currentColor">
+      <rect x="3" y="3" width="14" height="48" rx="4" /><rect x="27" y="3" width="14" height="48" rx="4" />
+    </svg>
+  );
+}
+function NpxVolLowIcon() {
+  return (
+    <svg viewBox="0 0 17 17" aria-hidden="true" fill="currentColor">
+      <path d="M0 5.5h3.8L9.5 1v15L3.8 11.5H0z" />
+      <path d="M12.3 5.3a4.7 4.7 0 0 1 0 6.4" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function NpxVolHighIcon() {
+  return (
+    <svg viewBox="0 0 23 21" aria-hidden="true" fill="currentColor">
+      <path d="M0 7h4.6L11.5 1.5v18L4.6 14H0z" />
+      <path d="M14.8 6.6a5.6 5.6 0 0 1 0 7.8" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+      <path d="M18.2 3.6a9.6 9.6 0 0 1 0 13.8" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function NpxMoreIcon() {
+  return (
+    <svg viewBox="0 0 19 5" aria-hidden="true" fill="currentColor">
+      <circle cx="2.5" cy="2.5" r="2.5" /><circle cx="9.5" cy="2.5" r="2.5" /><circle cx="16.5" cy="2.5" r="2.5" />
+    </svg>
+  );
+}
+function NpxHandleIcon() {
+  return (
+    <svg viewBox="0 0 18 8" aria-hidden="true" fill="currentColor">
+      <rect x="0" y="0" width="18" height="2.4" rx="1.2" /><rect x="0" y="5.6" width="18" height="2.4" rx="1.2" />
+    </svg>
+  );
+}
+
+/* Polling ringan ke elemen <am-lyrics>: baris aktif, sumber lirik, status romanisasi/terjemahan. */
+const LYR_CTRL_IDLE_MS = 5000;
+
+function useNpxLyricsInfo(enabled, trackKey) {
+  const [info, setInfo] = useState({ line: "", source: "", has: false, roman: false, trans: false });
+  const read = useCallback(() => {
+    const el = typeof document !== "undefined" ? document.getElementById("aivy-am-lyrics-mobile") : null;
+    if (!el) return null;
+    let line = "";
+    try {
+      const node = el.shadowRoot?.querySelector(".lyrics-line.active:not(.lyrics-gap) .main-vocal-container");
+      line = (node?.textContent || "").replace(/\s+/g, " ").trim();
+    } catch { /* shadow DOM belum siap */ }
+    let source = "";
+    try {
+      const raw = el.lyricsSource;
+      if (raw) source = typeof el.constructor?.getDisplaySourceLabel === "function" ? el.constructor.getDisplaySourceLabel(raw) : String(raw);
+    } catch { /* abaikan */ }
+    return {
+      line, source,
+      has: Array.isArray(el.lyrics) ? el.lyrics.length > 0 : false,
+      roman: !!el.showRomanization, trans: !!el.showTranslation,
+    };
+  }, []);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const tick = () => {
+      const next = read();
+      if (!next) return;
+      setInfo((prev) => (prev.line === next.line && prev.source === next.source && prev.has === next.has && prev.roman === next.roman && prev.trans === next.trans ? prev : next));
+    };
+    tick();
+    const id = setInterval(tick, 450);
+    return () => clearInterval(id);
+  }, [enabled, trackKey, read]);
+  return { info, refresh: () => { const n = read(); if (n) setInfo(n); } };
+}
+
+/* ---------- Lirik di atas bar durasi (mode player): transisi antarbaris + sorotan kata per kata bila datanya ada ---------- */
+const NPX_INL_LEAVE_MS = 460;
+const NPX_INL_GAP_HOLD_MS = 900;
+
+function toInlineLine(l) {
+  if (!l || !Array.isArray(l.text)) return null;
+  const words = l.text.map((sy) => ({ text: String(sy?.text ?? ""), s: Number(sy?.timestamp) || 0, e: Number(sy?.endtime) || 0 }));
+  const text = words.map((w) => w.text).join("").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  const t0 = Number(l.timestamp) || words[0]?.s || 0;
+  const lastEnd = words.reduce((m, w) => Math.max(m, w.e), 0);
+  const t1 = Math.max(Number(l.endtime) || 0, lastEnd);
+  const sync = !!l.isWordSynced && words.length > 1 && words.some((w) => w.e > w.s);
+  return { t0, t1, words, sync, text };
+}
+
+/** Baca baris lirik (beserta timing kata) dari <am-lyrics> mobile yang sudah ter-mount. */
+function useNpxLyricLines(enabled, trackKey) {
+  const [lines, setLines] = useState([]);
+  const prevTrackRef = useRef(trackKey);
+  useEffect(() => {
+    const trackChanged = prevTrackRef.current !== trackKey;
+    prevTrackRef.current = trackKey;
+    setLines([]);
+    if (!enabled) return undefined;
+    const getRaw = () => {
+      const el = typeof document !== "undefined" ? document.getElementById("aivy-am-lyrics-mobile") : null;
+      return el && Array.isArray(el.lyrics) ? el.lyrics : null;
+    };
+    // setelah ganti lagu, array lirik lagu sebelumnya bisa masih menempel sampai lirik baru termuat
+    const stale = trackChanged ? getRaw() : null;
+    let last = null;
+    const read = () => {
+      const raw = getRaw();
+      if (raw === last || (stale && raw === stale)) return;
+      last = raw;
+      setLines(raw && raw.length ? raw.map(toInlineLine).filter(Boolean).sort((a, b) => a.t0 - b.t0) : []);
+    };
+    read();
+    const id = setInterval(read, 700);
+    return () => clearInterval(id);
+  }, [enabled, trackKey]);
+  return lines;
+}
+
+function NpxInlineLine({ line, live, leaving, first, reg }) {
+  const cls = `npx-inl-line ${line.sync ? "is-sync" : "is-plain"} ${live ? "is-live" : "is-wait"} ${leaving ? "is-leaving" : first ? "is-first" : "is-in"}`;
+  return (
+    <span className={cls} aria-hidden={leaving ? "true" : undefined}>
+      {line.sync
+        ? line.words.map((w, k) => <span key={k} className="w" ref={leaving ? undefined : (el) => reg(k, el)}>{w.text}</span>)
+        : line.text}
+      <ChevronRight className="chev" aria-hidden="true" />
+    </span>
+  );
+}
+
+function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
+  const { isPlaying } = usePlayer();
+  const playerTime = usePlayerTime();
+  const anchorRef = useRef({ t: playerTime, at: typeof performance !== "undefined" ? performance.now() : 0 });
+  const playingRef = useRef(isPlaying);
+  playingRef.current = isPlaying;
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+  const wordEls = useRef([]);
+  const [view, setView] = useState({ i: -1, live: false, first: true });
+  const [leaving, setLeaving] = useState(null);
+  const viewRef = useRef(view);
+  const idxHint = useRef(0);
+
+  useEffect(() => { anchorRef.current = { t: playerTime, at: performance.now() }; }, [playerTime]);
+  useEffect(() => { viewRef.current = { i: -1, live: false, first: true }; setView({ i: -1, live: false, first: true }); setLeaving(null); idxHint.current = 0; wordEls.current = []; }, [trackKey]);
+
+  const reg = useCallback((k, el) => { wordEls.current[k] = el; }, []);
+
+  useEffect(() => {
+    if (disabled || !active || !lines.length) return undefined;
+    let raf = 0;
+    let leaveTimer = null;
+    let resync = true;
+    const lastP = [];
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const ls = linesRef.current;
+      if (!ls.length) return;
+      const a = anchorRef.current;
+      const ms = a.t * 1000 + (playingRef.current ? Math.min(performance.now() - a.at, 600) : 0);
+      let i = Math.min(idxHint.current, ls.length - 1);
+      if (ls[i].t0 > ms) i = 0;
+      while (i + 1 < ls.length && ls[i + 1].t0 <= ms) i += 1;
+      idxHint.current = i;
+      const started = ls[i].t0 <= ms;
+      const end = ls[i].t1 > ls[i].t0 ? ls[i].t1 : (ls[i + 1]?.t0 ?? Infinity);
+      const inGap = started && ms > end + NPX_INL_GAP_HOLD_MS && i + 1 < ls.length;
+      const shown = !started ? 0 : inGap ? i + 1 : i;
+      const live = started && !inGap;
+      const cur = viewRef.current;
+      if (resync) {
+        // frame pertama setelah sheet dibuka/ lirik termuat: langsung ke baris yang benar, tanpa animasi pergantian
+        resync = false;
+        wordEls.current = [];
+        lastP.length = 0;
+        if (cur.i !== shown || cur.live !== live) {
+          const next = { i: shown, live, first: true };
+          viewRef.current = next;
+          setLeaving(null);
+          setView(next);
+          return;
+        }
+      }
+      if (cur.i !== shown || cur.live !== live) {
+        if (cur.i !== shown && cur.i >= 0) {
+          setLeaving({ i: cur.i, key: `${cur.i}-${Date.now()}` });
+          clearTimeout(leaveTimer);
+          leaveTimer = setTimeout(() => setLeaving(null), NPX_INL_LEAVE_MS);
+          wordEls.current = [];
+          lastP.length = 0;
+        }
+        const next = { i: shown, live, first: cur.i < 0 };
+        viewRef.current = next;
+        setView(next);
+      }
+      const line = ls[shown];
+      if (line && line.sync) {
+        const els = wordEls.current;
+        for (let k = 0; k < line.words.length; k += 1) {
+          const el = els[k];
+          if (!el) continue;
+          const w = line.words[k];
+          const prog = w.e > w.s ? Math.min(1, Math.max(0, (ms - w.s) / (w.e - w.s))) : (ms >= w.s ? 1 : 0);
+          const v = Math.round((prog * 106 - 6) * 10) / 10;
+          if (lastP[k] !== v) { lastP[k] = v; el.style.setProperty("--p", `${v}%`); }
+        }
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); clearTimeout(leaveTimer); };
+  }, [disabled, active, lines, trackKey]);
+
+  // view.i bisa sesaat tertinggal dari `lines` (mis. ganti lagu / lirik diganti sumber lain dengan jumlah baris lebih sedikit).
+  // Jangan pernah mengakses lines[view.i] tanpa cek: efek rAF di atas yang akan menyelaraskan indeksnya di frame berikutnya.
+  const line = view.i >= 0 ? lines[view.i] : null;
+  if (disabled || !lines.length || !line) return <div className="npx-inl is-empty" />;
+  const gone = leaving && lines[leaving.i];
+  return (
+    <button type="button" className="npx-inl" onClick={onOpen} aria-label={line.text}>
+      {gone && leaving.i !== view.i ? <NpxInlineLine key={`o${leaving.key}`} line={gone} live={false} leaving reg={reg} /> : null}
+      <NpxInlineLine key={`i${view.i}`} line={line} live={view.live} first={view.first} reg={reg} />
+    </button>
+  );
+}
+
+/* Baris cuplikan lirik (♫ teks ›) di mode player & antrean; "Lirik oleh …" di mode lirik. */
+/* Ikon baris bawah: solid/tebal ala Apple. viewBox = bbox video (u), ukuran dipasang lewat style */
+const npxSz = (w, h) => ({ width: `calc(var(--u) * ${w})`, height: `calc(var(--u) * ${h})` });
+function NpxLyricsIcon() {
+  return (
+    <svg viewBox="0 0 31 30" style={npxSz(31, 30)} aria-hidden="true" fill="currentColor">
+      <path d="M7.5 1.5h16a6 6 0 0 1 6 6v10a6 6 0 0 1-6 6H15.5l-8 5v-5a6 6 0 0 1-6-6v-10a6 6 0 0 1 6-6z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M9.6 9h4.6v4.4c0 2-1.1 3.2-3 3.6l-.5-1.3c.9-.3 1.3-.8 1.3-1.6H9.6zm7.2 0h4.6v4.4c0 2-1.1 3.2-3 3.6l-.5-1.3c.9-.3 1.3-.8 1.3-1.6h-2.4z" />
+    </svg>
+  );
+}
+function NpxHeadphonesIcon() {
+  return (
+    <svg viewBox="0 0 25 25" style={npxSz(25, 25)} aria-hidden="true" fill="currentColor">
+      <path d="M3.7 17v-4.6a8.8 8.8 0 0 1 17.6 0V17" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" />
+      <rect x="0" y="13.6" width="7.6" height="11.4" rx="3.6" /><rect x="17.4" y="13.6" width="7.6" height="11.4" rx="3.6" />
+    </svg>
+  );
+}
+function NpxPersonIcon() {
+  return (
+    <svg viewBox="0 0 22 22" style={npxSz(22, 22)} aria-hidden="true" fill="currentColor">
+      <circle cx="11" cy="4.8" r="4.8" /><path d="M0 22c0-5 4.4-7.6 11-7.6S22 17 22 22z" />
+    </svg>
+  );
+}
+function NpxListIcon() {
+  return (
+    <svg viewBox="0 0 31 23" style={npxSz(31, 23)} aria-hidden="true" fill="currentColor">
+      <circle cx="2.4" cy="2.4" r="2.4" /><circle cx="2.4" cy="11.5" r="2.4" /><circle cx="2.4" cy="20.6" r="2.4" />
+      <rect x="9" y="0.9" width="22" height="3" rx="1.5" /><rect x="9" y="10" width="22" height="3" rx="1.5" /><rect x="9" y="19.1" width="22" height="3" rx="1.5" />
+    </svg>
+  );
+}
+function NpxShuffleIcon() {
+  return (
+    <svg viewBox="0 0 29 24" style={npxSz(29, 24)} aria-hidden="true" fill="currentColor">
+      <g fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1.8 5h4.4c7 0 8.3 14 15.6 14h1" /><path d="M1.8 19h4.4c2.6 0 4.4-1.2 6-3.2" /><path d="M15.4 8.2C17.2 6 19 5 21.8 5h1" />
+      </g>
+      <path d="M22.5 0L29 5l-6.5 5zM22.5 14L29 19l-6.5 5z" />
+    </svg>
+  );
+}
+function NpxRepeatIcon({ one = false }) {
+  return (
+    <svg viewBox="0 0 25 21" style={npxSz(25, 21)} aria-hidden="true" fill="currentColor">
+      <g fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5.5 4h12.5a4 4 0 0 1 4 4v1.5" /><path d="M19.5 17H7a4 4 0 0 1-4-4v-1.5" />
+      </g>
+      <path d="M16.5 0L23 4l-6.5 4zM8.5 13L2 17l6.5 4z" />
+      {one ? <path d="M11 7.4l2.2-1.2v8.6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : null}
+    </svg>
+  );
+}
+function NpxInfinityIcon() {
+  return (
+    <svg viewBox="0 0 29 15" style={npxSz(29, 15)} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 7.5c-2-3-4-5.5-7-5.5a5.5 5.5 0 0 0 0 11c3 0 5-2.5 7-5.5s4-5.5 7-5.5a5.5 5.5 0 0 1 0 11c-3 0-5-2.5-7-5.5z" />
+    </svg>
+  );
+}
+function NpxHeartIcon({ filled }) {
+  return (
+    <svg viewBox="-1 -1 26 24" aria-hidden="true" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round">
+      <path d="M12 20.4C5.4 15.5 1.6 12 1.6 7.5a5.4 5.4 0 0 1 10.4-2 5.4 5.4 0 0 1 10.4 2c0 4.5-3.8 8-10.4 12.9z" />
+    </svg>
+  );
+}
+function NpxNoteIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 21 21" aria-hidden="true" fill="currentColor">
+      <path d="M7.4 3.2L17.6 1.6v4L7.4 7.2z" /><rect x="6.4" y="3" width="1.8" height="11.2" /><rect x="16.2" y="1.6" width="1.8" height="10.6" />
+      <ellipse cx="4.9" cy="15.4" rx="3" ry="2.4" transform="rotate(-18 4.9 15.4)" /><ellipse cx="14.7" cy="13.8" rx="3" ry="2.4" transform="rotate(-18 14.7 13.8)" />
+    </svg>
+  );
+}
+function NpxSnippetRow({ mode, info, hintKey, lyricsDisabled, onOpenLyrics }) {
+  const { t } = useUI();
+  const hint = useMemo(() => (Math.random() < 0.5 ? t("npHintIntro") : t("npHintChorus")), [hintKey, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (mode === "lyrics") {
+    if (!info.source) return <div className="npx-snip is-credit" />;
+    const isDomain = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(info.source);
+    return (
+      <div className="npx-snip is-credit">
+        {isDomain ? (
+          <a className="npx-credit" href={`https://${info.source}`} target="_blank" rel="noopener noreferrer">{t("npLyricsBy")} {info.source}</a>
+        ) : (
+          <span className="npx-credit">{t("npLyricsBy")} {info.source}</span>
+        )}
+      </div>
+    );
+  }
+  if (lyricsDisabled) return <div className="npx-snip" />;
+  return (
+    <button type="button" className="npx-snip" onClick={onOpenLyrics} aria-label={t("npLyricSnippetOpen")}>
+      <NpxNoteIcon className="note" />
+      <span className="txt">{info.line || hint}</span>
+      <ChevronRight className="chev" aria-hidden="true" />
+    </button>
+  );
+}
+
+/* Baris bawah: lirik | pill (🎧 👤 atau acak/ulang/∞) | antrean */
+function NpxBottomRow({ mode, onToggleLyrics, lyricsDisabled, onToggleQueue, onClose }) {
+  const { t, settings, updateSettings, pushToast } = useUI();
+  const { shuffle, toggleShuffle, repeat, cycleRepeat, room } = usePlayer();
+  const { navigate } = useRouter();
+  const autoplayOn = settings.autoplay !== false;
+  const queue = mode === "queue";
+  return (
+    <div className="npx-bottom">
+      <button type="button" className={`npx-circ is-lyrics ${mode === "lyrics" ? "on" : ""}`} onClick={onToggleLyrics} disabled={lyricsDisabled} aria-label={t("lyrics")} aria-pressed={mode === "lyrics"}>
+        <NpxLyricsIcon />
+      </button>
+      <div className={`npx-pill ${queue ? "is-3" : "is-2"}`} role="group">
+        {queue ? (
+          <>
+            <button type="button" className={`seg ${shuffle ? "on" : ""}`} onClick={toggleShuffle} disabled={!!room} aria-label={t("shuffle")} aria-pressed={shuffle}><NpxShuffleIcon /></button>
+            <button type="button" className={`seg ${repeat !== "off" ? "on" : ""}`} onClick={cycleRepeat} disabled={!!room} aria-label={t("repeat")} aria-pressed={repeat !== "off"}><NpxRepeatIcon one={repeat === "one"} /></button>
+            <button type="button" className={`seg ${autoplayOn ? "on" : ""}`} onClick={() => updateSettings({ autoplay: !autoplayOn })} aria-label={t("npAutoplayToggle")} aria-pressed={autoplayOn}><NpxInfinityIcon /></button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="seg" onClick={() => pushToast(t("airplayUnavailable", "Output perangkat tidak tersedia di browser"))} aria-label={t("npOutput")}><NpxHeadphonesIcon /></button>
+            <button type="button" className="seg" onClick={() => { onClose?.(); navigate("roomLobby"); }} aria-label={t("npListeningRoom")}><NpxPersonIcon /></button>
+          </>
+        )}
+      </div>
+      <button type="button" className={`npx-circ is-queue ${queue ? "on" : ""}`} onClick={onToggleQueue} aria-label={t("openQueue")} aria-pressed={queue}>
+        <NpxListIcon />
+      </button>
+    </div>
+  );
+}
+
+/* Tombol transport: prev / play / next dengan ikon bergaya referensi */
+function NpxTransport() {
+  const { isPlaying, togglePlay, next, prev, currentTrack, room, posInOrder } = usePlayer();
+  const { authUser, t } = useUI();
+  const isHost = !room || !authUser || room.hostId === authUser.id;
+  const locked = !!(room && room.hostOnlyControl && !isHost);
+  const off = !currentTrack || locked;
+  return (
+    <div className="npx-transport">
+      <button type="button" className={`skip prev ${posInOrder <= 0 && !room ? "is-dim" : ""}`} onClick={() => prev()} disabled={off} aria-label={t("previous")}><NpxPrevIcon /></button>
+      <button type="button" className="play" onClick={togglePlay} disabled={off} aria-label={isPlaying ? t("pause") : t("play")}>{isPlaying ? <NpxPauseIcon /> : <NpxPlayIcon />}</button>
+      <button type="button" className="skip next" onClick={() => next(false)} disabled={off} aria-label={t("next")}><NpxNextIcon /></button>
+    </div>
+  );
+}
+
+/* Antrean di dalam sheet: Sedang diputar → (Berikutnya) → AutoPlay */
+function NpxQueueRow({ track, handle, current, onPlay, onRemove, dragProps, style, className = "" }) {
+  const { t } = useUI();
+  return (
+    <div className={`npx-q-row ${current ? "is-current" : ""} ${className}`} style={style}>
+      {handle && (
+        <button type="button" className="handle" aria-label={t("npReorder")} {...(dragProps || {})} tabIndex={dragProps ? 0 : -1}><NpxHandleIcon /></button>
+      )}
+      <button type="button" className="main" onClick={onPlay} disabled={!onPlay}>
+        <span className="thumb"><SmartCover src={track.cover} seed={String(track.id) + track.title} size={126} radius={6} style={{ width: "100%", height: "100%" }} /></span>
+        <span className="txt">
+          <span className="t">{track.explicit ? <span className="npx-q-e" title="Explicit">E</span> : null}<span className="tt">{track.title}</span></span>
+          <span className="a">{track.artist?.name || "\u2014"}</span>
+        </span>
+      </button>
+      {current && <AudioLines className="eq" aria-hidden="true" />}
+      <button type="button" className="rm" onClick={onRemove} aria-label={t("npRemoveFromQueue")}><X aria-hidden="true" /></button>
+    </div>
+  );
+}
+
+function NpxQueueView({ active, currentTrack, onCollapse }) {
+  const { t } = useUI();
+  const {
+    upNext, suggestedQueue, removeFromQueue, moveQueueItem, selectQueuePosition, posInOrder,
+    dismissSuggestion, playSuggestion, next, isPlaying, room,
+  } = usePlayer();
+  const scRef = useRef(null);
+  const [drag, setDrag] = useState(null); // { from, over, startY, dy, h }
+
+  useEffect(() => { if (!active && scRef.current) scRef.current.scrollTop = 0; }, [active]);
+
+  const onScroll = (e) => onCollapse(e.currentTarget.scrollTop > 2);
+
+  const startDrag = (e, index) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const row = e.currentTarget.closest(".npx-q-row");
+    setDrag({ from: index, over: index, startY: e.clientY, dy: 0, h: row?.getBoundingClientRect().height || 60 });
+  };
+  const moveDrag = (e) => {
+    setDrag((d) => {
+      if (!d) return d;
+      const dy = e.clientY - d.startY;
+      const over = clamp(d.from + Math.round(dy / d.h), 0, upNext.length - 1);
+      return { ...d, dy, over };
+    });
+  };
+  const endDrag = (commit) => {
+    if (commit && drag && drag.from !== drag.over) moveQueueItem(drag.from, drag.over);
+    setDrag(null);
+  };
+
+  const rowStyle = (i) => {
+    if (!drag) return undefined;
+    if (drag.from === i) return { transform: `translateY(${drag.dy}px)`, zIndex: 2, background: "rgba(255,255,255,.08)" };
+    if (drag.from < drag.over && i > drag.from && i <= drag.over) return { transform: "translateY(-100%)" };
+    if (drag.from > drag.over && i >= drag.over && i < drag.from) return { transform: "translateY(100%)" };
+    return undefined;
+  };
+
+  return (
+    <div className={`npx-queue ${active ? "is-active" : ""}`} aria-hidden={!active}>
+      <div className="npx-q-scroll aivy-scroll" ref={scRef} onScroll={onScroll}>
+        <div className="npx-q-label first">{t("npQueueNow")}</div>
+        {currentTrack && (
+          <NpxQueueRow track={currentTrack} current onRemove={() => next(false)} />
+        )}
+        {upNext.length > 0 && (
+          <>
+            <div className="npx-q-label">{t("npUpNext")}</div>
+            {upNext.map((tr, i) => (
+              <NpxQueueRow
+                key={`${tr.id}-${i}`} track={tr} handle
+                style={rowStyle(i)}
+                dragProps={{
+                  onPointerDown: (e) => startDrag(e, i), onPointerMove: moveDrag,
+                  onPointerUp: () => endDrag(true), onPointerCancel: () => endDrag(false),
+                }}
+                onPlay={() => selectQueuePosition(posInOrder + 1 + i)}
+                onRemove={() => removeFromQueue(i)}
+              />
+            ))}
+          </>
+        )}
+        {!room && suggestedQueue.length > 0 && (
+          <>
+            <div className="npx-q-auto">
+              <InfinityIcon aria-hidden="true" />
+              <div className="txt"><div className="t">{t("npAutoplayTitle")}</div><div className="d">{t("npAutoplayDesc")}</div></div>
+            </div>
+            {suggestedQueue.map((tr) => (
+              <NpxQueueRow key={tr.id} track={tr} handle onPlay={() => playSuggestion(tr)} onRemove={() => dismissSuggestion(tr)} />
+            ))}
+          </>
+        )}
+        <div className="npx-q-end" />
+      </div>
+    </div>
+  );
+}
+
+export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
+  const {
+    currentTrack, seekTo, isPreviewClip, audioFormat,
+    liked, toggleLike, loadingAudio, currentTrackHasLyrics, isPlaying, togglePlay, next, prev, playSource,
+  } = usePlayer();
+  const playerTime = usePlayerTime();
+  const { navigate } = useRouter();
+  const { t, settings, updateSettings, lyricsOpen, toggleLyrics, pushToast, authUser } = useUI();
+  const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
+  const clientDynamicColor = useDominantColor(settings.dynamicColors ? currentTrack?.cover : null);
+  const [serverDominantColor, setServerDominantColor] = useState(null);
+  useEffect(() => { setServerDominantColor(null); }, [currentTrack?.id]);
+
+  const dynamicColor = settings.dynamicColors ? (serverDominantColor || clientDynamicColor) : null;
+  const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const meshEnabled = settings.coverBackground !== false;
+  const meshPalette = useCoverPalette(meshEnabled ? currentTrack?.cover : null, serverDominantColor || clientDynamicColor);
+  const isBleed = !settings.cdCoverSpin && !settings.tiltCover;
+  const [queueMode, setQueueMode] = useState(false);
+  const [qCollapsed, setQCollapsed] = useState(false);
+  const [lyrCtrlOpen, setLyrCtrlOpen] = useState(true);
+  const [opening, setOpening] = useState(false);
+  const playingFrom = playSource?.label ? `${t("npPlayingFrom")} ${playSource.label}` : (playSource?.type === "search" ? `${t("npPlayingFrom")} ${t("search", "Search")}` : t("nowPlaying"));
+  const tilt = useTilt({ enabled: !!settings.tiltCover, distance: Number(settings.tiltDistance) || 10, speed: Number(settings.tiltSpeed) || 240 });
+  const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
+  const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
+  const formatLabel = audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null;
+  const techInfo = useTrackAudioInfo(currentTrack);
+  const techFormat = unifyAudioInfoFields(techInfo);
+  const formatBadge = formatLabel ? formatBadgeText(formatLabel, techFormat) : null;
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [aodOpen, setAodOpen] = useState(false);
+  const [uiHidden, setUiHidden] = useState(false);
+  const [artworkReloadToken, setArtworkReloadToken] = useState(0);
+  const handleMore = () => { if (!currentTrack) return; setMoreOpen(true); };
+  const handleReloadArtwork = () => {
+    if (!settings.animatedArtwork) {
+      pushToast(t("npArtworkReloadNeedsSetting"));
+      return;
+    }
+    setArtworkReloadToken((n) => n + 1);
+  };
+  const handleArtworkReloadResult = (status) => {
+    if (status === "success") pushToast(t("npArtworkReloaded"));
+    else if (status === "rate_limited") pushToast(t("npArtworkReloadRateLimited"));
+    else if (status === "not_found") pushToast(t("npArtworkReloadFailed"));
+    else pushToast(t("npArtworkReloadError"));
+  };
+  const reloadResultRef = useRef(handleArtworkReloadResult);
+  reloadResultRef.current = handleArtworkReloadResult;
+  const onReloadResultStable = useCallback((status) => reloadResultRef.current(status), []);
+  const handleFullscreenCoverClick = () => {
+    const action = settings.fullscreenCoverClick || "exit";
+    if (action === "exit") onClose();
+    else if (action === "hide") setUiHidden((h) => !h);
+    else if (action === "pause") togglePlay();
+    else if (action === "next") next(false);
+    else if (action === "prev") prev();
+  };
+  useEffect(() => { if (!open) setUiHidden(false); }, [open]);
+  useEffect(() => {
+    const end = beginHeavyTransition(500);
+    return end;
+  }, [open]);
+  useEffect(() => { setUiHidden(false); }, [currentTrack?.id]);
+
+  const lyricsMode = !!(open && lyricsOpen && !queueMode);
+  const mode = queueMode ? "queue" : lyricsMode ? "lyrics" : "player";
+  const compact = lyricsMode || queueMode;
+  const [lyricsMounted, setLyricsMounted] = useState(false);
+  const [lyricsUnsynced, setLyricsUnsynced] = useState(false);
+  const [suppressLyricsBlur, setSuppressLyricsBlur] = useState(isHeavyTransition());
+  useEffect(() => subscribeHeavyTransition(setSuppressLyricsBlur), []);
+
+  const coverRef = useRef(null);
+  const metaRef = useRef(null);
+  const actionsRef = useRef(null);
+  const controlsRef = useRef(null);
+  const sheetRef = useRef(null);
+  const backdropRef = useRef(null);
+  useEffect(() => registerNowPlayingSheet(sheetRef.current, backdropRef.current), []);
+  const flipTargets = useRef([
+    { ref: coverRef },
+    { ref: metaRef, uniform: true },
+    { ref: actionsRef, uniform: true },
+  ]).current;
+  const captureHeroFlip = useHeroFlip(compact, flipTargets);
+
+  const bodyScrollRef = useRef(null);
+  const lyricsWrapRef = useRef(null);
+
+  // Auto-hide kontrol bawah di mode lirik: sembunyi setelah 5 dtk tanpa aktivitas, muncul lagi saat lirik di-scroll ke bawah
+  // atau area bawah diketuk, lalu sembunyi lagi setelah 5 dtk (berulang).
+  useEffect(() => {
+    if (!lyricsMode || !lyrCtrlOpen) return undefined;
+    const ctrl = controlsRef.current;
+    const wrap = lyricsWrapRef.current;
+    let timer = null;
+    let holding = false;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = holding ? null : setTimeout(() => setLyrCtrlOpen(false), LYR_CTRL_IDLE_MS);
+    };
+    const hold = () => { holding = true; clearTimeout(timer); };
+    const release = () => { holding = false; arm(); };
+    const targets = [ctrl, wrap].filter(Boolean);
+    const opts = { passive: true, capture: true };
+    targets.forEach((el) => {
+      el.addEventListener("pointerdown", hold, opts);
+      el.addEventListener("touchstart", hold, opts);
+      ["pointermove", "touchmove", "wheel", "click", "keydown"].forEach((ev) => el.addEventListener(ev, arm, opts));
+    });
+    ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach((ev) => window.addEventListener(ev, release, true));
+    arm();
+    return () => {
+      clearTimeout(timer);
+      targets.forEach((el) => {
+        el.removeEventListener("pointerdown", hold, opts);
+        el.removeEventListener("touchstart", hold, opts);
+        ["pointermove", "touchmove", "wheel", "click", "keydown"].forEach((ev) => el.removeEventListener(ev, arm, opts));
+      });
+      ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach((ev) => window.removeEventListener(ev, release, true));
+    };
+  }, [lyricsMode, lyrCtrlOpen, currentTrack?.id]);
+
+  // Scroll lirik ke bawah (jari geser ke atas / roda ke bawah) -> kontrol muncul lagi. Scroll otomatis tidak dihitung.
+  useEffect(() => {
+    if (!lyricsMode) return undefined;
+    const wrap = lyricsWrapRef.current;
+    if (!wrap) return undefined;
+    let lastY = null;
+    const onStart = (e) => { lastY = e.touches?.[0]?.clientY ?? null; };
+    const onMove = (e) => {
+      const y = e.touches?.[0]?.clientY;
+      if (lastY == null || y == null) return;
+      const dy = y - lastY;
+      if (dy < -14) { setLyrCtrlOpen(true); lastY = y; }
+      else if (dy > 14) lastY = y;
+    };
+    const onWheel = (e) => { if (e.deltaY > 6) setLyrCtrlOpen(true); };
+    const opts = { passive: true };
+    wrap.addEventListener("touchstart", onStart, opts);
+    wrap.addEventListener("touchmove", onMove, opts);
+    wrap.addEventListener("wheel", onWheel, opts);
+    return () => {
+      wrap.removeEventListener("touchstart", onStart, opts);
+      wrap.removeEventListener("touchmove", onMove, opts);
+      wrap.removeEventListener("wheel", onWheel, opts);
+    };
+  }, [lyricsMode, currentTrack?.id]);
+  const handleGrabberTap = () => onClose();
+  const swipeDown = useVerticalSwipe({ active: open, direction: "down", onTrigger: handleGrabberTap, dragRef: sheetRef, scrollRef: bodyScrollRef });
+
+  const trackKey = currentTrack?.id;
+  useEffect(() => { setLyricsUnsynced(false); }, [trackKey]);
+  useEffect(() => { if (!open) { setQueueMode(false); setQCollapsed(false); } }, [open]);
+  useEffect(() => { if (!queueMode) setQCollapsed(false); }, [queueMode]);
+  // Panel lirik dibuka / sheet dibuka -> kontrol bawah tampil dulu, lalu sembunyi otomatis (efek auto-hide di bawah).
+  // useLayoutEffect: state di-reset sebelum paint, jadi kontrol tidak sempat turun lalu naik lagi ("loncat").
+  useLayoutEffect(() => { if (open) setLyrCtrlOpen(true); }, [lyricsMode, open]);
+  useLayoutEffect(() => {
+    if (!open) { setOpening(false); return undefined; }
+    setOpening(true);
+    const id = setTimeout(() => setOpening(false), 620);
+    return () => clearTimeout(id);
+  }, [open]);
+  const lyricsPoll = useNpxLyricsInfo(open && lyricsMounted, trackKey);
+  const lyricsInfo = lyricsPoll.info;
+  const inlineLines = useNpxLyricLines(open && lyricsMounted && !opening, trackKey);
+  const [hintTick, setHintTick] = useState(0);
+  useEffect(() => { setHintTick((n) => n + 1); }, [open, trackKey, mode]);
+  useEffect(() => { if (lyricsMode) setLyricsMounted(true); else setLyricsUnsynced(false); }, [lyricsMode]);
+  useEffect(() => {
+    if (!open || lyricsMounted || lyricsDisabled) return undefined;
+    let idleId = null;
+    const idle = typeof window !== "undefined" && window.requestIdleCallback;
+    const timer = setTimeout(() => {
+      if (idle) idleId = window.requestIdleCallback(() => setLyricsMounted(true), { timeout: 2000 });
+      else setLyricsMounted(true);
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      if (idleId != null && window.cancelIdleCallback) window.cancelIdleCallback(idleId);
+    };
+  }, [open, lyricsMounted, lyricsDisabled]);
+
+  const handleLyricsToggle = () => {
+    captureHeroFlip();
+    if (queueMode) { setQueueMode(false); if (!lyricsOpen) toggleLyrics(); return; }
+    toggleLyrics();
+  };
+  const handleQueueToggle = () => {
+    captureHeroFlip();
+    if (queueMode) { setQueueMode(false); return; }
+    setQueueMode(true);
+    if (lyricsOpen) toggleLyrics();
+  };
+  const toggleLyricsLayer = (kind) => {
+    const el = document.getElementById("aivy-am-lyrics-mobile");
+    if (!el) return;
+    try {
+      const fn = kind === "roman" ? el.toggleRomanization : el.toggleTranslation;
+      const res = typeof fn === "function" ? fn.call(el) : null;
+      if (res && typeof res.then === "function") res.then(lyricsPoll.refresh, lyricsPoll.refresh); else lyricsPoll.refresh();
+    } catch { /* abaikan */ }
+  };
+  const deviceName = (() => {
+    const raw = String(authUser?.name || authUser?.username || authUser?.displayName || "").trim();
+    return raw ? `${raw.split(/\s+/)[0]}${t("npPhoneSuffix")}` : t("npThisPhone");
+  })();
+
+  const scrollToActiveLyric = () => {
+    const el = document.getElementById("aivy-am-lyrics-mobile");
+    if (!el) return;
+    if (typeof el.resumeAutoScroll === "function") {
+      el.resumeAutoScroll();
+    }
+    setLyricsUnsynced(false);
+  };
+
+  useEffect(() => {
+    if (!lyricsMounted) return undefined;
+    let observer;
+    let retryTimer;
+    let tries = 0;
+
+    const attach = () => {
+      const el = document.getElementById("aivy-am-lyrics-mobile");
+      const container = el?.lyricsContainer;
+      if (!container) {
+        if (tries++ < 25) retryTimer = setTimeout(attach, 200);
+        return;
+      }
+      const sync = () => setLyricsUnsynced(container.classList.contains("user-scrolling"));
+      sync();
+      observer = new MutationObserver(sync);
+      observer.observe(container, { attributes: true, attributeFilter: ["class"] });
+    };
+    attach();
+
+    return () => {
+      clearTimeout(retryTimer);
+      observer?.disconnect();
+    };
+  }, [lyricsMounted, trackKey]);
+
+  const remaining = Math.max(0, (duration || 0) - (currentTime || 0));
+  const frozenLyricsTimeRef = useRef(0);
+  if (open) frozenLyricsTimeRef.current = playerTime;
+  const sheetLyricsTime = open ? playerTime : frozenLyricsTimeRef.current;
+  const coverArt = useMemo(() => (
+    <AnimatedCover
+      src={currentTrack?.cover} seed={(currentTrack?.id || "") + (currentTrack?.title || "")} size={320} radius={10}
+      style={NPX_COVER_FILL_STYLE}
+      song={currentTrack?.title} artist={currentTrack?.artist?.name}
+      animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+      onColor={setServerDominantColor}
+      reloadToken={artworkReloadToken}
+      onReloadResult={onReloadResultStable}
+      active={open}
+    />
+  ), [currentTrack?.cover, currentTrack?.id, currentTrack?.title, currentTrack?.artist?.name, settings.animatedArtwork, reduceMotion, artworkReloadToken, onReloadResultStable, open]);
+
+  const showSheetVisualizer = !!settings.visualizerEnabled && settings.visualizerMode === "solid";
+  const showCoverVisualizer = !!settings.visualizerEnabled && settings.visualizerMode === "blended";
+  const sheetVisualizer = useMemo(() => (
+    showSheetVisualizer ? <div className="aivy-sheet-visualizer" aria-hidden="true"><NowPlayingVisualizer running={open} /></div> : null
+  ), [showSheetVisualizer, open]);
+  const coverVisualizer = useMemo(() => (
+    showCoverVisualizer ? <div className="npx-cover-visualizer" aria-hidden="true"><NowPlayingVisualizer running={open} /></div> : null
+  ), [showCoverVisualizer, open]);
+
+  return (
+    <>
+      <div ref={backdropRef} className={`aivy-sheet-backdrop ${open ? "open" : ""}`} onClick={handleGrabberTap} />
+      <div ref={sheetRef} className={`aivy-sheet npx-v2 ${open ? "open" : ""} mode-${mode} ${lyricsMode ? "mode-lyrics" : ""} ${isPlaying ? "is-playing" : ""} ${uiHidden ? "is-ui-hidden" : ""} ${qCollapsed ? "is-qcollapsed" : ""} ${lyricsMode && lyrCtrlOpen ? "is-lyr-ctrl-open" : ""} ${opening ? "is-opening" : ""}`} aria-hidden={!open}>
+        {currentTrack && meshEnabled && (
+          <MeshGradient palette={meshPalette} active={open} still={reduceMotion} />
+        )}
+        {sheetVisualizer}
+        <div
+          className="aivy-sheet-grabber-row"
+          onPointerDown={swipeDown.onPointerDown} onPointerMove={swipeDown.onPointerMove}
+          onPointerUp={swipeDown.onPointerUp} onPointerCancel={swipeDown.onPointerCancel}
+        >
+          <button className="aivy-sheet-grabber" onClick={handleGrabberTap} aria-label={t("close")} />
+          {playingFrom && <div className="npx-playfrom">{playingFrom}</div>}
+        </div>
+        {currentTrack && (
+          <div ref={bodyScrollRef} className="aivy-sheet-body npx-body">
+            <div
+              className={`npx-hero ${compact ? "is-compact" : ""}`}
+              onPointerDown={swipeDown.onPointerDown} onPointerMove={swipeDown.onPointerMove}
+              onPointerUp={swipeDown.onPointerUp} onPointerCancel={swipeDown.onPointerCancel}
+            >
+              <div
+                className={`npx-cover ${isBleed ? "is-bleed" : ""} ${settings.noRoundCover ? "no-round" : ""} ${settings.cdCoverSpin ? "cd-spin" : ""} ${settings.tiltCover ? "has-tilt" : ""}`}
+                ref={(el) => { coverRef.current = el; tilt.ref.current = el; }}
+                style={{ ...tilt.style, ...(dynamicColor ? (isBleed ? { "--npx-dynamic": dynamicColor } : { "--npx-dynamic": dynamicColor, boxShadow: `0 24px 60px rgba(0,0,0,.5), 0 0 60px -12px ${dynamicColor}` }) : {}) }}
+                onPointerMove={settings.tiltCover ? tilt.onMove : undefined}
+                onPointerLeave={settings.tiltCover ? tilt.onLeave : undefined}
+                onClick={handleFullscreenCoverClick}
+                role="button" tabIndex={0}
+              >
+                {coverVisualizer}
+                {coverArt}
+              </div>
+              <div className="npx-metarow">
+                <div className="npx-titles" ref={metaRef}>
+                  <MarqueeText
+                    as="div" className="t" text={currentTrack.title}
+                    prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+                    suffix={isPreviewClip ? <span className="badge">{t("preview30")}</span> : null}
+                  />
+                  <div
+                    className="a"
+                    onClick={() => { if (compact) return; currentTrack.artist?.id && navigate("artist", { params: { id: currentTrack.artist.id } }); onClose(); }}
+                  >
+                    {currentTrack.artist?.name}
+                  </div>
+                </div>
+                <div className="npx-actions" ref={actionsRef}>
+                  <button className={`aivy-icon-btn ${isLiked ? "active" : ""}`} onClick={() => toggleLike(currentTrack)} aria-label={t("like")} aria-pressed={!!isLiked}><NpxHeartIcon filled={!!isLiked} /></button>
+                  <button className="aivy-icon-btn" onClick={handleMore} aria-label={t("menuMore")}><NpxMoreIcon /></button>
+                  {currentTrack.source !== "local" && (
+                    <button className="aivy-icon-btn npx-dl-btn" onClick={() => openDownload(currentTrack)} aria-label={t("menuDownload")} title={t("menuDownload")}><Download aria-hidden="true" /></button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {queueMode && <h2 className="npx-queue-title">{t("npQueueTitle")}</h2>}
+
+            <div ref={lyricsWrapRef} className={`npx-lyrics-wrap ${lyricsMode ? "is-active" : ""}`}>
+              {lyricsMounted && (
+                <>
+                  <AppleLyricsPane
+                    id="aivy-am-lyrics-mobile"
+                    track={currentTrack}
+                    currentTime={sheetLyricsTime}
+                    onSeek={seekTo}
+                    highlightColor="#f5f5f5"
+                    fontSize={normLyricsFontSize(settings.lyricsFontSize)}
+                    suppressBlur={suppressLyricsBlur}
+                    hideChrome
+                  />
+                  {lyricsUnsynced && (
+                    <button type="button" className="aivy-lyr2-pill" onClick={scrollToActiveLyric}>
+                      {t("syncLyrics")}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+            {lyricsMode && lyricsInfo.has && (
+              <>
+                <button type="button" className={`npx-lyr-btn is-left ${lyricsInfo.roman ? "on" : ""}`} onClick={() => toggleLyricsLayer("roman")} aria-label={t("npRomanize")} aria-pressed={lyricsInfo.roman}><Globe aria-hidden="true" /></button>
+                <button type="button" className={`npx-lyr-btn is-right ${lyricsInfo.trans ? "on" : ""}`} onClick={() => toggleLyricsLayer("trans")} aria-label={t("npTranslate")} aria-pressed={lyricsInfo.trans}><Languages aria-hidden="true" /></button>
+              </>
+            )}
+
+            {lyricsMode && !lyrCtrlOpen && (
+              <button type="button" className="npx-ctrl-zone" onClick={() => setLyrCtrlOpen(true)} aria-label={t("nowPlaying")} />
+            )}
+
+            <NpxQueueView active={queueMode} currentTrack={currentTrack} onCollapse={setQCollapsed} />
+
+            <div className="npx-top-controls npx-controls" ref={controlsRef}>
+              <SoftBoundary resetKey={trackKey} fallback={<div className="npx-inl is-empty" />}>
+                <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open && !opening} onOpen={handleLyricsToggle} trackKey={trackKey} />
+              </SoftBoundary>
+              {mode !== "player" && (
+                <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
+              )}
+              <div className="aivy-scrubber-row">
+                <span className="aivy-time">{loadingAudio ? "\u2013\u2013" : formatTime(currentTime)}</span>
+                <Scrubber
+                  getRatio={getRatio} onSeekRatio={onSeekRatio} registerFill={registerFill} registerThumb={registerThumb} loading={loadingAudio}
+                  waveformSeed={settings.waveformSeekbar && currentTrack ? String(currentTrack.id || currentTrack.title || "") : null}
+                />
+                <span className="aivy-time right">{loadingAudio ? "\u2013\u2013" : `-${formatTime(remaining)}`}</span>
+                {!isPreviewClip && <QualityPill track={currentTrack} fallbackLabel={formatLabel} />}
+              </div>
+              <NpxTransport />
+              <VolumeControl showEndIcon coneAtZero />
+              <NpxBottomRow mode={mode} onToggleLyrics={handleLyricsToggle} lyricsDisabled={lyricsDisabled} onToggleQueue={handleQueueToggle} onClose={onClose} />
+              <div className="npx-device">{deviceName}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <TrackOptionsSheet
+        open={moreOpen}
+        track={currentTrack}
+        formatLabel={formatBadge}
+        onClose={() => setMoreOpen(false)}
+        onOpenDetail={() => { setMoreOpen(false); setDetailOpen(true); }}
+        onOpenAod={() => { setMoreOpen(false); setAodOpen(true); }}
+        onNavigate={() => { setMoreOpen(false); onClose(); }}
+        onReloadArtwork={() => { setMoreOpen(false); handleReloadArtwork(); }}
+      />
+      <TrackDetailSheet
+        open={detailOpen}
+        track={currentTrack}
+        isPreviewClip={isPreviewClip}
+        onClose={() => setDetailOpen(false)}
+      />
+      <AlwaysOnDisplay
+        open={aodOpen}
+        track={currentTrack}
+        onClose={() => setAodOpen(false)}
+        animated={!!settings.animatedArtwork}
+        reduceMotion={reduceMotion}
+        reloadToken={artworkReloadToken}
+      />
+    </>
+  );
+}
+
+export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDetail, onOpenAod, onNavigate, onReloadArtwork }) {
+  const { navigate } = useRouter();
+  const { t, pushToast, openAddToPlaylist } = useUI();
+  const { promptCast, volume, muted } = usePlayer();
+  const sheetRef = useRef(null);
+  const [resolvingArtist, setResolvingArtist] = useState(false);
+  const [resolvingAlbum, setResolvingAlbum] = useState(false);
+  const closeAll = onNavigate || onClose;
+  const volumePct = Math.round((muted ? 0 : volume) * 100);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!track) return null;
+
+  const handleCast = async () => {
+    onClose();
+    const res = await promptCast();
+    if (!res.ok) pushToast(res.reason === "unsupported" ? t("castUnsupported") : t("castNoDevice"));
+  };
+  const handleAddToPlaylist = () => { onClose(); openAddToPlaylist(track); };
+  const handleShare = async () => {
+    const url = buildShareUrl(track);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: track.title, text: track.artist?.name || "", url });
+        onClose();
+        return;
+      } catch {
+        
+      }
+    }
+    navigator.clipboard?.writeText(url);
+    pushToast(t("linkCopied"));
+    onClose();
+  };
+
+  const handleArtist = async () => {
+    if (!track.artist?.name) return;
+    if (track.artist?.id) { closeAll(); navigate("artist", { params: { id: track.artist.id } }); return; }
+    setResolvingArtist(true);
+    try {
+      const { Api } = await import("./lib/api.js");
+      const res = await Api.artist(track.artist.name);
+      if (res?.name && isRelevantArtistMatch(res.name, track.artist.name)) {
+        closeAll();
+        navigate("artist", { params: { id: track.artist.id || track.artist.name } });
+      } else {
+        pushToast(t("artistNotFound"));
+      }
+    } catch {
+      pushToast(t("artistNotFound"));
+    } finally {
+      setResolvingArtist(false);
+    }
+  };
+
+  const handleAlbum = async () => {
+    if (!track.album?.id) {
+      if (!track.album?.title) return;
+      setResolvingAlbum(true);
+      try {
+        const { Api } = await import("./lib/api.js");
+        const q = `${track.album.title} ${track.artist?.name || ""}`.trim();
+        const results = await Api.search(q);
+        const hit = (results || []).find((r) => r.album?.id && isRelevantArtistMatch(r.album.title || "", track.album.title));
+        if (hit) { closeAll(); navigate("album", { params: { id: hit.album.id } }); }
+        else pushToast(t("albumNotFound"));
+      } catch {
+        pushToast(t("albumNotFound"));
+      } finally {
+        setResolvingAlbum(false);
+      }
+      return;
+    }
+    closeAll();
+    navigate("album", { params: { id: track.album.id } });
+  };
+
+  const isLocal = track.source === "local";
+
+  const gridItems = [
+    !isLocal && { key: "cast", icon: <Cast size={20} />, label: t("npCast"), onSelect: handleCast },
+    { key: "playlist", icon: <ListPlus size={20} />, label: t("npAddToPlaylist"), onSelect: handleAddToPlaylist },
+    { key: "share", icon: <Share2 size={20} />, label: t("npShare"), onSelect: handleShare },
+    !isLocal && { key: "download", icon: <Download size={20} />, label: t("menuDownload"), onSelect: () => { onClose(); openDownload(track); } },
+    { key: "aod", icon: <Moon size={20} />, label: t("npAodMode"), onSelect: onOpenAod },
+    !isLocal && onReloadArtwork
+      && { key: "reloadArtwork", icon: <RefreshCw size={20} />, label: t("npReloadArtwork"), onSelect: onReloadArtwork },
+  ].filter(Boolean);
+
+  const navItems = [
+    track.artist?.name && { key: "artist", icon: <Music2 size={18} />, label: t("npViewArtist"), onSelect: handleArtist, busy: resolvingArtist },
+    (track.album?.id || track.album?.title) && { key: "album", icon: <Music2 size={18} />, label: t("npViewAlbum"), onSelect: handleAlbum, busy: resolvingAlbum },
+  ].filter(Boolean);
+
+  const infoItems = [
+    { key: "detail", icon: <Info size={18} />, label: t("npDetail"), onSelect: onOpenDetail },
+    { key: "eq", icon: <SlidersHorizontal size={18} />, label: t("npEqualizer"), disabled: true },
+    { key: "tempo", icon: <Gauge size={18} />, label: t("npTempoPitch"), disabled: true },
+  ];
+
+  return (
+    <>
+      <div className={`aivy-sheet-backdrop over-sheet ${open ? "open" : ""}`} onClick={onClose} />
+      <div ref={sheetRef} className={`aivy-actionsheet aivy-optsheet ${open ? "open" : ""}`} aria-hidden={!open}>
+        <div className="aivy-actionsheet-grabber" onClick={onClose} />
+
+        <div className="aivy-optsheet-track">
+          <SmartCover src={track.cover} seed={track.id + track.title} size={44} radius={8} style={{ width: 44, height: 44 }} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="aivy-optsheet-eyebrow">{t("nowPlaying")}</div>
+            <MarqueeText
+              as="div" className="t" text={track.title}
+              prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+              suffix={formatLabel ? <span className="badge badge-opus" style={{ marginLeft: 6 }}>{formatLabel}</span> : null}
+            />
+            <div className="a">{track.artist?.name || "\u2014"}</div>
+          </div>
+        </div>
+
+        <div className="aivy-optsheet-volume">
+          <div className="row-label"><span>{t("volume")}</span><span>{volumePct}%</span></div>
+          <VolumeControl showEndIcon />
+        </div>
+
+        <div className="aivy-optsheet-grid">
+          {gridItems.map((item) => (
+            <button key={item.key} type="button" className="aivy-optsheet-gridbtn" onClick={item.onSelect}>
+              <span className="ic">{item.icon}</span>
+              <span className="lb">{item.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {navItems.length > 0 && (
+          <div className="aivy-optsheet-list">
+            {navItems.map((item) => (
+              <button
+                key={item.key} type="button"
+                className={`aivy-optsheet-listrow ${item.busy ? "is-busy" : ""}`}
+                onClick={item.onSelect} disabled={item.busy}
+              >
+                {item.icon}<span>{item.label}</span>
+                {item.busy && <span className="aivy-actionsheet-spinner" aria-hidden="true"><StarLoader size={20} color="currentColor" /></span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="aivy-optsheet-list">
+          {infoItems.map((item) => (
+            <button
+              key={item.key} type="button"
+              className="aivy-optsheet-listrow" onClick={item.onSelect} disabled={item.disabled}
+            >
+              {item.icon}<span>{item.label}</span>
+              {item.disabled && <span className="aivy-optsheet-badge">{t("comingSoon")}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TrackDetailInfoTab({ track }) {
+  const { t, pushToast } = useUI();
+  const copy = (value) => { if (!value) return; navigator.clipboard?.writeText(String(value)); pushToast(t("copiedToClipboard")); };
+  const rows = [
+    { label: t("detailSongTitle"), value: track.title },
+    { label: t("detailSongArtist"), value: track.artist?.name },
+  ];
+  if (track.album?.title) rows.push({ label: t("detailSongAlbum"), value: track.album.title });
+  if (track.album?.releaseDate) rows.push({ label: t("detailReleaseDate"), value: String(track.album.releaseDate).slice(0, 10) });
+  rows.push({ label: t("detailMediaId"), value: track.videoId || track.id });
+
+  const { description, loading } = useTrackDescription(track);
+
+  return (
+    <>
+      <div className="aivy-detailsheet-list">
+        {rows.filter((r) => r.value).map((r, i) => (
+          <div key={i} className="aivy-detailsheet-row">
+            <div style={{ minWidth: 0 }}>
+              <div className="lbl">{r.label}</div>
+              <div className="val">{r.value}</div>
+            </div>
+            <button className="aivy-icon-btn sm" onClick={() => copy(r.value)} aria-label={t("copiedToClipboard")}><Copy size={15} /></button>
+          </div>
+        ))}
+      </div>
+
+      <div className="aivy-detailsheet-credits">
+        <div className="aivy-detailsheet-subhead-row">
+          <div className="aivy-detailsheet-subhead">{t("descriptionLabel")}</div>
+          {description && (
+            <button className="aivy-icon-btn sm" onClick={() => copy(description)} aria-label={t("copyLabel")}>
+              <Copy size={15} />
+            </button>
+          )}
+        </div>
+        {description && <div className="aivy-detailsheet-description">{description}</div>}
+        {!description && loading && <div className="aivy-detailsheet-description-loading">{t("loading")}</div>}
+        {!description && !loading && <div className="aivy-detailsheet-description-empty">{t("descriptionUnavailable")}</div>}
+      </div>
+    </>
+  );
+}
+
+const audioInfoStore = new Map();
+const AUDIO_INFO_RETRY_MS = [1000, 1500, 2500, 4000, 6000, 9000, 12000];
+const AUDIO_INFO_STORE_MAX = 300;
+
+function getAudioInfoEntry(videoId) {
+  let e = audioInfoStore.get(videoId);
+  if (!e) {
+    if (audioInfoStore.size >= AUDIO_INFO_STORE_MAX) {
+      for (const [k, v] of audioInfoStore) {
+        if (!v.listeners.size && !v.running) { audioInfoStore.delete(k); break; }
+      }
+    }
+    e = { value: null, done: false, attempt: 0, running: false, timer: null, listeners: new Set() };
+    audioInfoStore.set(videoId, e);
+  }
+  return e;
+}
+
+function pollAudioInfo(videoId, e) {
+  if (e.done || e.running || e.timer) return;
+  e.running = true;
+  import("./lib/api.js")
+    .then(({ Api }) => Api.trackAudioInfo(videoId))
+    .catch(() => "unavailable")
+    .then((v) => {
+      e.running = false;
+      const ok = !!v && v !== "unavailable";
+      if (ok) e.value = v;
+      const exhausted = e.attempt >= AUDIO_INFO_RETRY_MS.length;
+      if (ok && isAudioInfoSettled(v)) e.done = true;
+      else if (exhausted) {
+        if (ok) e.done = true;
+        else if (e.value == null) e.value = "unavailable";
+      }
+      e.listeners.forEach((fn) => fn(e.value));
+      if (!e.done && !exhausted && e.listeners.size) {
+        e.timer = setTimeout(() => {
+          e.timer = null;
+          e.attempt += 1;
+          pollAudioInfo(videoId, e);
+        }, AUDIO_INFO_RETRY_MS[e.attempt]);
+      }
+    });
+}
+
+export function useTrackAudioInfo(track) {
+  const videoId = track?.videoId || track?.id || null;
+  const [info, setInfo] = useState(null);
+  useEffect(() => {
+    if (!videoId) { setInfo("unavailable"); return undefined; }
+    const e = getAudioInfoEntry(videoId);
+    const listener = (v) => setInfo(v);
+    setInfo(e.value ?? null);
+    e.listeners.add(listener);
+    if (!e.done) {
+      if (e.attempt >= AUDIO_INFO_RETRY_MS.length && !e.running && !e.timer) e.attempt = 0;
+      pollAudioInfo(videoId, e);
+    }
+    return () => {
+      e.listeners.delete(listener);
+      if (!e.listeners.size && e.timer) { clearTimeout(e.timer); e.timer = null; }
+    };
+  }, [videoId]);
+  return info;
+}
+
+export function QualityPill({ track, fallbackLabel = null, className = "" }) {
+  const { audioFormat } = usePlayer();
+  const info = useTrackAudioInfo(track);
+  const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
+  const label = fallbackLabel || (audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null);
+  const q = describeQuality(format, label);
+  if (!q) return null;
+  const kind = q.hires ? "is-hires" : q.lossless ? "is-lossless" : "";
+  return (
+    <span className={`aivy-quality ${kind} ${className}`} title={[q.main, q.detail].filter(Boolean).join(" \u00b7 ")}>
+      <span className="m">{q.main}</span>
+      {q.detail && !q.lossless ? <span className="d">{q.detail}</span> : null}
+    </span>
+  );
+}
+
+function TrackDetailTechnicalTab({ track, isPreviewClip }) {
+  const { t, pushToast } = useUI();
+  const copy = (value) => { if (!value) return; navigator.clipboard?.writeText(String(value)); pushToast(t("copiedToClipboard")); };
+
+  const audioInfo = useTrackAudioInfo(track);
+  const loadingInfo = audioInfo === null;
+  const info = audioInfo && audioInfo !== "unavailable" ? audioInfo : null;
+  const format = unifyAudioInfoFields(info);
+  const isFlac = !!format?.flac;
+
+  const val = (v, suffix = "") => (loadingInfo ? t("loading") : v != null ? `${v}${suffix}` : t("detailNotAvailable"));
+
+  const filesizeValue = loadingInfo ? t("loading")
+    : format?.filesizeBytes ? `${(format.filesizeBytes / (1024 * 1024)).toFixed(1)} MB${format.filesizeIsEstimate ? " (\u2248)" : ""}`
+    : t("detailNotAvailable");
+
+  const durationValue = loadingInfo ? t("loading")
+    : format?.durationSec ? formatTime(format.durationSec)
+    : t("detailNotAvailable");
+
+  const statusValue = () => {
+    if (loadingInfo) return t("loading");
+    const s = format?.status;
+    if (format?.verified) return t("detailFlacVerified");
+    if (s === "cached") return t("detailFlacVerified");
+    if (s === "preparing" || s === "running") return t("detailFlacPreparing");
+    if (s === "invalid") return t("detailFlacInvalid");
+    if (s === "not-cached") return t("detailFlacNotCached");
+    return t("detailNotAvailable");
+  };
+
+  const rows = [
+    { label: t("detailQuality"), value: isPreviewClip ? t("detailQualityPreview") : t("detailQualityFull") },
+    { label: t("detailCodec"), value: val(format?.codec ? format.codec.toUpperCase() : null) },
+    ...(isFlac ? [{ label: t("detailLossless"), value: val(format?.lossless ? t("detailYes") : t("detailNo")) }] : []),
+    { label: t("detailSampleRate"), value: val(format?.sampleRateHz ? `${(format.sampleRateHz / 1000).toFixed(1)} kHz (${format.sampleRateHz} Hz)` : null) },
+    ...(isFlac ? [
+      { label: t("detailBitDepth"), value: val(format?.bitsPerSample, " bit") },
+      { label: t("detailChannels"), value: val(format?.channels ? chNameShort(format.channels) : null) },
+      { label: t("detailDuration"), value: durationValue },
+      ...((loadingInfo || format?.status || format?.verified) ? [{ label: t("detailStatus"), value: statusValue() }] : []),
+    ] : []),
+    { label: t("detailBitrate"), value: val(format?.bitrateKbps, " Kbps") },
+    { label: t("detailFileSize"), value: filesizeValue },
+    ...(isFlac && (loadingInfo || format?.sha256) ? [{ label: t("detailSha256"), value: val(format ? shortenSha256(format.sha256) : null) }] : []),
+    ...(!isFlac ? [
+      { label: t("detailMimeType"), value: val(format?.mimeType) },
+      { label: t("detailItag"), value: val(format?.itag) },
+    ] : []),
+  ];
+
+  return (
+    <div className="aivy-detailsheet-list">
+      {rows.map((r, i) => (
+        <div key={i} className="aivy-detailsheet-row">
+          <div style={{ minWidth: 0 }}>
+            <div className="lbl">{r.label}</div>
+            <div className="val">{r.value}</div>
+          </div>
+          <button className="aivy-icon-btn sm" onClick={() => copy(r.value)} aria-label={t("copiedToClipboard")}><Copy size={15} /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function chNameShort(n) {
+  if (n === 1) return "Mono";
+  if (n === 2) return "Stereo";
+  return `${n} kanal`;
+}
+function shortenSha256(v) {
+  if (!v) return null;
+  const s = String(v);
+  return s.length <= 24 ? s : `${s.slice(0, 20)}\u2026`;
+}
+
+export function TrackDetailSheet({ open, track, isPreviewClip, onClose }) {
+  const { t } = useUI();
+  const [tab, setTab] = useState("info");
+  const sheetRef = useRef(null);
+  const swipeDown = useVerticalSwipe({ active: open, direction: "down", onTrigger: onClose, dragRef: sheetRef });
+  useEffect(() => { if (open) setTab("info"); }, [open, track?.id]);
+
+  if (!track) return null;
+
+  return (
+    <>
+      <div className={`aivy-sheet-backdrop over-sheet ${open ? "open" : ""}`} onClick={onClose} />
+      <div ref={sheetRef} className={`aivy-detailsheet ${open ? "open" : ""}`} aria-hidden={!open}>
+        <div
+          className="aivy-detailsheet-grabber" onClick={onClose}
+          onPointerDown={swipeDown.onPointerDown} onPointerMove={swipeDown.onPointerMove}
+          onPointerUp={swipeDown.onPointerUp} onPointerCancel={swipeDown.onPointerCancel}
+        />
+        <div className="aivy-detailsheet-body aivy-scroll">
+          <div className="aivy-detailsheet-head">
+            <SmartCover src={track.cover} seed={track.id + track.title} size={52} radius={10} style={{ width: 52, height: 52 }} />
+            <div style={{ minWidth: 0 }}>
+              <div className="eyebrow">{t("npDetail")}</div>
+              <MarqueeText
+                as="div" className="ttl" text={track.title}
+                prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+              />
+              <div className="sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.artist?.name || "\u2014"}</div>
+            </div>
+          </div>
+
+          <div className="aivy-detailsheet-tabs">
+            <button className={tab === "info" ? "active" : ""} onClick={() => setTab("info")}>{t("detailTabInfo")}</button>
+            <button className={tab === "technical" ? "active" : ""} onClick={() => setTab("technical")}>{t("detailTabTechnical")}</button>
+          </div>
+
+          {tab === "info"
+            ? <TrackDetailInfoTab track={track} />
+            : <TrackDetailTechnicalTab track={track} isPreviewClip={isPreviewClip} />}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function AlwaysOnDisplay({ open, track, onClose, animated = false, reduceMotion = false, reloadToken = 0 }) {
+  const { t } = useUI();
+  const { isPlaying } = usePlayer();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const id = setInterval(() => setNow(new Date()), 1000 * 15);
+    setNow(new Date());
+    return () => clearInterval(id);
+  }, [open]);
+
+  if (!track) return null;
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+
+  return (
+    <div className={`aivy-aod ${open ? "open" : ""}`} aria-hidden={!open} onClick={onClose}>
+      <div className="aivy-aod-clock">{hh}<span className="colon">:</span>{mm}</div>
+      <div className="aivy-aod-track">
+        <AnimatedCover
+          src={track.cover} seed={track.id + track.title} size={28} radius={6} style={{ width: 28, height: 28 }}
+          song={track.title} artist={track.artist?.name}
+          animated={animated && open} reduceMotion={reduceMotion} reloadToken={reloadToken}
+        />
+        <div className="aivy-aod-meta">
+          <MarqueeText
+            as="div" className="t" text={track.title}
+            prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+          />
+          <div className="a">{track.artist?.name || "\u2014"}</div>
+        </div>
+        <span className={`aivy-aod-dot ${isPlaying ? "is-playing" : ""}`} aria-hidden="true" />
+      </div>
+      <div className="aivy-aod-hint">{t("aodTapToExit")}</div>
+    </div>
+  );
+}
+
+export function QueueSheet({ open, onClose }) {
+  const { t } = useUI();
+  const [tab, setTab] = useState("queue");
+  const sheetRef = useRef(null);
+  const swipeDown = useVerticalSwipe({ active: open, direction: "down", onTrigger: onClose, dragRef: sheetRef });
+  return (
+    <>
+      <div className={`aivy-sheet-backdrop ${open ? "open" : ""}`} onClick={onClose} />
+      <div ref={sheetRef} className={`aivy-sheet aivy-queue-sheet ${open ? "open" : ""}`} aria-hidden={!open}>
+        <div
+          className="aivy-sheet-head"
+          onPointerDown={swipeDown.onPointerDown} onPointerMove={swipeDown.onPointerMove}
+          onPointerUp={swipeDown.onPointerUp} onPointerCancel={swipeDown.onPointerCancel}
+        >
+          <button className="aivy-icon-btn" onClick={onClose} aria-label={t("close")}><ChevronDown size={22} /></button>
+          <span className="eyebrow">{t("tabQueue")}</span>
+          <span style={{ width: 38 }} />
+        </div>
+        <div className="aivy-queue-tabs">
+          <button className={tab === "queue" ? "active" : ""} onClick={() => setTab("queue")}>{t("tabQueue")}</button>
+          <button className={tab === "played" ? "active" : ""} onClick={() => setTab("played")}>{t("playedLabel")}</button>
+        </div>
+        <div className="aivy-sheet-body aivy-scroll aivy-queue-sheet-body">
+          {tab === "queue" ? <QueueBody /> : <QueueHistoryBody />}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function RightPanel() {
+  const { room } = usePlayer();
+  const {
+    sidebarQueueOpen, closeSidebarQueue, sidebarLyricsOpen, closeSidebarLyrics, t,
+    rightPanelWidth, setRightPanelWidth, rightPanelCollapsed, toggleRightPanelCollapsed,
+    rightPanelPeek, setRightPanelPeek,
+  } = useUI();
+  const [tab, setTab] = useState("now");
+  useEffect(() => { if (room) setTab("room"); }, [!!room]);
+
+  const { onDragStart, isDragging } = usePanelResize({
+    width: rightPanelWidth, setWidth: setRightPanelWidth, min: RIGHTPANEL_MIN_W, max: RIGHTPANEL_MAX_W, side: "right",
+  });
+
+  const resizeHandle = (
+    <div
+      className={`aivy-resize-handle left ${isDragging ? "active" : ""}`}
+      onMouseDown={onDragStart}
+      onTouchStart={onDragStart}
+    >
+      <span className="aivy-resize-grip"><GripVertical size={12} /></span>
+    </div>
+  );
+  const bodyContent = sidebarLyricsOpen ? (
+    <>
+      <div className="aivy-rightpanel-tabs">
+        <button
+          className="aivy-panel-icon-btn"
+          onClick={toggleRightPanelCollapsed}
+          aria-label={t("collapsePanel", "Tutup panel")}
+          title={t("collapsePanel", "Tutup panel")}
+        >
+          <PanelRight size={18} />
+        </button>
+        <span className="aivy-rightpanel-title">{t("lyrics")}</span>
+        <button className="aivy-icon-btn sm" onClick={closeSidebarLyrics} aria-label={t("close")}><X size={16} /></button>
+      </div>
+      <div className="aivy-rightpanel-body is-lyrics">
+        <SidebarLyricsPanel />
+      </div>
+    </>
+  ) : sidebarQueueOpen ? (
+    <>
+      <div className="aivy-rightpanel-tabs">
+        <button
+          className="aivy-panel-icon-btn"
+          onClick={toggleRightPanelCollapsed}
+          aria-label={t("collapsePanel", "Tutup panel")}
+          title={t("collapsePanel", "Tutup panel")}
+        >
+          <PanelRight size={18} />
+        </button>
+        <span className="aivy-rightpanel-title">{t("lyricsQueueBtn")}</span>
+        <button className="aivy-icon-btn sm" onClick={closeSidebarQueue} aria-label={t("close")}><X size={16} /></button>
+      </div>
+      <div className="aivy-rightpanel-body aivy-scroll">
+        <SidebarQueuePanel />
+      </div>
+    </>
+  ) : (
+    <>
+      <div className="aivy-rightpanel-tabs">
+        <button
+          className="aivy-panel-icon-btn"
+          onClick={toggleRightPanelCollapsed}
+          aria-label={t("collapsePanel", "Tutup panel")}
+          title={t("collapsePanel", "Tutup panel")}
+        >
+          <PanelRight size={18} />
+        </button>
+        {!room && tab === "now" && <RightPanelSourceLabel />}
+        {room && (
+          <>
+            <button className={`aivy-rightpanel-tab-icon ${tab === "now" ? "active" : ""}`} onClick={() => setTab("now")} aria-label={t("tabNowPlaying")} title={t("tabNowPlaying")}><Music2 size={15} /></button>
+            <button className={tab === "room" ? "active" : ""} onClick={() => setTab("room")}>{t("tabRoom")}</button>
+          </>
+        )}
+      </div>
+      <div className="aivy-rightpanel-body aivy-scroll">
+        {tab === "now" && <NowPlayingPane />}
+        {tab === "room" && room && <RoomPane />}
+      </div>
+    </>
+  );
+
+  if (rightPanelCollapsed) {
+    return (
+      <aside className="aivy-rightpanel aivy-rightpanel-collapsed">
+        <button
+          type="button"
+          className="aivy-rightpanel-rail"
+          onClick={toggleRightPanelCollapsed}
+          onMouseEnter={() => setRightPanelPeek(true)}
+          onMouseLeave={() => setRightPanelPeek(false)}
+          onFocus={() => setRightPanelPeek(true)}
+          onBlur={() => setRightPanelPeek(false)}
+          aria-label={t("expandPanel", "Buka panel")}
+          title={t("expandPanel", "Buka panel")}
+        >
+          {}
+          <span className="aivy-rightpanel-rail-peek-wrap">
+            <span className="aivy-rightpanel-rail-peek" style={{ width: rightPanelWidth }}>{bodyContent}</span>
+          </span>
+          <span className="aivy-rightpanel-rail-arrow-wrap">
+            <span className="aivy-rightpanel-rail-arrow">
+              <ChevronRight size={16} className="arrow-idle" />
+              <ChevronLeft size={16} className="arrow-hover" />
+            </span>
+          </span>
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="aivy-rightpanel">
+      {bodyContent}
+      {resizeHandle}
+    </aside>
+  );
+}
+
+function PlayingFromLabel() {
+  const { playSource } = usePlayer();
+  const { t } = useUI();
+  if (playSource?.type !== "library" || !playSource.label) return null;
+  return (
+    <div className="aivy-nowplaying-source">
+      <Library size={12} />
+      <span>{t("playingFromLabel")} <strong>{playSource.label}</strong></span>
+    </div>
+  );
+}
+function RightPanelSourceLabel() {
+  const { playSource } = usePlayer();
+  if (playSource?.type !== "library" || !playSource.label) return null;
+  return (
+    <span className="aivy-rightpanel-source">
+      <Library size={12} />
+      <span>{playSource.label}</span>
+    </span>
+  );
+}
+
+function useArtistAbout(track) {
+  const [artist, setArtist] = useState(null);
+  const hasId = !!track?.artist?.id;
+  const artistKey = track?.artist?.id || track?.artist?.name || null;
+  const artistName = track?.artist?.name || null;
+
+  useEffect(() => {
+    setArtist(null);
+    if (!artistKey) return;
+    let alive = true;
+    import("./lib/api.js").then(({ Api }) => {
+      Api.artist(artistKey).then((res) => {
+        if (!alive) return;
+        if (!hasId && res?.name && !isRelevantArtistMatch(res.name, artistName)) {
+          setArtist(null);
+          return;
+        }
+        setArtist(res);
+      }).catch(() => { if (alive) setArtist(null); });
+    });
+    return () => { alive = false; };
+  }, [artistKey, hasId, artistName]);
+
+  return artist;
+}
+
+export function AboutArtistSection({ track, onNavigate, glass = false }) {
+  const artist = useArtistAbout(track);
+  const { navigate } = useRouter();
+  const { t, settings } = useUI();
+  const { followedArtistIds, toggleFollowArtist } = usePlayer();
+  const following = !!artist?.id && followedArtistIds.has(String(artist.id));
+
+  if (!track?.artist || !artist) return null;
+
+  const goToArtist = () => {
+    navigate("artist", { params: { id: artist.id || artist.name } });
+    onNavigate?.();
+  };
+
+  const handleFollow = (e) => {
+    e.stopPropagation();
+    toggleFollowArtist(artist);
+  };
+
+  const artBg = artist.banner || artist.image;
+
+  return (
+    <div className={`aivy-nowplaying-about ${glass ? "is-glass" : ""}`}>
+      {glass && artBg && (
+        <div className="aivy-nowplaying-about-glassbg" aria-hidden="true">
+          <SmartCover src={artBg} seed={"glassbg" + (artist.id || artist.name)} size={120} radius={0} style={{ width: "100%", height: "100%" }} />
+        </div>
+      )}
+      <button type="button" className="aivy-nowplaying-about-banner" onClick={goToArtist} aria-label={artist.name}>
+        {artBg && (
+          <SmartCover src={artBg} seed={"banner" + (artist.id || artist.name)} size={480} radius={0} style={{ width: "100%", height: "100%" }} />
+        )}
+        <div className="aivy-nowplaying-about-banner-fade" />
+        <span className="aivy-nowplaying-about-eyebrow">{t("aboutArtistLabel")}</span>
+      </button>
+      <div className="aivy-nowplaying-about-body">
+        <button type="button" className="aivy-nowplaying-about-name" onClick={goToArtist}>{artist.name}</button>
+        <div className="aivy-nowplaying-about-row">
+          {artist.listeners != null && (
+            <span className="aivy-nowplaying-about-listeners">{artist.listeners.toLocaleString(settings.language === "en" ? "en-US" : "id-ID")} {t("listenersMonthly")}</span>
+          )}
+          <button type="button" className={following ? "aivy-chip active" : "aivy-btn-ghost sm"} onClick={handleFollow}>
+            {following ? <><Check size={13} /> {t("following")}</> : t("follow")}
+          </button>
+        </div>
+        {artist.bio && <p className="aivy-nowplaying-about-bio">{artist.bio}</p>}
+      </div>
+    </div>
+  );
+}
+const descriptionFetchCache = new Map();
+function useTrackDescription(track) {
+  const videoId = track?.videoId || track?.id || null;
+  const hasOwnDescription = !!track?.description;
+  const [fetchedDescription, setFetchedDescription] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setFetchedDescription(null);
+    if (hasOwnDescription || !videoId) return;
+
+    let alive = true;
+    const applyResult = (description) => {
+      if (alive) { setFetchedDescription(description); setLoading(false); }
+    };
+
+    const cached = descriptionFetchCache.get(videoId);
+    if (cached !== undefined) {
+      if (cached && typeof cached.then === "function") {
+        setLoading(true);
+        cached.then(applyResult);
+      } else {
+        applyResult(cached);
+      }
+      return () => { alive = false; };
+    }
+
+    setLoading(true);
+    const promise = import("./lib/api.js")
+      .then(({ Api }) => Api.trackDescription(videoId))
+      .then((r) => r?.description || null)
+      .catch(() => null);
+    descriptionFetchCache.set(videoId, promise);
+    promise.then((description) => {
+      if (description == null) descriptionFetchCache.delete(videoId);
+      else descriptionFetchCache.set(videoId, description);
+      applyResult(description);
+    });
+
+    return () => { alive = false; };
+  }, [videoId, hasOwnDescription]);
+
+  return useMemo(() => {
+    const raw = track?.description || fetchedDescription || null;
+    const description = raw ? raw.replace(/YouTube/gi, "aivy") : null;
+    return {
+      hasAnything: !!description,
+      loading,
+      title: track?.title || "",
+      description,
+    };
+  }, [track, fetchedDescription, loading]);
+}
+function CreditsCard({ track, glass = false }) {
+  const { t, openCredits } = useUI();
+  const { description, loading } = useTrackDescription(track);
+
+  if (!description && !loading) return null;
+
+  const preview = description && description.length > 220
+    ? `${description.slice(0, 220).trimEnd()}…`
+    : description;
+
+  return (
+    <div className={`aivy-credits-card ${glass ? "is-glass" : ""}`}>
+      <div className="aivy-credits-card-head">
+        <span className="aivy-credits-card-title">{t("descriptionLabel")}</span>
+        <button type="button" className="aivy-credits-showall" onClick={() => openCredits(track)}>{t("showAllLabel")}</button>
+      </div>
+      <div className="aivy-credits-card-list">
+        {preview
+          ? <div className="aivy-credits-card-description">{preview}</div>
+          : <div className="aivy-credits-card-description aivy-credits-card-description--loading">{t("loading")}</div>}
+      </div>
+    </div>
+  );
+}
+export function CreditsModal() {
+  const { creditsTrack, closeCredits, t, pushToast } = useUI();
+  if (!creditsTrack) return null;
+  const { title, description, loading } = useTrackDescription(creditsTrack);
+
+  const copy = () => {
+    if (!description) return;
+    navigator.clipboard?.writeText(description);
+    pushToast(t("copiedToClipboard"));
+  };
+
+  return (
+    <div className="aivy-modal-backdrop" onClick={closeCredits}>
+      <div className="aivy-modal aivy-credits-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="aivy-modal-head">
+          <div className="aivy-modal-title">{t("descriptionLabel")}</div>
+          <button className="aivy-icon-btn sm" onClick={closeCredits} aria-label={t("close")}><X size={17} /></button>
+        </div>
+        <div className="aivy-credits-modal-body aivy-scroll">
+          <div className="aivy-credits-modal-song">{title}</div>
+
+          {description && <div className="aivy-credits-modal-description">{description}</div>}
+          {!description && loading && <div className="aivy-credits-modal-description aivy-credits-modal-description--loading">{t("loading")}</div>}
+          {!description && !loading && <div className="aivy-credits-modal-description aivy-credits-modal-description--empty">{t("descriptionUnavailable")}</div>}
+
+          {description && (
+            <button type="button" className="aivy-credits-copy-btn" onClick={copy}>
+              <Copy size={14} /> {t("copyLabel")}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NextUpPreview({ compact }) {
+  const { upNext, suggestedQueue, next, promoteSuggestion } = usePlayer();
+  const { t } = useUI();
+  const queueTrack = upNext[0];
+  const track = queueTrack || suggestedQueue[0];
+  if (!track) return null;
+
+  const isFromQueue = !!queueTrack;
+  const handleClick = () => {
+    if (isFromQueue) { next(); return; }
+    promoteSuggestion(track);
+  };
+
+  return (
+    <div className={`aivy-nextup ${compact ? "compact" : ""}`}>
+      <button type="button" className="aivy-nextup-row" onClick={handleClick}>
+        <div className="aivy-nextup-label eyebrow">
+          {isFromQueue ? <ListMusic size={12} /> : <Radio size={12} />}
+          <span>{isFromQueue ? t("nextInQueueLabel") : t("nextRecommendationLabel")}</span>
+        </div>
+        <div className="aivy-nextup-row-main">
+          <QueueTrackMeta track={track} />
+          <ChevronRight size={16} className="aivy-nextup-chevron" />
+        </div>
+      </button>
+    </div>
+  );
+}
+
+export function QueueTrackMeta({ track }) {
+  return (
+    <div className="aivy-queue-meta">
+      <SmartCover src={track.cover} seed={track.id + track.title} size={44} radius={6} style={{ width: 44, height: 44 }} />
+      <div className="txt">
+        <MarqueeText
+          as="span"
+          className="t"
+          text={track.title}
+          prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        />
+        <span className="a">{track.artist?.name || "\u2014"}</span>
+      </div>
+    </div>
+  );
+}
+
+function QueueNowPlayingRow({ track }) {
+  const { isPlaying, liked, toggleLike } = usePlayer();
+  const { t } = useUI();
+  const isLiked = liked.has(String(track.videoId || track.id));
+  return (
+    <div className="aivy-queue-row is-current">
+      <span className="aivy-queue-eq"><EqBars playing={isPlaying} /></span>
+      <QueueTrackMeta track={track} />
+      <div className="aivy-queue-row-actions">
+        <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={() => toggleLike(track)} aria-label={t("like")}>
+          <Heart size={14} fill={isLiked ? "currentColor" : "none"} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QueueHistoryRow({ track, onSelect }) {
+  const { liked, toggleLike } = usePlayer();
+  const { t } = useUI();
+  const isLiked = liked.has(String(track.videoId || track.id));
+  return (
+    <div className="aivy-queue-row is-history" onClick={onSelect}>
+      <QueueTrackMeta track={track} />
+      <div className="aivy-queue-row-actions">
+        <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); toggleLike(track); }} aria-label={t("like")}>
+          <Heart size={14} fill={isLiked ? "currentColor" : "none"} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function QueueUpNextList({ items }) {
+  const { moveQueueItem, removeFromQueue, selectQueuePosition, posInOrder, liked, toggleLike } = usePlayer();
+  const { t } = useUI();
+  const [dragIndex, setDragIndex] = useState(null);
+  const [overIndex, setOverIndex] = useState(null);
+  const [dragDeltaY, setDragDeltaY] = useState(0);
+  const dragMeta = useRef({ startY: 0, rowHeight: 60 });
+
+  const endDrag = (commit) => {
+    if (commit && dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
+      moveQueueItem(dragIndex, overIndex);
+    }
+    setDragIndex(null);
+    setOverIndex(null);
+    setDragDeltaY(0);
+  };
+
+  const handlePointerDown = (e, index) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const row = e.currentTarget.closest(".aivy-queue-row");
+    dragMeta.current.startY = e.clientY;
+    dragMeta.current.rowHeight = row?.getBoundingClientRect().height || 60;
+    setDragIndex(index);
+    setOverIndex(index);
+  };
+  const handlePointerMove = (e) => {
+    if (dragIndex === null) return;
+    const deltaY = e.clientY - dragMeta.current.startY;
+    setDragDeltaY(deltaY);
+    const shift = Math.round(deltaY / dragMeta.current.rowHeight);
+    const next = clamp(dragIndex + shift, 0, items.length - 1);
+    if (next !== overIndex) setOverIndex(next);
+  };
+
+  return (
+    <div className="aivy-queue-list">
+      {items.map((tr, i) => {
+        const isDragging = dragIndex === i;
+        let offsetPct = 0;
+        if (dragIndex !== null && !isDragging) {
+          if (dragIndex < overIndex && i > dragIndex && i <= overIndex) offsetPct = -100;
+          else if (dragIndex > overIndex && i >= overIndex && i < dragIndex) offsetPct = 100;
+        }
+        const isLiked = liked.has(String(tr.videoId || tr.id));
+        const style = isDragging
+          ? { transform: `translateY(${dragDeltaY}px)` }
+          : offsetPct
+            ? { transform: `translateY(${offsetPct}%)` }
+            : undefined;
+        return (
+          <div key={`${tr.id}-${i}`} className={`aivy-queue-row is-upnext ${isDragging ? "is-dragging" : ""}`} style={style}>
+            <button
+              className="aivy-queue-handle"
+              onPointerDown={(e) => handlePointerDown(e, i)}
+              onPointerMove={handlePointerMove}
+              onPointerUp={() => endDrag(true)}
+              onPointerCancel={() => endDrag(false)}
+              aria-label={t("dragToReorder")}
+            >
+              <GripVertical size={15} />
+            </button>
+            <div className="aivy-queue-clickzone" onClick={() => selectQueuePosition(posInOrder + 1 + i)}>
+              <QueueTrackMeta track={tr} />
+            </div>
+            <div className="aivy-queue-row-actions">
+              <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={() => toggleLike(tr)} aria-label={t("like")}>
+                <Heart size={14} fill={isLiked ? "currentColor" : "none"} />
+              </button>
+              <button className="aivy-icon-btn sm" onClick={() => removeFromQueue(i)} aria-label={t("removeFromQueue")}>
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function QueueSuggestedRow({ track, onAdd }) {
+  const { liked, toggleLike } = usePlayer();
+  const { t } = useUI();
+  const isLiked = liked.has(String(track.videoId || track.id));
+  return (
+    <div className="aivy-queue-row is-suggested">
+      <QueueTrackMeta track={track} />
+      <div className="aivy-queue-row-actions">
+        <button className={`aivy-icon-btn sm ${isLiked ? "active" : ""}`} onClick={() => toggleLike(track)} aria-label={t("like")}>
+          <Heart size={14} fill={isLiked ? "currentColor" : "none"} />
+        </button>
+        <button className="aivy-icon-btn sm" onClick={onAdd} aria-label={t("menuAddQueue")}>
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function QueueBody() {
+  const { currentTrack, upNext, clearUpNext, suggestedQueue, promoteSuggestion, room } = usePlayer();
+  const { t } = useUI();
+
+  if (!currentTrack) {
+    return <div className="aivy-empty"><StarMark size={34} color="var(--ink-faint)" /><div className="title">{t("queueEmpty")}</div><div className="sub">{t("queueEmptySub")}</div></div>;
+  }
+
+  return (
+    <>
+      <div className="aivy-queue-section">
+        <div className="aivy-drawer-sub eyebrow">{t("nowPlaying")}</div>
+        <div className="aivy-queue-card aivy-queue-now-card">
+          <QueueNowPlayingRow track={currentTrack} />
+        </div>
+      </div>
+
+      <div className="aivy-queue-section">
+        <div className="aivy-drawer-sub eyebrow aivy-queue-upnext-head">
+          <span>{t("upNextLabel")}{upNext.length > 0 ? ` \u00b7 ${upNext.length}` : ""}</span>
+          {upNext.length > 0 && (
+            <button className="aivy-queue-clear" onClick={clearUpNext}><Trash2 size={12} /> {t("clearQueue")}</button>
+          )}
+        </div>
+        {upNext.length > 0 ? (
+          <div className="aivy-queue-card">
+            <QueueUpNextList items={upNext} />
+          </div>
+        ) : (
+          <div className="aivy-queue-empty-hint">{t("queueUpNextEmpty")}</div>
+        )}
+      </div>
+
+      {!room && suggestedQueue.length > 0 && (
+        <div className="aivy-queue-section">
+          <div className="aivy-drawer-sub eyebrow aivy-queue-suggested-head">
+            <Radio size={12} /><span>{t("suggestedSongsLabel")}</span>
+          </div>
+          <div className="aivy-queue-suggested-hint">{t("suggestedSongsHint")}</div>
+          <div className="aivy-queue-card aivy-queue-suggested-card">
+            <QueueSuggestedRow track={suggestedQueue[0]} onAdd={() => promoteSuggestion(suggestedQueue[0])} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function QueueHistoryBody() {
+  const { history, selectQueuePosition } = usePlayer();
+  const { t } = useUI();
+  const recent = history.slice().reverse();
+
+  if (recent.length === 0) {
+    return <div className="aivy-empty"><StarMark size={34} color="var(--ink-faint)" /><div className="title">{t("playedLabel")}</div><div className="sub">{t("noRecentlyPlayed")}</div></div>;
+  }
+
+  return (
+    <div className="aivy-queue-section">
+      <div className="aivy-queue-card aivy-queue-history-card">
+        {recent.map((tr, i) => (
+          <QueueHistoryRow key={`h-${tr.id}-${i}`} track={tr} onSelect={() => selectQueuePosition(history.length - 1 - i)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NowPlayingPane() {
+  const { currentTrack, isPreviewClip } = usePlayer();
+  const { t, settings } = useUI();
+  const { name: routeName } = useRouter();
+  const isArtistView = routeName === "artist";
+  const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  if (!currentTrack) return <div className="aivy-empty"><StarMark size={34} color="var(--ink-faint)" /><div className="title">{t("nothingPlaying")}</div></div>;
+  return (
+    <div className="aivy-nowplaying-pane">
+      <AnimatedCover
+        src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={240} radius={16}
+        style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }}
+        song={currentTrack.title} artist={currentTrack.artist?.name}
+        animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+      />
+      <MarqueeText
+        as="div"
+        className="t"
+        text={currentTrack.title}
+        prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        always
+      />
+      <MarqueeText as="div" className="a" text={currentTrack.artist?.name || ""} always />
+      {isPreviewClip && <div className="eyebrow" style={{ marginTop: 10 }}>{t("officialPreview")}</div>}
+      <AboutArtistSection track={currentTrack} glass={isArtistView} />
+      <CreditsCard track={currentTrack} glass={isArtistView} />
+      <NextUpPreview compact />
+    </div>
+  );
+}
+
+const CHAT_EMOJIS = ["👍", "❤️", "🔥", "😂", "🎉"];
+
+export function RoomChat() {
+  const { room, chatMessages, sendChatMessage, addToQueueEnd } = usePlayer();
+  const { authUser, t, pushToast } = useUI();
+  const [draft, setDraft] = useState("");
+  const [songPanelOpen, setSongPanelOpen] = useState(false);
+  const [songQuery, setSongQuery] = useState("");
+  const [songResults, setSongResults] = useState([]);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [confirmSongId, setConfirmSongId] = useState(null);
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMessages.length, songPanelOpen]);
+
+  useEffect(() => {
+    if (!songPanelOpen) return undefined;
+    if (!songQuery.trim()) { setSongResults([]); return undefined; }
+    const timer = setTimeout(() => {
+      import("./lib/api.js")
+        .then(({ Api }) => Api.search(songQuery))
+        .then((r) => setSongResults((r || []).slice(0, 5)))
+        .catch(() => setSongResults([]));
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [songQuery, songPanelOpen]);
+
+  const handleSend = () => {
+    const text = draft.trim();
+    if (!text || !room) return;
+    sendChatMessage(text);
+    setDraft("");
+  };
+
+  const sendSong = (r) => {
+    sendChatMessage("", {
+      song: { videoId: r.videoId, title: r.title, artist: typeof r.artist === "string" ? r.artist : (r.artist?.name || null), cover: r.cover || r.thumbnail || null, duration: r.duration || null, explicit: !!r.explicit },
+    });
+    setSongQuery("");
+    setSongResults([]);
+    setSongPanelOpen(false);
+  };
+
+  const inQueue = (videoId) => !!(room?.queue || []).some((s) => (s.videoId || s.id) === videoId);
+
+  const handleSongTap = (m) => {
+    if (!m.song?.videoId) return;
+    if (inQueue(m.song.videoId)) { pushToast(t("alreadyQueued")); return; }
+    setConfirmSongId(confirmSongId === m.id ? null : m.id);
+  };
+
+  const confirmAdd = (m) => {
+    const s = m.song;
+    addToQueueEnd({ id: s.videoId, videoId: s.videoId, title: s.title, artist: s.artist ? { name: s.artist } : null, cover: s.cover, duration: s.duration, explicit: !!s.explicit });
+    setConfirmSongId(null);
+  };
+
+  return (
+    <div className="aivy-room-chat">
+      <div className="aivy-chat-messages aivy-scroll" ref={listRef}>
+        {chatMessages.length === 0 ? (
+          <div className="aivy-chat-empty">{t("roomChatEmpty")}</div>
+        ) : (
+          chatMessages.map((m) => {
+            const own = authUser && m.userId === authUser.id;
+            if (m.type === "emoji") {
+              return (
+                <div key={m.id} className={`aivy-chat-msg ${own ? "own" : ""}`}>
+                  {!own && <Avatar user={m} />}
+                  <div className="bubble emoji-bubble"><span className="emoji">{m.emoji}</span></div>
+                </div>
+              );
+            }
+            if (m.type === "song") {
+              const queued = inQueue(m.song?.videoId);
+              const sender = m.username ? ` · @${m.username}` : "";
+              return (
+                <div key={m.id} className={`aivy-chat-msg ${own ? "own" : ""}`}>
+                  {!own && <Avatar user={m} />}
+                  <div className="song-wrap">
+                    <button type="button" className={`bubble song-bubble ${queued ? "queued" : ""}`} onClick={() => handleSongTap(m)}>
+                      <span className="cover">
+                        <SmartCover src={m.song?.cover} seed={m.song?.videoId || m.id} size={96} radius={8} style={{ width: "100%", height: "100%" }} />
+                      </span>
+                      <span className="meta">
+                        <span className="t">
+                          {m.song?.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+                          {m.song?.title}
+                        </span>
+                        <span className="a">{m.song?.artist || "\u2014"}{sender}</span>
+                        {queued && <span className="hint">✓ {t("queuedShort")}</span>}
+                      </span>
+                      <Play size={13} className="song-play" />
+                    </button>
+                    {confirmSongId === m.id && (
+                      <div className="song-confirm">
+                        <button className="yes" onClick={() => confirmAdd(m)}>{t("yesAdd")}</button>
+                        <button className="no" onClick={() => setConfirmSongId(null)}>{t("cancel")}</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div key={m.id} className={`aivy-chat-msg ${own ? "own" : ""}`}>
+                {!own && <Avatar user={m} />}
+                <div className="bubble">
+                  {!own && <span className="who">{m.username}</span>}
+                  <span className="txt">{m.text}</span>
+                  <span className="time">{formatClockTime(m.createdAt)}</span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {songPanelOpen && (
+        <div className="aivy-song-panel">
+          <div className="aivy-song-panel-search">
+            <Search size={15} />
+            <input
+              autoFocus
+              placeholder={t("searchSongChat")}
+              value={songQuery}
+              onChange={(e) => setSongQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setSongPanelOpen(false); }}
+            />
+          </div>
+          {songResults.map((r) => (
+            <button key={r.videoId} type="button" className="aivy-song-panel-row" onClick={() => sendSong(r)}>
+              <SmartCover src={r.thumbnail} seed={r.videoId} size={72} radius={5} style={{ width: 36, height: 36 }} />
+              <span className="meta">
+                <span className="t">
+                  {r.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
+                  {r.title}
+                </span>
+                <span className="a">{r.artist}</span>
+              </span>
+              <Plus size={15} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {emojiOpen && (
+        <div className="aivy-emoji-pop">
+          {CHAT_EMOJIS.map((e) => (
+            <button key={e} type="button" onClick={() => { sendChatMessage("", { emoji: e }); setEmojiOpen(false); }}>{e}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="aivy-chat-input-row">
+        <button
+          className={`aivy-icon-btn ${songPanelOpen ? "active" : ""}`}
+          onClick={() => { setSongPanelOpen((v) => !v); setEmojiOpen(false); }}
+          aria-label={t("sendSong")}
+          title={t("sendSong")}
+        >
+          <Music2 size={16} />
+        </button>
+        <button
+          className={`aivy-icon-btn ${emojiOpen ? "active" : ""}`}
+          onClick={() => { setEmojiOpen((v) => !v); setSongPanelOpen(false); }}
+          aria-label="Emoji"
+        >
+          <Smile size={16} />
+        </button>
+        <input
+          className="aivy-input aivy-chat-input"
+          placeholder={t("chatPlaceholder")}
+          value={draft}
+          maxLength={500}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
+        />
+        <button className="aivy-icon-btn" onClick={handleSend} disabled={!draft.trim()} aria-label={t("send")}>
+          <Send size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RoomPane() {
+  const { room, leaveRoom } = usePlayer();
+  const { navigate } = useRouter();
+  const { t } = useUI();
+  if (!room) return null;
+  return (
+    <div className="aivy-room-pane">
+      <div className="aivy-room-pane-head">
+        <div>
+          <div className="t">{room.name}</div>
+          <div className="eyebrow">{room.isPublic ? <><Globe size={11} /> {t("public")}</> : <><Lock size={11} /> {t("private")}</>}{` \u00b7 ${t("createdAt")} ${relativeTime(room.createdAt)}`}</div>
+        </div>
+        <button className="aivy-btn-ghost" onClick={() => { leaveRoom(); navigate("roomLobby"); }}>{t("leave")}</button>
+      </div>
+      <div className="aivy-drawer-sub eyebrow">{t("listeningNow")} ({room.members?.length || 0})</div>
+      <div className="aivy-room-members">
+        {room.members?.map((m) => (
+          <div key={m.id} className="aivy-room-member">
+            <Avatar user={m} />
+            <span className="name">{m.username}</span>
+            {m.isHost && <Crown size={13} color="var(--gold, var(--berry))" />}
+          </div>
+        ))}
+      </div>
+      {room.hostOnlyControl && <div className="aivy-room-note" style={{ marginTop: 14 }}>{t("hostOnlyNotice")}</div>}
+    </div>
+  );
+}
+
+const NAV_ITEMS = [
+  { route: "home", labelKey: "navHome", icon: HomeIcon, flag: "showNavHome" },
+  { route: "shorts", labelKey: "navShorts", icon: Film, flag: "showNavShorts" },
+  { route: "search", labelKey: "navSearch", icon: Search, flag: "showNavSearch" },
+  { route: "library", labelKey: "navLibrary", icon: Library, flag: "showNavLibrary" },
+  { route: "roomLobby", labelKey: "navRooms", icon: Users, flag: "showNavRooms" },
+];
+
+export function Sidebar() {
+  const { name, params, navigate } = useRouter();
+  const {
+    authUser, login, t,
+    sidebarWidth, setSidebarWidth, sidebarCollapsed, toggleSidebarCollapsed,
+    settings, pushToast,
+  } = useUI();
+  const { playlists, createPlaylist, liked, followedArtists, savedAlbums } = usePlayer();
+  const tt = (id, en) => trLang(settings, id, en);
+
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [sort, setSort] = useState("default");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const createRef = useRef(null);
+  const searchRef = useRef(null);
+  const moreRef = useRef(null);
+
+  usePlaylistDetails(playlists);
+
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    const onDown = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setMoreOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [moreOpen]);
+
+  useEffect(() => { if (creating) createRef.current?.focus(); }, [creating]);
+  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
+
+  const createGuard = useRef(false);
+  const submitCreate = async () => {
+    if (createGuard.current) return;
+    const val = newName.trim();
+    setNewName("");
+    setCreating(false);
+    if (!val) return;
+    createGuard.current = true;
+    try {
+      const id = await createPlaylist(val);
+      if (id) navigate("playlist", { params: { id } });
+    } finally {
+      createGuard.current = false;
+    }
+  };
+  const startCreate = () => {
+    if (sidebarCollapsed) toggleSidebarCollapsed();
+    setFilter((f) => (f === "albums" || f === "artists" ? "all" : f));
+    setCreating(true);
+  };
+
+  useEffect(() => {
+    if (!settings.donationReminders) return undefined;
+    const KEY = "aivy_last_donation_nudge";
+    const DAY = 24 * 60 * 60 * 1000;
+    const last = Number(localStorage.getItem(KEY) || 0);
+    if (Date.now() - last < 3 * DAY) return undefined;
+    const timer = setTimeout(() => {
+      pushToast(t("language") === "en" ? "Enjoying Cosmicx? Consider supporting the project ❤️" : "Suka pakai Cosmicx? Yuk bantu dukung proyek ini ❤️");
+      localStorage.setItem(KEY, String(Date.now()));
+    }, 45000);
+    return () => clearTimeout(timer);
+  }, [settings.donationReminders, pushToast, t]);
+
+  const { onDragStart, isDragging } = usePanelResize({
+    width: sidebarWidth, setWidth: setSidebarWidth, min: SIDEBAR_MIN_W, max: SIDEBAR_MAX_W, side: "left",
+  });
+
+  const allNav = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
+  const topNav = sidebarCollapsed ? allNav : allNav.filter((i) => i.route !== "library");
+
+  const songsWord = t("songsCount");
+  const items = useMemo(() => {
+    const list = [];
+    list.push({
+      key: "liked", kind: "playlist", pinned: true, liked: true, to: "liked", params: undefined,
+      title: t("navLikedSongs"), sub: `${t("playlistLabel")} · ${liked.size} ${songsWord}`,
+      active: name === "liked",
+    });
+    playlists.forEach((pl) => {
+      list.push({
+        key: `pl${pl.id}`, kind: "playlist", to: "playlist", params: { id: pl.id }, playlist: pl,
+        title: pl.name, sub: `${t("playlistLabel")} · ${playlistCount(pl)} ${songsWord}`,
+        active: name === "playlist" && String(params?.id) === String(pl.id),
+      });
+    });
+    (savedAlbums || []).forEach((al) => {
+      list.push({
+        key: `al${al.id}`, kind: "album", to: "album", params: { id: al.id }, cover: al.cover,
+        title: al.title, sub: `${t("albumLabel")} · ${al.artist?.name || al.artistLine || ""}`.replace(/ · $/, ""),
+        active: name === "album" && String(params?.id) === String(al.id),
+      });
+    });
+    (followedArtists || []).forEach((a) => {
+      list.push({
+        key: `ar${a.id}`, kind: "artist", to: "artist", params: { id: a.id }, cover: a.image, round: true,
+        title: a.name, sub: t("artistLabel"),
+        active: name === "artist" && String(params?.id) === String(a.id),
+      });
+    });
+    return list;
+  }, [playlists, savedAlbums, followedArtists, liked, name, params, t, songsWord]);
+
+  const visible = useMemo(() => {
+    const kindOf = { playlists: "playlist", albums: "album", artists: "artist" };
+    const needle = query.trim().toLowerCase();
+    let out = items.filter((it) => (filter === "all" || it.kind === kindOf[filter]) && (!needle || it.title.toLowerCase().includes(needle)));
+    if (sort === "alpha") {
+      const pinned = out.filter((it) => it.pinned);
+      const rest = out.filter((it) => !it.pinned).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+      out = [...pinned, ...rest];
+    }
+    return out;
+  }, [items, filter, query, sort]);
+
+  const renderCover = (it, size) => {
+    if (it.liked) return <LikedCover size={size} radius={6} />;
+    if (it.playlist) return <PlaylistCover playlist={it.playlist} size={size} radius={6} />;
+    return (
+      <span className={`sp-plcover ${it.round ? "is-round" : ""}`} style={{ width: size, height: size, borderRadius: it.round ? "50%" : 6 }} aria-hidden="true">
+        <SmartCover src={it.cover} seed={`${it.kind}${it.key}${it.title}`} size={size} radius={0} />
+      </span>
+    );
+  };
+
+  const userChip = authUser ? (
+    <Link to="settings" className="sp-user" title={resolveDisplayName(authUser)}>
+      <Avatar user={authUser} />
+      {!sidebarCollapsed && <span className="sp-user-name">{resolveDisplayName(authUser)}</span>}
+    </Link>
+  ) : (
+    <button className="sp-login" onClick={login} title={t("navLoginDiscord")} aria-label={t("navLoginDiscord")}>
+      <LogIn size={15} />{!sidebarCollapsed && <span>{t("navLoginDiscord")}</span>}
+    </button>
+  );
+
+  /* ---------------- rail (sidebar diciutkan) ---------------- */
+  if (sidebarCollapsed) {
+    return (
+      <aside className="aivy-sidebar sp-side is-rail">
+        <div className="sp-panel sp-nav-panel">
+          <nav className="sp-nav">
+            {topNav.map(({ route, labelKey, icon: Icon }) => (
+              <Link key={route} to={route} className={`sp-nav-item ${name === route ? "active" : ""}`} title={t(labelKey)} aria-label={t(labelKey)}>
+                <Icon size={22} strokeWidth={name === route ? 2.5 : 2} />
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="sp-panel sp-lib-panel">
+          <div className="sp-rail-head">
+            <button className="sp-icon-btn" onClick={toggleSidebarCollapsed} title={tt("Buka sidebar", "Expand sidebar")} aria-label={tt("Buka sidebar", "Expand sidebar")}><PanelLeft size={20} /></button>
+            <button className="sp-icon-btn" onClick={startCreate} title={t("createPlaylist")} aria-label={t("createPlaylist")}><Plus size={20} /></button>
+          </div>
+          <div className="sp-lib-list aivy-scroll">
+            {items.map((it) => (
+              <Link key={it.key} to={it.to} params={it.params} className={`sp-lib-row is-rail ${it.active ? "active" : ""}`} title={it.title} aria-label={it.title}>
+                {renderCover(it, 44)}
+              </Link>
+            ))}
+          </div>
+          <div className="sp-side-foot is-rail">{userChip}</div>
+        </div>
+      </aside>
+    );
+  }
+
+  /* ---------------- sidebar penuh ---------------- */
+  const chips = [
+    ["playlists", tt("Playlist", "Playlists")],
+    ["albums", "Album"],
+    ["artists", tt("Artis", "Artists")],
+  ];
+  const showCreateCard = !playlists.length && !query && (filter === "all" || filter === "playlists") && !creating;
+  const noResults = !visible.length && !creating && !showCreateCard;
+
+  return (
+    <aside className="aivy-sidebar sp-side">
+      <div className="sp-panel sp-nav-panel">
+        <Link to="home" className="sp-brand"><AnimatedLogo size={32} className="mark" /><span className="word font-display">cosmicx</span></Link>
+        <nav className="sp-nav">
+          {topNav.map(({ route, labelKey, icon: Icon }) => (
+            <Link key={route} to={route} className={`sp-nav-item ${name === route ? "active" : ""}`}>
+              <Icon size={24} strokeWidth={name === route ? 2.5 : 2} /><span>{t(labelKey)}</span>
+            </Link>
+          ))}
+        </nav>
+      </div>
+
+      <div className="sp-panel sp-lib-panel">
+        <div className="sp-lib-head">
+          <Link to="library" className={`sp-lib-title ${name === "library" ? "active" : ""}`}>
+            <Library size={24} /><span>{tt("Koleksi Kamu", "Your Library")}</span>
+          </Link>
+          <button className="sp-icon-btn" onClick={startCreate} title={t("createPlaylist")} aria-label={t("createPlaylist")}><Plus size={20} /></button>
+          <button className="sp-icon-btn" onClick={toggleSidebarCollapsed} title={tt("Tutup sidebar", "Collapse sidebar")} aria-label={tt("Tutup sidebar", "Collapse sidebar")}><PanelLeft size={19} /></button>
+        </div>
+
+        <div className="sp-chips" role="tablist">
+          {chips.map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={filter === key} className={`sp-chip ${filter === key ? "active" : ""}`} onClick={() => setFilter((f) => (f === key ? "all" : key))}>{label}</button>
+          ))}
+        </div>
+
+        <div className="sp-lib-tools">
+          {searchOpen ? (
+            <div className="sp-lib-search">
+              <Search size={15} />
+              <input
+                ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)}
+                placeholder={tt("Cari di koleksi", "Search in library")}
+                onKeyDown={(e) => { if (e.key === "Escape") { setQuery(""); setSearchOpen(false); } }}
+                onBlur={() => { if (!query) setSearchOpen(false); }}
+              />
+              {query && <button className="sp-icon-btn sm" onMouseDown={(e) => e.preventDefault()} onClick={() => { setQuery(""); searchRef.current?.focus(); }} aria-label={t("clear")}><X size={13} /></button>}
+            </div>
+          ) : (
+            <button className="sp-icon-btn sm" onClick={() => setSearchOpen(true)} title={tt("Cari di koleksi", "Search in library")} aria-label={tt("Cari di koleksi", "Search in library")}><Search size={16} /></button>
+          )}
+          <button className="sp-sort" onClick={() => setSort((s) => (s === "default" ? "alpha" : "default"))} title={tt("Ubah urutan", "Change order")}>
+            {sort === "alpha" ? "A–Z" : tt("Bawaan", "Default")}
+          </button>
+        </div>
+
+        <div className="sp-lib-list aivy-scroll">
+          {creating && (
+            <div className="sp-lib-row sp-lib-create">
+              <span className="sp-plcover sp-atp-plus" style={{ width: 48, height: 48, borderRadius: 6 }}><Plus size={22} /></span>
+              <input
+                ref={createRef} value={newName} maxLength={80}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={t("newPlaylistName")}
+                onKeyDown={(e) => { if (e.key === "Enter") submitCreate(); if (e.key === "Escape") { setNewName(""); setCreating(false); } }}
+                onBlur={() => { if (newName.trim()) submitCreate(); else setCreating(false); }}
+              />
+            </div>
+          )}
+
+          {showCreateCard && (
+            <div className="sp-empty-card">
+              <div className="h">{tt("Buat playlist pertamamu", "Create your first playlist")}</div>
+              <div className="p">{tt("Gampang kok, kita bantu.", "It's easy, we'll help you.")}</div>
+              <button className="sp-pill-btn primary" onClick={authUser ? startCreate : login}>{authUser ? t("createPlaylist") : t("navLoginDiscord")}</button>
+            </div>
+          )}
+
+          {visible.map((it) => (
+            <Link key={it.key} to={it.to} params={it.params} className={`sp-lib-row ${it.active ? "active" : ""}`}>
+              {renderCover(it, 48)}
+              <span className="sp-lib-meta">
+                <span className="t">{it.title}</span>
+                <span className="s">{it.sub}</span>
+              </span>
+            </Link>
+          ))}
+
+          {noResults && <div className="sp-lib-empty">{query ? tt("Tidak ada hasil", "No results") : tt("Belum ada isinya", "Nothing here yet")}</div>}
+        </div>
+
+        <div className="sp-side-foot">
+          {userChip}
+          <div className="sp-foot-actions" ref={moreRef}>
+            <Link to="settings" className="sp-icon-btn" title={t("navSettings")} aria-label={t("navSettings")}><SettingsIcon size={18} /></Link>
+            <button className={`sp-icon-btn ${moreOpen ? "is-on" : ""}`} onClick={() => setMoreOpen((o) => !o)} aria-haspopup="menu" aria-expanded={moreOpen} title={tt("Lainnya", "More")} aria-label={tt("Lainnya", "More")}><MoreHorizontal size={18} /></button>
+            {moreOpen && (
+              <div className="sp-more-menu" role="menu">
+                <Link to="donate" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Heart size={16} /><span>{tt("Donasi", "Donate")}</span></Link>
+                {settings.showSideAbout && <a href="/about" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Info size={16} /><span>{tt("Tentang", "About")}</span></a>}
+                {settings.showSideDiscord && <a href="https://discord.gg/" target="_blank" rel="noreferrer" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Users size={16} /><span>Discord</span></a>}
+                {settings.showSideGithub && <a href="https://github.com/" target="_blank" rel="noreferrer" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Github size={16} /><span>GitHub</span></a>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`aivy-resize-handle right ${isDragging ? "active" : ""}`}
+        onMouseDown={onDragStart}
+        onTouchStart={onDragStart}
+      >
+        <span className="aivy-resize-grip"><GripVertical size={12} /></span>
+      </div>
+    </aside>
+  );
+}
+export function GlassLayers() {
+  return (
+    <>
+      <span className="lg-warp" aria-hidden="true" />
+      <span className="lg-rim lg-rim-screen" aria-hidden="true" />
+      <span className="lg-rim lg-rim-overlay" aria-hidden="true" />
+    </>
+  );
+}
+
+const LG_SURFACES = [
+  [".aivy-tabbar", "lg-tabs"],
+  [".aivy-mini-player", "lg-mini"],
+  [".aivy-dock-search", "lg-search"],
+];
+const LG_DOCK_IDS = LG_SURFACES.map(([, id]) => id);
+const LG_PLAYER_IDS = ["lg-player"];
+const LiquidGlassDefs = React.memo(function LiquidGlassDefs({ ids = LG_DOCK_IDS }) {
+  return (
+    <svg width="0" height="0" style={{ position: "absolute", pointerEvents: "none" }} aria-hidden="true" focusable="false">
+      <defs>
+        {ids.map((id) => <LiquidFilter key={id} id={id} />)}
+      </defs>
+    </svg>
+  );
+});
+// Navigasi bawah mobile ala Spotify: mini player melayang + tab bar penuh.
+export function MobileDock({ onExpandPlayer }) {
+  const { name } = useRouter();
+  const { t, settings } = useUI();
+  const { currentTrack } = usePlayer();
+  const hasTrack = !!currentTrack;
+  const tabItems = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
+
+  return (
+    <div className={`sp-dock ${hasTrack ? "has-track" : ""}`}>
+      {hasTrack && <MiniPlayer onExpand={onExpandPlayer} />}
+      <nav className="sp-tabbar" aria-label="Navigasi utama">
+        {tabItems.map(({ route, labelKey, icon: Icon }) => {
+          const active = name === route;
+          return (
+            <Link key={route} to={route} className={`sp-tab ${active ? "active" : ""}`} aria-label={t(labelKey)} aria-current={active ? "page" : undefined}>
+              <Icon size={24} strokeWidth={active ? 2.5 : 1.8} />
+              <span>{t(labelKey)}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+export function TopBar({ isMobile }) {
+  const { name, back } = useRouter();
+  const { authUser, login, t } = useUI();
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById("aivy-content-scroll");
+    if (!el) return undefined;
+    setScrolled(el.scrollTop > 4);
+    const onScroll = () => setScrolled(el.scrollTop > 4);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [name]);
+  const titleMap = { library: t("navLibrary"), roomLobby: t("navRooms"), room: t("navRooms"), liked: t("navLikedSongs"), settings: t("navSettings"), shorts: t("navShorts"), home: "" };
+
+  if (isMobile) {
+    const isRoot = name === "home" || name === "library" || name === "roomLobby" || name === "shorts";
+    return (
+      <div className={`sp-topbar ${scrolled ? "scrolled" : ""}`}>
+        {isRoot ? (
+          authUser ? (
+            <Link to="settings" className="sp-topbar-avatar" aria-label={resolveDisplayName(authUser) || "Akun"}><Avatar user={authUser} /></Link>
+          ) : (
+            <AnimatedLogo size={30} />
+          )
+        ) : (
+          <button className="sp-topbar-btn" onClick={back} aria-label={t("previous")}><ArrowLeft size={22} /></button>
+        )}
+        <span className="sp-topbar-title font-display">{titleMap[name] ?? ""}</span>
+        <div className="aivy-topbar-spacer" />
+        {authUser
+          ? (name !== "settings" && <Link to="settings" className="sp-topbar-btn" aria-label={t("navSettings")} title={t("navSettings")}><SettingsIcon size={21} /></Link>)
+          : <button className="sp-pill-btn primary" onClick={login}>{t("navLogin")}</button>}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`aivy-topbar ${scrolled ? "scrolled" : ""}`}>
+      <div className="navbtns">
+        <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ChevronLeft size={16} /></button>
+        <button className="aivy-navbtn" onClick={() => window.history.forward()} aria-label={t("next")}><ChevronRight size={16} /></button>
+      </div>
+      <div className="aivy-topbar-spacer" />
+    </div>
+  );
+}
+
+export function ViewLoading() {
+  return <div className="aivy-empty" style={{ paddingTop: 90 }}><StarLoader size={56} /></div>;
+}
+export function ViewNotFound({ label }) {
+  const { t } = useUI();
+  return <div className="aivy-empty" style={{ paddingTop: 90 }}><StarMark size={40} color="var(--ink-faint)" /><div className="title">{label} {t("notFoundLabel")}</div></div>;
+}
+
+export const LYRICS_FONT_ORDER = ["sm", "md", "lg", "xl", "max"];
+export const normLyricsFontSize = (v) => (LYRICS_FONT_ORDER.includes(v) ? v : "md");
+
+const LYRICS_FONT_SIZES = {
+  sm: "clamp(15px, 2.8vw, 19px)",
+  md: "clamp(19px, 3.6vw, 26px)",
+  lg: "clamp(23px, 4.4vw, 32px)",
+  xl: "clamp(27px, 5.2vw, 40px)",
+  max: "clamp(32px, 9vh, 96px)",
+};
+
+const AM_LYRICS_FONT_SIZES = {
+  sm: { "--am-lyrics-compact-font-size": "22px", "--lyplus-font-size-base": "26px", "--am-lyrics-wide-font-size": "34px" },
+  md: { "--am-lyrics-compact-font-size": "28px", "--lyplus-font-size-base": "34px", "--am-lyrics-wide-font-size": "48px" },
+  lg: { "--am-lyrics-compact-font-size": "34px", "--lyplus-font-size-base": "42px", "--am-lyrics-wide-font-size": "58px" },
+  xl: { "--am-lyrics-compact-font-size": "40px", "--lyplus-font-size-base": "52px", "--am-lyrics-wide-font-size": "72px" },
+  // Terbesar: ukuran mengikuti tinggi layar sehingga hanya sekitar 3 baris lirik yang muat
+  max: { "--am-lyrics-compact-font-size": "max(36px, 5.5vh)", "--lyplus-font-size-base": "max(44px, 7.5vh)", "--am-lyrics-wide-font-size": "max(48px, 9vh)" },
+};
+export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur, hideChrome = false }) {
+  const elRef = useRef(null);
+
+  useEffect(() => {
+    let tries = 0;
+    let timer = null;
+    const inject = () => {
+      const el = elRef.current;
+      if (!el || !el.shadowRoot) {
+        if (tries++ < 25) timer = setTimeout(inject, 200);
+        return;
+      }
+      if (el.shadowRoot.querySelector("style[data-perf-layer]")) return;
+      const st = document.createElement("style");
+      st.setAttribute("data-perf-layer", "");
+      st.textContent = ".lyrics-line-container{ will-change: transform; } .lyrics-line{ will-change: filter; }";
+      // Khusus Now Playing mobile: baris aktif dilukis di atas tetangganya & tidak ikut di-blur, supaya halo blur
+      // baris sebelum/sesudah tidak menutupi teks yang sedang dinyanyikan.
+      if (el.closest(".npx-lyrics-wrap")) {
+        st.textContent += " .lyrics-line.active,.lyrics-line.pre-active,.lyrics-line.persist-highlight{ z-index: 3; filter: none !important; }";
+      }
+      el.shadowRoot.appendChild(st);
+    };
+    inject();
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || !track) return;
+    let cancelled = false;
+    let pollId = null;
+
+    const applyMetadata = (forceRetrigger) => {
+      if (cancelled) return;
+      const cleanedTitle = cleanTrackTitleForLyrics(track.title, track.artist?.name);
+      const durationMs = track.duration ? Math.round(track.duration * 1000) : undefined;
+      const query = [cleanedTitle, track.artist?.name].filter(Boolean).join(" ");
+      if (forceRetrigger) {
+        el.songTitle = `${cleanedTitle}\u200b`;
+      }
+      el.songTitle = cleanedTitle;
+      el.songArtist = track.artist?.name || "";
+      el.songDurationMs = durationMs;
+      el.query = query;
+      el.autoScroll = true;
+      el.interpolate = true;
+    };
+
+    const watchForFailureAndRetryOnce = () => {
+      let attempts = 0;
+      const maxAttempts = Math.ceil(9000 / 300);
+      pollId = setInterval(() => {
+        attempts++;
+        if (cancelled) { clearInterval(pollId); return; }
+        if (el.isLoading === false) {
+          clearInterval(pollId);
+          if (!el.lyricsSource && !el.ttml) {
+            applyMetadata(true);
+          }
+          return;
+        }
+        if (attempts >= maxAttempts) clearInterval(pollId);
+      }, 300);
+    };
+
+    if (typeof customElements !== "undefined" && customElements.get("am-lyrics")) {
+      applyMetadata(false);
+    } else if (typeof customElements !== "undefined") {
+      customElements.whenDefined("am-lyrics").then(() => applyMetadata(false));
+    } else {
+      applyMetadata(false);
+    }
+    watchForFailureAndRetryOnce();
+
+    let hideDlTimer = null;
+    let hideDlTries = 0;
+    const injectHideDownload = () => {
+      const el = elRef.current;
+      if (!el || !el.shadowRoot) {
+        if (hideDlTries++ < 25) hideDlTimer = setTimeout(injectHideDownload, 200);
+        return;
+      }
+      if (el.shadowRoot.querySelector("style[data-hide-download]")) return;
+      const st = document.createElement("style");
+      st.setAttribute("data-hide-download", "");
+      // hideChrome: header (romanisasi/terjemahan/unduh) & footer sumber dipindah ke UI sheet (tombol bulat + "Lirik oleh …").
+      st.textContent = '.download-button[title="Download Lyrics"]{display:none!important}' + (hideChrome ? '.lyrics-header,.lyrics-footer{display:none!important}.lyrics-container{padding-top:0!important}' : '');
+      el.shadowRoot.appendChild(st);
+    };
+    injectHideDownload();
+
+    return () => { cancelled = true; if (pollId) clearInterval(pollId); clearTimeout(hideDlTimer); };
+  }, [track?.id]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    el.currentTime = Math.max(0, Math.round((currentTime || 0) * 1000));
+  }, [currentTime]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || !highlightColor) return;
+    el.highlightColor = highlightColor;
+  }, [highlightColor]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    const handler = (e) => onSeek?.((e.detail?.timestamp || 0) / 1000);
+    el.addEventListener("line-click", handler);
+    return () => el.removeEventListener("line-click", handler);
+  }, [onSeek]);
+
+  const style = useMemo(() => {
+    const base = AM_LYRICS_FONT_SIZES[normLyricsFontSize(fontSize)];
+    if (!suppressBlur) return base;
+    return { ...base, "--lyplus-blur-amount": "0em", "--lyplus-blur-amount-near": "0em" };
+  }, [fontSize, suppressBlur]);
+
+  return (
+    <am-lyrics
+      ref={elRef}
+      class="aivy-am-lyrics"
+      id={id || undefined}
+      style={style}
+    />
+  );
+}
+
+export function LyricsPrefetch() {
+  const { upNext } = usePlayer();
+  const nextTrack = upNext?.[0] || null;
+  const elRef = useRef(null);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || !nextTrack) return;
+    let cancelled = false;
+    const apply = () => {
+      if (cancelled) return;
+      el.songTitle = cleanTrackTitleForLyrics(nextTrack.title, nextTrack.artist?.name);
+      el.songArtist = nextTrack.artist?.name || "";
+      el.songDurationMs = nextTrack.duration ? Math.round(nextTrack.duration * 1000) : undefined;
+      el.query = [el.songTitle, el.songArtist].filter(Boolean).join(" ");
+      el.autoScroll = false;
+      el.interpolate = false;
+    };
+    if (typeof customElements !== "undefined" && customElements.get("am-lyrics")) {
+      apply();
+    } else if (typeof customElements !== "undefined") {
+      customElements.whenDefined("am-lyrics").then(apply);
+    } else {
+      apply();
+    }
+    return () => { cancelled = true; };
+  }, [nextTrack?.id]);
+
+  if (!nextTrack) return null;
+  return (
+    <am-lyrics
+      ref={elRef}
+      aria-hidden="true"
+      style={{ position: "fixed", width: 0, height: 0, overflow: "hidden", opacity: 0, pointerEvents: "none", left: -9999 }}
+    />
+  );
+}
+
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = String(text || "").split(" ");
+  let line = "";
+  let lines = [];
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  const startY = y - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
+}
+
+function SidebarQueuePanel() {
+  const [subTab, setSubTab] = useState("queue");
+  const { currentTrack, upNext, history, selectQueuePosition, clearUpNext } = usePlayer();
+  const { t } = useUI();
+  const recent = history.slice().reverse();
+  return (
+    <>
+      <div className="aivy-sq-subtabs">
+        <button className={subTab === "queue" ? "active" : ""} onClick={() => setSubTab("queue")}>{t("tabQueue")}</button>
+        <button className={subTab === "recent" ? "active" : ""} onClick={() => setSubTab("recent")}>{t("recentlyPlayedLabel")}</button>
+      </div>
+      {subTab === "queue" ? (
+        <>
+          <div className="aivy-drawer-sub eyebrow">{t("nowPlaying")}</div>
+          {currentTrack ? <QueueNowPlayingRow track={currentTrack} /> : <div className="aivy-queue-empty-hint">{t("nothingPlaying")}</div>}
+          <div className="aivy-drawer-sub eyebrow aivy-queue-upnext-head">
+            <span>{t("upNextLabel")}</span>
+            {upNext.length > 0 && <button className="aivy-queue-clear" onClick={clearUpNext}><Trash2 size={12} /> {t("clearQueue")}</button>}
+          </div>
+          {upNext.length > 0 ? <QueueUpNextList items={upNext} /> : <div className="aivy-queue-empty-hint">{t("queueUpNextEmpty")}</div>}
+        </>
+      ) : (
+        <>
+          <div className="aivy-drawer-sub eyebrow">{t("recentlyPlayedLabel")}</div>
+          {recent.length > 0 ? (
+            recent.map((tr, i) => (
+              <QueueHistoryRow key={`h-${tr.id}-${i}`} track={tr} onSelect={() => selectQueuePosition(history.length - 1 - i)} />
+            ))
+          ) : (
+            <div className="aivy-queue-empty-hint">{t("noRecentlyPlayed")}</div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+const SIDE_LYRICS_STEP = { sm: "sm", md: "sm", lg: "md", xl: "lg", max: "xl" };
+const SIDE_LYRICS_ID = "aivy-am-lyrics-sidebar";
+
+function SidebarLyricsPanel() {
+  const { currentTrack, seekTo } = usePlayer();
+  const { settings, t } = useUI();
+  const currentTime = usePlayerTime();
+  const [unsynced, setUnsynced] = useState(false);
+  const trackKey = currentTrack?.id;
+  const fontSize = SIDE_LYRICS_STEP[normLyricsFontSize(settings.lyricsFontSize)] || "sm";
+  const resolvedTheme = (typeof document !== "undefined" && document.documentElement?.dataset?.theme) || "black";
+  const isLight = ["white", "latte", "salmon", "premium"].includes(resolvedTheme);
+  const highlightColor = isLight ? "#141414" : "#f5f5f5";
+
+  useEffect(() => {
+    let observer;
+    let retryTimer;
+    let tries = 0;
+    const attach = () => {
+      const el = document.getElementById(SIDE_LYRICS_ID);
+      const container = el?.lyricsContainer;
+      if (!container) {
+        if (tries++ < 25) retryTimer = setTimeout(attach, 200);
+        return;
+      }
+      const sync = () => setUnsynced(container.classList.contains("user-scrolling"));
+      sync();
+      observer = new MutationObserver(sync);
+      observer.observe(container, { attributes: true, attributeFilter: ["class"] });
+    };
+    attach();
+    return () => { clearTimeout(retryTimer); observer?.disconnect(); };
+  }, [trackKey]);
+
+  const resumeSync = () => {
+    const el = document.getElementById(SIDE_LYRICS_ID);
+    if (el && typeof el.resumeAutoScroll === "function") el.resumeAutoScroll();
+    setUnsynced(false);
+  };
+
+  if (!currentTrack) {
+    return <div className="aivy-empty"><StarMark size={34} color="var(--ink-faint)" /><div className="title">{t("nothingPlaying")}</div></div>;
+  }
+
+  return (
+    <div className="aivy-sidelyrics">
+      <div className="aivy-sidelyrics-head">
+        <MarqueeText
+          as="div"
+          className="t"
+          text={currentTrack.title}
+          prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+          always
+        />
+        <MarqueeText as="div" className="a" text={currentTrack.artist?.name || ""} always />
+      </div>
+      <div className="aivy-sidelyrics-body">
+        <AppleLyricsPane
+          id={SIDE_LYRICS_ID}
+          track={currentTrack}
+          currentTime={currentTime}
+          onSeek={seekTo}
+          highlightColor={highlightColor}
+          fontSize={fontSize}
+        />
+        {unsynced && (
+          <button type="button" className="aivy-lyr2-pill" onClick={resumeSync}>
+            {t("syncLyrics")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function useIsMobile(breakpoint = 860) {
+  const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia(`(max-width:${breakpoint}px)`).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width:${breakpoint}px)`);
+    const onChange = (e) => setM(e.matches);
+    mq.addEventListener ? mq.addEventListener("change", onChange) : mq.addListener(onChange);
+    return () => (mq.removeEventListener ? mq.removeEventListener("change", onChange) : mq.removeListener(onChange));
+  }, [breakpoint]);
+  return m;
+}
+
+export function LyricsOverlay() {
+  const { lyricsOpen, closeLyrics, pushToast, t, openMobileQueue, openContextMenu, settings, updateSettings } = useUI();
+  const {
+    currentTrack, seekTo, isPreviewClip, liked, toggleLike, upNext, duration,
+  } = usePlayer();
+  const currentTime = usePlayerTime();
+  const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const fontSize = normLyricsFontSize(settings.lyricsFontSize);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [singMode, setSingMode] = useState(false);
+  const [lyricsUnsynced, setLyricsUnsynced] = useState(false);
+  const resolvedTheme = (typeof document !== "undefined" && document.documentElement?.dataset?.theme) || "black";
+  const isLightResolved = ["white", "latte", "salmon", "premium"].includes(resolvedTheme);
+  const trackKey = currentTrack?.id;
+  const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
+  const nextTrack = upNext?.[0];
+  const isMobile = useIsMobile();
+
+  useEffect(() => {
+    if (!lyricsOpen || isMobile) return;
+    const scrollEl = document.getElementById("aivy-content-scroll");
+    const prevOverflow = scrollEl ? scrollEl.style.overflow : "";
+    if (scrollEl) scrollEl.style.overflow = "hidden";
+
+    const ALLOWED_SCROLL_SELECTOR = ".aivy-lyrics-body, .aivy-lyrics-plain, .aivy-lyrics-side, .aivy-am-lyrics";
+    const onTouchMove = (e) => {
+      if (e.target.closest(ALLOWED_SCROLL_SELECTOR)) return;
+      e.preventDefault();
+    };
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+
+    return () => {
+      if (scrollEl) scrollEl.style.overflow = prevOverflow;
+      document.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [lyricsOpen, isMobile]);
+
+  const scrollToActiveLyric = () => {
+    const el = document.getElementById("aivy-am-lyrics-desktop");
+    if (!el) return;
+    if (typeof el.resumeAutoScroll === "function") {
+      el.resumeAutoScroll();
+    }
+    setLyricsUnsynced(false);
+  };
+
+  useEffect(() => {
+    if (!lyricsOpen) return undefined;
+    let observer;
+    let retryTimer;
+    let tries = 0;
+
+    const attach = () => {
+      const el = document.getElementById("aivy-am-lyrics-desktop");
+      const container = el?.lyricsContainer;
+      if (!container) {
+        if (tries++ < 25) retryTimer = setTimeout(attach, 200);
+        return;
+      }
+      const sync = () => setLyricsUnsynced(container.classList.contains("user-scrolling"));
+      sync();
+      observer = new MutationObserver(sync);
+      observer.observe(container, { attributes: true, attributeFilter: ["class"] });
+    };
+    attach();
+
+    return () => {
+      clearTimeout(retryTimer);
+      observer?.disconnect();
+    };
+  }, [lyricsOpen, trackKey]);
+
+  const activeLineText = currentTrack?.title || "";
+
+  const handleSaveImage = useCallback(() => {
+    if (!currentTrack) return;
+    const line = activeLineText || currentTrack.title;
+    const canvas = document.createElement("canvas");
+    canvas.width = 800; canvas.height = 800;
+    const ctx = canvas.getContext("2d");
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, "#1A1A1A");
+    grad.addColorStop(1, "#000000");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#F2F2F2";
+    ctx.font = "600 42px Georgia, serif";
+    ctx.textAlign = "center";
+    wrapCanvasText(ctx, line, canvas.width / 2, 380, 680, 54);
+    ctx.fillStyle = "#8A8A8A";
+    ctx.font = "500 22px sans-serif";
+    ctx.fillText(`${currentTrack.artist?.name || ""} \u00b7 ${currentTrack.title || ""}`, canvas.width / 2, canvas.height - 80);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lirik-${(currentTrack.title || "lagu").replace(/\s+/g, "-").toLowerCase()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      pushToast(t("toastLyricsImageSaved"));
+    });
+  }, [currentTrack, activeLineText, pushToast, t]);
+
+  const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime: scrubTime, duration: scrubDuration } = useScrubberBinding();
+  const cycleFontSize = () => updateSettings({ lyricsFontSize: LYRICS_FONT_ORDER[(LYRICS_FONT_ORDER.indexOf(fontSize) + 1) % LYRICS_FONT_ORDER.length] });
+  const highlightColor = isMobile || !isLightResolved ? "#f5f5f5" : "#141414";
+  const lyricsMenuItems = useTrackMenuItems(currentTrack || {});
+  const handleLyricsMore = (e) => { if (!currentTrack) return; openContextMenu(e.clientX, e.clientY, lyricsMenuItems); };
+
+  if (!lyricsOpen) return null;
+
+  if (isMobile) return null;
+
+  return (
+    <div className={`aivy-lyrics-overlay ${lyricsOpen ? "open" : ""}`}>
+      {currentTrack?.cover && (
+        <div className="aivy-lyrics-backdrop" style={{ backgroundImage: `url(${currentTrack.cover})` }} />
+      )}
+      <div className="aivy-lyrics-scrim" />
+
+      <div className="aivy-lyrics-float">
+        <button className="aivy-lyrics-fbtn primary" onClick={closeLyrics} aria-label={t("close")}><X size={19} /></button>
+        { }
+        <button className="aivy-lyrics-fbtn aivy-lyrics-fbtn-dup" onClick={() => setShareOpen((v) => !v)} disabled={!currentTrack} aria-label={t("share")}>
+          <Share2 size={16} />
+        </button>
+        <button className="aivy-lyrics-fbtn aivy-fontsize-btn" onClick={cycleFontSize} disabled={!currentTrack} aria-label={t("fontSize")} title={`${t("fontSize")}: ${fontSize.toUpperCase()}`}>
+          <Type size={16} />
+          <span className="aivy-fontsize-tag">{fontSize}</span>
+        </button>
+      </div>
+
+      {currentTrack && (
+        <div className="aivy-lyrics-main">
+          <div className="aivy-lyrics-side">
+            <div className="aivy-lyrics-track">
+              <div className="cover">
+                <AnimatedCover
+                  src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={320} radius={6}
+                  style={{ width: "100%", height: "100%" }}
+                  song={currentTrack.title} artist={currentTrack.artist?.name}
+                  animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+                />
+              </div>
+              <div className="row">
+                <div className="meta">
+                  <MarqueeText
+                    as="div" className="t" text={currentTrack.title}
+                    prefix={currentTrack.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+                    suffix={isPreviewClip ? <span className="badge">{t("preview30")}</span> : null}
+                  />
+                  <div className="a">{currentTrack.artist?.name}</div>
+                </div>
+                <div className="aivy-lyrics-actions">
+                  <button className={`aivy-icon-btn ${isLiked ? "active" : ""}`} onClick={() => currentTrack && toggleLike(currentTrack)} aria-label={t("like")}>
+                    <Star size={17} fill={isLiked ? "currentColor" : "none"} />
+                  </button>
+                  <button className="aivy-icon-btn" onClick={handleLyricsMore} aria-label={t("more")}><MoreHorizontal size={17} /></button>
+                </div>
+              </div>
+            </div>
+
+            <div className="aivy-lyrics-side-scroll">
+              {shareOpen && (
+                <div className="aivy-lyrics-share">
+                  <div className="cover-mini">
+                    <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={72} radius={8} style={{ width: "100%", height: "100%" }} />
+                  </div>
+                  <div className="line">{activeLineText || "\u266a"}</div>
+                  <div className="sub">{currentTrack.artist?.name} &middot; {currentTrack.title}</div>
+                  <button onClick={handleSaveImage}>{t("saveAsImage")}</button>
+                </div>
+              )}
+
+              {nextTrack && (
+                <div className="aivy-lyrics-next">
+                  <span className="label">{t("upNextLabel")}</span>
+                  <span className="name">{nextTrack.title} &middot; {nextTrack.artist?.name}</span>
+                </div>
+              )}
+
+              <div className={`aivy-lyrics-scrubwrap ${singMode ? "is-singing" : ""}`}>
+                <button
+                  type="button"
+                  className={`aivy-sing-btn ${singMode ? "active" : ""}`}
+                  onClick={() => setSingMode((v) => !v)}
+                  aria-pressed={singMode}
+                  aria-label={t("singToggle", "Sing")}
+                  title={t("singToggle", "Sing")}
+                >
+                  <Mic size={14} />
+                  <span>{t("singLabel", "Sing")}</span>
+                </button>
+                <div className="aivy-lyrics-scrubber-row">
+                  <span className="aivy-time font-mono">{formatTime(scrubTime)}</span>
+                  <Scrubber getRatio={getRatio} onSeekRatio={onSeekRatio} registerFill={registerFill} registerThumb={registerThumb} />
+                  <span className="aivy-time right font-mono">{formatTime(scrubDuration)}</span>
+                </div>
+              </div>
+
+              <TransportButtons big />
+
+              <VolumeControl />
+
+              <MobileNowPlayingIconRow lyricsActive onToggleLyrics={closeLyrics} lyricsDisabled={false} onOpenQueue={openMobileQueue} />
+            </div>
+          </div>
+
+          <div className="aivy-lyrics-body-wrap" style={{ "--lyrics-fs": LYRICS_FONT_SIZES[fontSize] }}>
+            <AppleLyricsPane
+              id="aivy-am-lyrics-desktop"
+              track={currentTrack}
+              currentTime={currentTime}
+              onSeek={seekTo}
+              highlightColor={highlightColor}
+              fontSize={fontSize}
+            />
+            {lyricsUnsynced && (
+              <button type="button" className="aivy-lyr2-pill" onClick={scrollToActiveLyric}>
+                {t("syncLyrics")}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!currentTrack && (
+        <div className="aivy-empty" style={{ position: "relative", zIndex: 1 }}><StarMark size={34} color="var(--ink-faint)" /><div className="title">{t("nothingPlaying")}</div></div>
+      )}
+    </div>
+  );
+}
+
+function renderAiMarkdown(raw) {
+  if (!raw) return null;
+
+  const renderInline = (text, keyBase) => {
+    const escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    const tokens = [];
+    let i = 0;
+    const regex = /(`[^`]+`)|(\[[^\]]+\]\(https?:\/\/[^\s)]+\))|(\*\*[^*]+\*\*)|(\*[^*]+\*)/g;
+    let match;
+    let last = 0;
+    while ((match = regex.exec(escaped))) {
+      if (match.index > last) tokens.push({ type: "text", value: escaped.slice(last, match.index) });
+      const val = match[0];
+      if (val.startsWith("`")) tokens.push({ type: "code", value: val.slice(1, -1) });
+      else if (val.startsWith("[")) {
+        const m = val.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+        tokens.push({ type: "link", value: m?.[1] || val, href: m?.[2] || "#" });
+      } else if (val.startsWith("**")) tokens.push({ type: "b", value: val.slice(2, -2) });
+      else tokens.push({ type: "i", value: val.slice(1, -1) });
+      last = match.index + val.length;
+    }
+    if (last < escaped.length) tokens.push({ type: "text", value: escaped.slice(last) });
+
+    return tokens.map((tk, idx) => {
+      const k = `${keyBase}-${idx}`;
+      if (tk.type === "code") return <code key={k}>{tk.value}</code>;
+      if (tk.type === "b") return <strong key={k}>{tk.value}</strong>;
+      if (tk.type === "i") return <em key={k}>{tk.value}</em>;
+      if (tk.type === "link") return <a key={k} href={tk.href} target="_blank" rel="noreferrer">{tk.value}</a>;
+      return <React.Fragment key={k}>{tk.value}</React.Fragment>;
+    });
+  };
+
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  let listBuf = [];
+  let listType = null;
+
+  const flushList = () => {
+    if (!listBuf.length) return;
+    const Tag = listType === "ol" ? "ol" : "ul";
+    blocks.push(
+      <Tag key={`list-${blocks.length}`}>
+        {listBuf.map((item, i) => <li key={i}>{renderInline(item, `li-${blocks.length}-${i}`)}</li>)}
+      </Tag>
+    );
+    listBuf = [];
+    listType = null;
+  };
+
+  lines.forEach((line, idx) => {
+    const bullet = line.match(/^\s*[-*•]\s+(.*)/);
+    const numbered = line.match(/^\s*\d+[.)]\s+(.*)/);
+    if (bullet) { listType = "ul"; listBuf.push(bullet[1]); return; }
+    if (numbered) { listType = "ol"; listBuf.push(numbered[1]); return; }
+    flushList();
+    if (line.trim() === "") return;
+    blocks.push(<p key={`p-${idx}`}>{renderInline(line, `p-${idx}`)}</p>);
+  });
+  flushList();
+
+  return blocks;
+}
+
+const AI_QUICK_PROMPTS = [
+  { id: "taylor", tid: "Buatin playlist lagu idgitaf", ten: "Make a Taylor Swift playlist" },
+  { id: "play", tid: "Puterin lagu jiwa yang bersedih", ten: "Play blank space" },
+  { id: "mood", tid: "Rekomendasiin lagu buat santai malam ini", ten: "Recommend chill songs for tonight" },
+  { id: "list", tid: "Lihat playlist aku apa aja", ten: "Show me my playlists" },
+];
+
+export function AiAssistantWidget() {
+  const { settings, authUser } = useUI();
+  const { playlists, createPlaylist, addToPlaylist, playSingle, playList, deletePlaylist, updatePlaylistMeta, removeFromPlaylist, toggleLike, liked, upNext, addToQueueEnd, playNextInQueue, removeFromQueue } = usePlayer();
+  const [open, setOpen] = useState(false);
+  const [panelClosing, setPanelClosing] = useState(false);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [chat, setChat] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [copiedIdx, setCopiedIdx] = useState(null);
+  const historyRef = useRef([]);
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+  const wasOpenRef = useRef(false);
+  const closeTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      clearTimeout(closeTimerRef.current);
+      setPanelClosing(false);
+    } else if (wasOpenRef.current) {
+      setPanelClosing(true);
+      closeTimerRef.current = setTimeout(() => setPanelClosing(false), 170);
+    }
+    wasOpenRef.current = open;
+    return () => clearTimeout(closeTimerRef.current);
+  }, [open]);
+
+  const panelVisible = open || panelClosing;
+
+  const en = settings.language === "en";
+  const tt = (id, us) => (en ? us : id);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [chat, sending]);
+
+  useEffect(() => {
+    if (open) {
+      setUnread(0);
+      inputRef.current?.focus();
+    }
+  }, [open]);
+
+  const pushAssistant = (text) => {
+    setChat((c) => [...c, { role: "assistant", text, at: Date.now() }]);
+    if (!open) setUnread((n) => n + 1);
+  };
+
+  const sendText = async (text) => {
+    if (!text || sending) return;
+    if (!authUser) {
+      setChat((c) => [...c, { role: "user", text, at: Date.now() }]);
+      setInput("");
+      pushAssistant(tt("Login dulu ya buat pakai fitur ini (misalnya bikin playlist).", "Please log in first to use this (e.g. creating playlists)."));
+      return;
+    }
+    setChat((c) => [...c, { role: "user", text, at: Date.now() }]);
+    setInput("");
+    setSending(true);
+    try {
+      const ctx = {
+        search: Api.search,
+        createPlaylist,
+        addToPlaylist,
+        playSingle,
+        playlists,
+        playList,
+        deletePlaylist,
+        updatePlaylistMeta,
+        removeFromPlaylist,
+        toggleLike,
+        liked,
+        upNext,
+        addToQueueEnd,
+        playNextInQueue,
+        removeFromQueue,
+      };
+      const { text: reply, history } = await runAiAssistantTurn(text, historyRef.current, ctx);
+      historyRef.current = history;
+      pushAssistant(reply);
+    } catch (err) {
+      pushAssistant(`${tt("Gagal", "Failed")}: ${err?.message || tt("terjadi kesalahan.", "something went wrong.")}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const send = () => sendText(input.trim());
+
+  const resetChat = () => {
+    setChat([]);
+    historyRef.current = [];
+  };
+
+  const copyMessage = (text, idx) => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx((v) => (v === idx ? null : v)), 1500);
+    }).catch(() => {});
+  };
+
+  return (
+    <>
+      <div className="aivy-ai-fab-wrap">
+        <button className={`aivy-ai-fab ${open ? "is-open" : ""}`} onClick={() => setOpen((v) => !v)} aria-label="AI Assistant">
+          <Sparkles size={20} />
+        </button>
+        {!open && unread > 0 && (
+          <span className="aivy-ai-badge">{unread > 9 ? "9+" : unread}</span>
+        )}
+      </div>
+
+      {panelVisible && (
+        <div className={`aivy-ai-panel ${!open ? "is-closing" : ""}`}>
+          <div className="aivy-ai-head">
+            <span className="t"><Sparkles size={15} /> {tt("Asisten AI", "AI Assistant")}</span>
+            <div className="acts">
+              {chat.length > 0 && (
+                <button className="aivy-icon-btn sm" onClick={resetChat} aria-label={tt("Bersihkan obrolan", "Clear chat")} title={tt("Bersihkan obrolan", "Clear chat")}>
+                  <Trash2 size={14} />
+                </button>
+              )}
+              <button className="aivy-icon-btn sm" onClick={() => setOpen(false)} aria-label={tt("Tutup", "Close")}><X size={15} /></button>
+            </div>
+          </div>
+
+          <div className="aivy-ai-body" ref={scrollRef}>
+            {chat.length === 0 && (
+              <div className="aivy-ai-empty">
+                {tt(
+                  "Coba minta: \"buatin playlist isinya lagu Taylor Swift\" atau \"puterin lagu jiwa yang bersedih\".",
+                  "Try asking: \"make me a playlist of Taylor Swift songs\" or \"play wide awake\"."
+                )}
+                <div className="aivy-ai-suggest">
+                  {AI_QUICK_PROMPTS.map((q) => (
+                    <button key={q.id} onClick={() => sendText(tt(q.tid, q.ten))} disabled={sending}>
+                      {tt(q.tid, q.ten)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {chat.map((m, i) => (
+              <div key={i} className={`aivy-ai-msg-wrap ${m.role}`}>
+                <div className={`aivy-ai-msg ${m.role}`}>
+                  {m.role === "assistant" ? renderAiMarkdown(m.text) : m.text}
+                </div>
+                <div className="aivy-ai-msg-meta">
+                  {m.at && <span className="aivy-ai-msg-time">{formatClockTime ? formatClockTime(m.at) : ""}</span>}
+                  {m.role === "assistant" && (
+                    <button className="aivy-icon-btn xs aivy-ai-copy-btn" onClick={() => copyMessage(m.text, i)} aria-label={tt("Salin", "Copy")} title={tt("Salin", "Copy")}>
+                      {copiedIdx === i ? <Check size={11} /> : <Copy size={11} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {sending && <div className="aivy-ai-msg assistant is-typing">{tt("Mikir…", "Thinking…")}</div>}
+          </div>
+
+          <div className="aivy-ai-input-row">
+            <input
+              ref={inputRef}
+              className="aivy-ai-input"
+              value={input}
+              placeholder={tt("Minta AI bikinin playlist, cari lagu, dll…", "Ask the AI to build a playlist, find a song, etc…")}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              disabled={sending}
+            />
+            <button className="aivy-icon-btn" onClick={send} disabled={sending || !input.trim()} aria-label={tt("Kirim", "Send")}>
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+export function MusicVideoView({ video, onClose, onAudioPlay }) {
+  const { t } = useUI();
+  const stageRef = useRef(null);
+  const videoRef = useRef(null);
+  const hlsRef = useRef(null);
+  const controlsTimer = useRef(null);
+  const playingRef = useRef(false);
+
+  const [src, setSrc] = useState(null);
+  const [streamType, setStreamType] = useState("mp4");
+  const [status, setStatus] = useState("idle");
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [controlsHidden, setControlsHidden] = useState(false);
+
+  const vId = video?.videoId || video?.id || null;
+
+  const markPlaying = useCallback((v) => {
+    playingRef.current = v;
+    setPlaying(v);
+  }, []);
+
+  const pokeControls = useCallback(() => {
+    setControlsHidden(false);
+    if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    controlsTimer.current = setTimeout(() => {
+      if (playingRef.current) setControlsHidden(true);
+    }, 2600);
+  }, []);
+  useEffect(() => {
+    if (!video) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        if (document.fullscreenElement) {
+          const p = document.exitFullscreen?.();
+          if (p && typeof p.catch === "function") p.catch(() => {});
+          return;
+        }
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    document.body.classList.add("aivy-video-open");
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.classList.remove("aivy-video-open");
+    };
+  }, [video, onClose]);
+  useEffect(() => {
+    const onChange = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
+  }, []);
+  useEffect(() => () => {
+    if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    if (videoRef.current) { videoRef.current.pause(); videoRef.current.removeAttribute("src"); }
+  }, []);
+  const reload = useCallback(() => {
+    setStatus("loading");
+    setErrorMsg(null);
+    setSrc(null);
+    setStreamType("mp4");
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    if (videoRef.current) { videoRef.current.pause(); videoRef.current.removeAttribute("src"); videoRef.current.load(); }
+    Api.musicVideoStream(vId)
+      .then(({ url, type }) => { setSrc(url); setStreamType(type); setStatus("ready"); })
+      .catch(() => { setStatus("error"); setErrorMsg(t("videoUnavailable")); });
+  }, [vId, t]);
+
+  useEffect(() => {
+    if (!video) return undefined;
+    if (!vId) {
+      setStatus("error");
+      setErrorMsg(t("videoUnavailable"));
       return undefined;
     }
-    const mq = window.matchMedia("(prefers-color-scheme: light)");
-    const apply = () => { document.documentElement.dataset.theme = mq.matches ? "white" : "black"; };
-    apply();
-    if (mq.addEventListener) {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    }
-    mq.addListener(apply);
-    return () => mq.removeListener(apply);
-  }, [theme]);
-
+    reload();
+    return undefined;
+  }, [video, vId, reload]);
   useEffect(() => {
-    document.documentElement.dataset.compact = settings.compactRows ? "true" : "false";
-  }, [settings.compactRows]);
-  useEffect(() => {
-    document.documentElement.dataset.reducedMotion = settings.reducedMotion ? "true" : "false";
-  }, [settings.reducedMotion]);
-  useEffect(() => {
-    document.documentElement.dataset.contrast = settings.highContrast ? "high" : "normal";
-  }, [settings.highContrast]);
-  useEffect(() => {
-    applyLiquidGlass(settings.liquidGlass);
-  }, [settings.liquidGlass]);
-  useEffect(() => {
-    setPreferredAudioFormat(settings.audioFormat);
-  }, [settings.audioFormat]);
+    const video = videoRef.current;
+    if (status !== "ready" || !src || !video) return undefined;
 
-  const localFont = useLocalFont();
-  useEffect(() => {
-    const root = document.documentElement;
-    const applyStack = (customStack) => {
-      const stack = customStack || (FONT_STACKS[settings.fontFamily] ?? FONT_STACKS.default);
-      if (stack) {
-        root.style.setProperty("--font-display", stack);
-        root.style.setProperty("--font-body", stack);
-      } else {
-        root.style.removeProperty("--font-display");
-        root.style.removeProperty("--font-body");
-      }
-    };
-    const custom = applyCustomFont({ fontUrl: settings.fontUrl, localFont }, applyStack);
-    const gq = custom.active ? null : GOOGLE_FONT_QUERY[settings.fontFamily];
-    let link = document.getElementById("aivy-gfont");
-    if (gq) {
-      if (!link) { link = document.createElement("link"); link.id = "aivy-gfont"; link.rel = "stylesheet"; document.head.appendChild(link); }
-      link.href = `https://fonts.googleapis.com/css2?family=${gq}&display=swap`;
-    } else if (link) link.remove();
-    return custom.cleanup;
-  }, [settings.fontFamily, settings.fontUrl, localFont]);
-
-  useEffect(() => {
-    const scale = Number(settings.fontScale) || 100;
-    const el = () => document.getElementById("aivy-content-scroll");
-    el()?.style.setProperty("zoom", scale === 100 ? "" : String(scale / 100));
-    return () => { el()?.style.removeProperty("zoom"); };
-  }, [settings.fontScale]);
-
-  useEffect(() => {
-    const css = settings.customThemeCss || "";
-    let el = document.getElementById("aivy-custom-theme-css");
-    if (!css.trim()) { el?.remove(); return; }
-    if (!el) { el = document.createElement("style"); el.id = "aivy-custom-theme-css"; document.head.appendChild(el); }
-    el.textContent = css;
-    return () => { document.getElementById("aivy-custom-theme-css")?.remove(); };
-  }, [settings.customThemeCss]);
-
-  const t = useCallback((key, fallback) => makeT(settings.language)(key, fallback), [settings.language]);
-
-  const pushToast = useCallback((message) => {
-    const id = uid("toast");
-    setToasts((t) => [...t, { id, message }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800);
-  }, []);
-
-  const login = useCallback(() => { window.location.href = Api.discordLoginUrl(); }, []);
-  const loginGoogle = useCallback(() => { window.location.href = Api.googleLoginUrl(); }, []);
-  const loggingOutRef = useRef(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const logout = useCallback(async () => {
-    // Sedang dalam mode impersonate: jangan panggil /auth/logout — itu akan
-    // menghapus cookie sesi asli (admin) di browser ini. Cukup lepas token.
-    if (isImpersonating()) { exitImpersonate(); return; }
-    if (loggingOutRef.current) return;
-    loggingOutRef.current = true;
-    setLoggingOut(true);
-    setAuthUser(null);
-    clearPlaybackState();
-    const withTimeout = (promise, ms) => Promise.race([
-      promise,
-      new Promise((resolve) => setTimeout(resolve, ms)),
-    ]);
-    try {
-      await withTimeout(Api.logout(), 3000);
-    } catch {}
-    window.location.href = "/";
-  }, []);
-
-  const pendingSettingsPatchRef = useRef({});
-  const flushSettingsRef = useRef(null);
-  if (!flushSettingsRef.current) {
-    flushSettingsRef.current = debounce(async (onError) => {
-      const patch = pendingSettingsPatchRef.current;
-      if (!Object.keys(patch).length) return;
-      pendingSettingsPatchRef.current = {};
-      try { await Api.putSettings(patch); } catch { onError(); }
-    }, 600);
-  }
-
-  const updateSettings = useCallback((patch) => {
-    setSettings((s) => {
-      const next = { ...s, ...patch };
-      saveCachedSettings(next);
-      return next;
-    });
-    if (patch.theme) setTheme(patch.theme);
-    pendingSettingsPatchRef.current = { ...pendingSettingsPatchRef.current, ...patch };
-    flushSettingsRef.current(() => pushToast(t("toastSettingsSaveFailed")));
-  }, [pushToast, t]);
-
-  const resetSettings = useCallback(async () => {
-    setSettings(DEFAULT_SETTINGS);
-    saveCachedSettings(DEFAULT_SETTINGS);
-    setTheme("black");
-    try { await Api.resetSettings(); } catch {  }
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    updateSettings({ theme: theme === "black" ? "white" : "black" });
-  }, [theme, updateSettings]);
-
-  const ctxOpenSeq = useRef(0);
-  const openContextMenu = useCallback((x, y, items) => {
-    const track = (items && items.track) || null;
-    const seq = ++ctxOpenSeq.current;
-    const show = () => { if (seq === ctxOpenSeq.current) setContextMenu({ x, y, items, track }); };
-    if (!track || trackArtistsReady(track)) { show(); return; }
-    Promise.race([loadTrackArtists(track), new Promise((r) => setTimeout(r, 900))]).then(show);
-  }, []);
-  const closeContextMenu = useCallback(() => { ctxOpenSeq.current++; setContextMenu(null); }, []);
-
-  const openAddToPlaylist = useCallback((track) => setAddToPlaylistTarget(track), []);
-  const closeAddToPlaylist = useCallback(() => setAddToPlaylistTarget(null), []);
-
-  const openCredits = useCallback((track) => setCreditsTrack(track), []);
-  const closeCredits = useCallback(() => setCreditsTrack(null), []);
-
-  const openLyrics = useCallback(() => setLyricsOpen(true), []);
-  const closeLyrics = useCallback(() => setLyricsOpen(false), []);
-  const toggleLyrics = useCallback(() => setLyricsOpen((o) => !o), []);
-  const toggleSidebarQueue = useCallback(() => { setSidebarQueueOpen((o) => !o); setSidebarLyricsOpen(false); }, []);
-  const closeSidebarQueue = useCallback(() => setSidebarQueueOpen(false), []);
-  const toggleSidebarLyrics = useCallback(() => { setSidebarLyricsOpen((o) => !o); setSidebarQueueOpen(false); }, []);
-  const closeSidebarLyrics = useCallback(() => setSidebarLyricsOpen(false), []);
-  const openMobileQueue = useCallback(() => { setLyricsOpen(false); setMobileQueueOpen(true); }, []);
-  const closeMobileQueue = useCallback(() => setMobileQueueOpen(false), []);
-
-  const setSidebarWidth = useCallback((w) => {
-    setPanelPrefs((p) => ({ ...p, sidebarWidth: clamp(Math.round(w), SIDEBAR_MIN_W, SIDEBAR_MAX_W) }));
-  }, []);
-  const setRightPanelWidth = useCallback((w) => {
-    setPanelPrefs((p) => ({ ...p, rightPanelWidth: clamp(Math.round(w), RIGHTPANEL_MIN_W, RIGHTPANEL_MAX_W) }));
-  }, []);
-  const toggleSidebarCollapsed = useCallback(() => {
-    setPanelPrefs((p) => ({ ...p, sidebarCollapsed: !p.sidebarCollapsed }));
-  }, []);
-  const toggleRightPanelCollapsed = useCallback(() => {
-    setPanelPrefs((p) => ({ ...p, rightPanelCollapsed: !p.rightPanelCollapsed }));
-  }, []);
-  const [rightPanelPeek, setRightPanelPeek] = useState(false);
-
-  const value = {
-    authUser, authChecked, login, loginGoogle, logout, loggingOut,
-    settings, updateSettings, resetSettings,
-    theme, toggleTheme, t,
-    toasts, pushToast,
-    contextMenu, openContextMenu, closeContextMenu,
-    addToPlaylistTarget, openAddToPlaylist, closeAddToPlaylist,
-    creditsTrack, openCredits, closeCredits,
-    lyricsOpen, openLyrics, closeLyrics, toggleLyrics,
-    sidebarQueueOpen, toggleSidebarQueue, closeSidebarQueue,
-    sidebarLyricsOpen, toggleSidebarLyrics, closeSidebarLyrics,
-    mobileQueueOpen, openMobileQueue, closeMobileQueue,
-    sidebarWidth: panelPrefs.sidebarWidth,
-    sidebarCollapsed: panelPrefs.sidebarCollapsed,
-    setSidebarWidth,
-    toggleSidebarCollapsed,
-    rightPanelWidth: panelPrefs.rightPanelWidth,
-    rightPanelCollapsed: panelPrefs.rightPanelCollapsed,
-    setRightPanelWidth,
-    toggleRightPanelCollapsed,
-    rightPanelPeek, setRightPanelPeek,
-  };
-  return <UICtx.Provider value={value}>{children}</UICtx.Provider>;
-}
-
-const PlayerCtx = createContext(null);
-export function usePlayer() { return useContext(PlayerCtx); }
-
-const LOCAL_AUDIO_EXT_RE = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus|wma|alac|aiff|aif)$/i;
-const LOCAL_MIN_DURATION_SECONDS = 60;
-
-function localExtOf(name) {
-  const m = /\.([a-z0-9]+)$/i.exec(name || "");
-  return m ? m[1].toLowerCase() : "";
-}
-
-function probeLocalAudioDuration(url) {
-  return new Promise((resolve) => {
-    if (typeof Audio === "undefined") { resolve(null); return; }
-    const probe = new Audio();
-    let done = false;
-    const finish = (duration) => {
-      if (done) return;
-      done = true;
-      probe.removeEventListener("loadedmetadata", onMeta);
-      probe.removeEventListener("error", onError);
-      resolve(duration);
-    };
-    const onMeta = () => finish(isFinite(probe.duration) ? probe.duration : null);
-    const onError = () => finish(null);
-    probe.addEventListener("loadedmetadata", onMeta);
-    probe.addEventListener("error", onError);
-    probe.preload = "metadata";
-    probe.src = url;
-    setTimeout(() => finish(null), 8000);
-  });
-}
-
-function normalizeTrack(raw) {
-  if (!raw) return null;
-  if (raw.source === "local") {
-    return {
-      id: raw.id, videoId: null, title: raw.title,
-      artist: raw.artist || { name: "Perangkat saya" },
-      album: null, cover: raw.cover || null,
-      duration: raw.duration || null, preview: null,
-      explicit: false,
-      source: "local", localUrl: raw.localUrl, fileExt: raw.fileExt || null,
-    };
-  }
-  if (raw.videoId && !raw.artist?.id) {
-    return {
-      id: raw.videoId, videoId: raw.videoId, title: raw.title,
-      artist: raw.artist ? (typeof raw.artist === "string" ? { name: raw.artist } : raw.artist) : null,
-      artists: raw.artists || null,
-      album: raw.album || null, cover: raw.thumbnail || raw.cover || null,
-      duration: raw.duration || null, preview: null,
-      explicit: !!raw.explicit,
-      source: "youtube",
-    };
-  }
-  return {
-    id: String(raw.id), videoId: raw.videoId || null, title: raw.title,
-    artist: raw.artist || null, artists: raw.artists || null, album: raw.album || null,
-    cover: raw.cover || raw.image || raw.banner || null,
-    duration: raw.duration || null, preview: raw.preview || null,
-    explicit: !!raw.explicit,
-    trackPosition: raw.trackPosition, source: "deezer",
-  };
-}
-
-export function PlayerProvider({ children }) {
-  const { authUser, settings, pushToast, t } = useUI();
-
-  const [queueList, setQueueList] = useState([]);
-  const [order, setOrder] = useState([]);
-  const [posInOrder, setPosInOrder] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const setCurrentTime = setPlaybackTime;
-  const [clipDuration, setClipDuration] = useState(0);
-  const [isPreviewClip, setIsPreviewClip] = useState(true);
-  const [audioFormat, setAudioFormat] = useState(null);
-  const [volume, setVolumeState] = useState(0.7);
-  const [muted, setMuted] = useState(false);
-  const [shuffle, setShuffle] = useState(false);
-  const [repeat, setRepeat] = useState("off");
-  const [liked, setLiked] = useState(() => new Set());
-  const [playlists, setPlaylists] = useState([]);
-  const [followedArtists, setFollowedArtists] = useState([]);
-  const [savedAlbums, setSavedAlbums] = useState([]);
-  const [loadingAudio, setLoadingAudio] = useState(false);
-  const [outputDevice, setOutputDeviceState] = useState(readSavedOutputDevice);
-  const [playSource, setPlaySource] = useState(null);
-
-  const [localTracks, setLocalTracks] = useState([]);
-  const [localScan, setLocalScan] = useState({ scanning: false, checked: 0, total: 0, found: 0 });
-  const localObjectUrlsRef = useRef([]);
-  useEffect(() => () => { localObjectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u)); }, []);
-
-  const audioGraphRef = useRef(null);
-  const fadeTimerRef = useRef(null);
-  const wasFadedOutRef = useRef(false);
-
-  const [room, setRoom] = useState(null);
-  const [publicRooms, setPublicRooms] = useState([]);
-  const [roomError, setRoomError] = useState(null);
-  const [roomSyncTick, setRoomSyncTick] = useState(0);
-  const roomSyncRef = useRef(null);
-  const roomRef = useRef(null);
-  const roomTrackEndedRef = useRef(null);
-  const roomAdvanceKeyRef = useRef(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [suggestedQueue, setSuggestedQueue] = useState([]);
-  const suggestedQueueRef = useRef([]);
-  useEffect(() => { suggestedQueueRef.current = suggestedQueue; }, [suggestedQueue]);
-  const queueListRef = useRef([]);
-  useEffect(() => { queueListRef.current = queueList; }, [queueList]);
-  const addToQueueEndRef = useRef(null);
-  const socketRef = useRef(null);
-
-  const audioRef = useRef((() => {
-    if (typeof Audio === "undefined") return null;
-    const a = new Audio();
-    a.crossOrigin = "anonymous";
-    return a;
-  })());
-  const preloadAudioRef = useRef((() => {
-    if (typeof Audio === "undefined") return null;
-    const a = new Audio();
-    a.crossOrigin = "anonymous";
-    a.preload = "auto";
-    a.muted = true;
-    return a;
-  })());
-  // Elemen audio kedua untuk fitur Mix: lagu berikutnya diputar di sini, tumpang tindih dengan
-  // ekor lagu aktif, lalu peran kedua elemen ditukar (audioRef <-> altAudioRef) tanpa jeda.
-  const altAudioRef = useRef((() => {
-    if (typeof Audio === "undefined") return null;
-    const a = new Audio();
-    a.crossOrigin = "anonymous";
-    a.preload = "auto";
-    return a;
-  })());
-  const mixRef = useRef({ active: false, starting: false, token: 0, targetId: null, nextPos: -1, resolved: null });
-  const mixBlockedKeyRef = useRef(null);
-  const nextResolvedRef = useRef(null);
-  const skipLoadKeyRef = useRef(null);
-  const handoffRef = useRef(null);
-  const mixTickRef = useRef(null);
-  const abortMixRef = useRef(null);
-  const finalizeMixRef = useRef(null);
-  const [isMixing, setIsMixing] = useState(false);
-  const promptCast = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio) return { ok: false, reason: "unsupported" };
-    if (!audio.remote || typeof audio.remote.prompt !== "function") {
-      return { ok: false, reason: "unsupported" };
-    }
-    try {
-      await audio.remote.prompt();
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, reason: "cancelled" };
-    }
-  }, []);
-
-  const getAudioSrc = useCallback(() => {
-    const audio = audioRef.current;
-    return audio?.currentSrc || audio?.src || null;
-  }, []);
-
-  const progressElsRef = useRef(new Map());
-  const resolvedFullCache = useRef(new Map());
-  const recoveringRef = useRef(false);
-  const retryCountRef = useRef(0);
-  const isPlayingRef = useRef(false);
-  const pendingResumeTimeRef = useRef(0);
-  const restoredOnceRef = useRef(false);
-
-  useEffect(() => {
-    if (restoredOnceRef.current) return;
-    restoredOnceRef.current = true;
-    const saved = loadPlaybackState();
-    if (!saved) return;
-    setQueueList(saved.queueList);
-    setOrder(saved.order);
-    setPosInOrder(Math.min(Math.max(saved.posInOrder || 0, 0), saved.order.length - 1));
-    if (saved.shuffle) setShuffle(true);
-    if (saved.repeat === "all" || saved.repeat === "one") setRepeat(saved.repeat);
-    if (typeof saved.volume === "number") setVolumeState(clamp(saved.volume, 0, 1));
-    if (saved.muted) setMuted(true);
-    if (saved.playSource) setPlaySource(saved.playSource);
-    pendingResumeTimeRef.current = typeof saved.currentTime === "number" ? saved.currentTime : 0;
-  }, []);
-
-  const playbackSnapshotRef = useRef(null);
-  useEffect(() => {
-    playbackSnapshotRef.current = { queueList, order, posInOrder, shuffle, repeat, volume, muted, playSource };
-  }, [queueList, order, posInOrder, shuffle, repeat, volume, muted, playSource]);
-  const orderPosRef = useRef({ order, posInOrder });
-  useEffect(() => {
-    orderPosRef.current = { order, posInOrder };
-  }, [order, posInOrder]);
-
-  const savePlaybackSnapshotNow = useCallback(() => {
-    const snap = playbackSnapshotRef.current;
-    if (!snap || !snap.queueList?.length || !snap.order?.length) { clearPlaybackState(); return; }
-    savePlaybackState({ ...snap, currentTime: audioRef.current?.currentTime || 0 });
-  }, []);
-
-  useEffect(() => {
-    const onVisibility = () => { if (document.visibilityState === "hidden") savePlaybackSnapshotNow(); };
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", savePlaybackSnapshotNow);
-    const interval = setInterval(() => { if (isPlayingRef.current) savePlaybackSnapshotNow(); }, 20000);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pagehide", savePlaybackSnapshotNow);
-      clearInterval(interval);
-    };
-  }, [savePlaybackSnapshotNow]);
-
-  const ensureAudioGraph = useCallback(() => {
-    if (audioGraphRef.current) return audioGraphRef.current;
-    const audio = audioRef.current;
-    if (!audio || typeof window === "undefined") return null;
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return null;
-    try {
-      const ctx = new Ctx();
-      const savedOut = readSavedOutputDevice();
-      if (savedOut && typeof ctx.setSinkId === "function") ctx.setSinkId(savedOut.id).catch(() => {});
-      const preamp = ctx.createGain();
-      const bands = EQ_BANDS_HZ.map((freq) => {
-        const f = ctx.createBiquadFilter();
-        f.type = "peaking";
-        f.frequency.value = freq;
-        f.Q.value = 1.1;
-        f.gain.value = 0;
-        return f;
-      });
-      const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.value = -24;
-      compressor.knee.value = 20;
-      compressor.ratio.value = 8;
-      compressor.attack.value = 0.01;
-      compressor.release.value = 0.2;
-      const fadeGain = ctx.createGain();
-      fadeGain.gain.value = 1;
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.75;
-
-      const inputs = new Map();
-      [audio, altAudioRef.current].forEach((el) => {
-        if (!el) return;
-        const src = ctx.createMediaElementSource(el);
-        const gain = ctx.createGain();
-        gain.gain.value = 1;
-        src.connect(gain);
-        gain.connect(preamp);
-        inputs.set(el, { source: src, gain });
-      });
-      const source = inputs.get(audio).source;
-      let node = preamp;
-      bands.forEach((b) => { node.connect(b); node = b; });
-      node.connect(compressor);
-      compressor.connect(fadeGain);
-      fadeGain.connect(ctx.destination);
-      fadeGain.connect(analyser);
-
-      const graph = { ctx, source, inputs, preamp, bands, compressor, fadeGain, analyser };
-      audioGraphRef.current = graph;
-      ctx.addEventListener("statechange", () => {
-        if (ctx.state !== "running" && isPlayingRef.current) ctx.resume().catch(() => {});
-      });
-      return graph;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  useEffect(() => {
-    const graph = ensureAudioGraph();
-    if (!graph) return;
-    const eq = settings.equalizer || DEFAULT_EQ;
-    const enabled = !!eq.enabled;
-    graph.preamp.gain.value = enabled ? Math.pow(10, (eq.preamp || 0) / 20) : 1;
-    graph.bands.forEach((band, i) => { band.gain.value = enabled ? (eq.bands?.[i] ?? 0) : 0; });
-  }, [settings.equalizer, ensureAudioGraph]);
-
-  useEffect(() => {
-    const graph = ensureAudioGraph();
-    if (!graph) return;
-    graph.compressor.threshold.value = settings.normalizeVolume ? -24 : 0;
-    graph.compressor.ratio.value = settings.normalizeVolume ? 8 : 1;
-  }, [settings.normalizeVolume, ensureAudioGraph]);
-
-  const getAnalyser = useCallback(() => {
-    const graph = ensureAudioGraph();
-    return graph?.analyser || null;
-  }, [ensureAudioGraph]);
-
-  const getAudioContext = useCallback(() => ensureAudioGraph()?.ctx || null, [ensureAudioGraph]);
-
-  // Pilih perangkat output (null = default sistem). Web Audio dirutekan lewat AudioContext, jadi pakai ctx.setSinkId.
-  const setOutputDevice = useCallback(async (dev) => {
-    const ctx = ensureAudioGraph()?.ctx;
-    const id = dev?.id || "";
-    if (ctx && typeof ctx.setSinkId === "function") {
-      try { await ctx.setSinkId(id); } catch { return false; }
-    } else if (id) {
-      return false;
-    }
-    const next = id ? { id, label: String(dev.label || "") } : null;
-    setOutputDeviceState(next);
-    try {
-      if (next) localStorage.setItem(OUTPUT_DEVICE_KEY, JSON.stringify(next));
-      else localStorage.removeItem(OUTPUT_DEVICE_KEY);
-    } catch {}
-    return true;
-  }, [ensureAudioGraph]);
-
-  const currentTrack = queueList.length && order.length ? queueList[order[posInOrder]] : null;
-  const currentKey = currentTrack ? currentTrack.id : null;
-  const inRoom = !!room;
-
-  useDiscordPresence({ enabled: !!settings.discordPresence, track: currentTrack, isPlaying, audioRef, lyrics: settings.discordPresenceLyrics !== false });
-
-  const defaultDocTitleRef = useRef(typeof document !== "undefined" ? document.title : "");
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    seoState.playing = !!currentTrack;
-    if (!currentTrack) {
-      document.title = seoState.title || defaultDocTitleRef.current;
-      return;
-    }
-    const artistName = currentTrack.artist?.name;
-    document.title = artistName ? `${currentTrack.title} - ${artistName}` : currentTrack.title;
-  }, [currentKey, currentTrack]);
-
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
-    if (!currentTrack) {
-      navigator.mediaSession.metadata = null;
-      navigator.mediaSession.playbackState = "none";
-      return;
-    }
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: currentTrack.title || "",
-      artist: currentTrack.artist?.name || "",
-      album: currentTrack.album || "",
-      artwork: currentTrack.cover
-        ? [
-            { src: currentTrack.cover, sizes: "96x96", type: "image/jpeg" },
-            { src: currentTrack.cover, sizes: "256x256", type: "image/jpeg" },
-            { src: currentTrack.cover, sizes: "512x512", type: "image/jpeg" },
-          ]
-        : [],
-    });
-  }, [currentKey, currentTrack]);
-
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
-    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
-  }, [isPlaying]);
-
-  useEffect(() => { setVolumeState(settings.volumeDefault ?? 0.7); }, []);
-  const currentTrackHasLyrics = true;
-
-  useEffect(() => {
-    if (!authUser) { setLiked(new Set()); setPlaylists([]); setFollowedArtists([]); setSavedAlbums([]); return; }
-    Api.likes().then((rows) => setLiked(new Set(rows.map((r) => String(r.video_id ?? r.videoId ?? r.id))))).catch(() => {});
-    Api.playlists().then(setPlaylists).catch(() => {});
-    Api.followedArtists().then((rows) => setFollowedArtists(Array.isArray(rows) ? rows : [])).catch(() => {});
-    Api.savedAlbums().then((rows) => setSavedAlbums(Array.isArray(rows) ? rows : [])).catch(() => {});
-  }, [authUser]);
-
-  const refreshPlaylists = useCallback(async () => {
-    try { const rows = await Api.playlists(); setPlaylists(rows); } catch { }
-  }, []);
-
-  const registerProgressEl = useCallback((el, mode = "width") => {
-    if (!el) return;
-    progressElsRef.current.set(el, mode);
-    return () => progressElsRef.current.delete(el);
-  }, []);
-  const writeProgress = useCallback((t, dur) => {
-    const pct = dur > 0 ? clamp(t / dur, 0, 1) * 100 : 0;
-    progressElsRef.current.forEach((mode, el) => {
-      if (!el) return;
-      if (mode === "left") el.style.left = `${pct}%`;
-      else if (mode === "ring") { el.style.strokeDashoffset = String(1 - pct / 100); el.style.opacity = pct > 0 ? "1" : "0"; }
-      else el.style.transform = `scaleX(${pct / 100})`;
-    });
-  }, []);
-
-  const resolveAudioSrc = useCallback(async (track, { prefetch = false, forceFresh = false } = {}) => {
-    if (!track) return null;
-    if (track.source === "local") {
-      if (!track.localUrl) return null;
-      return { src: track.localUrl, preview: false, local: true };
-    }
-    const wantFull = settings.audioQuality === "full";
-    const fullSrcFor = async (videoId) => {
-      try {
-        const artistName = (track.artist?.name || (typeof track.artist === "string" ? track.artist : "") || "").trim();
-        return {
-          src: await Api.getStreamUrl(videoId, {
-            prefetch,
-            forceFresh,
-            title: track.title || "",
-            artist: artistName,
-          }),
-          preview: false,
-          videoId,
-        };
-      } catch { return null; }
-    };
-
-    if (wantFull) {
-      let videoId = track.videoId;
-      if (!videoId) {
-        if (resolvedFullCache.current.has(track.id)) {
-          videoId = resolvedFullCache.current.get(track.id);
-        } else {
-          try {
-            const q = `${track.title} ${track.artist?.name || ""}`.trim();
-            const results = await Api.search(q);
-            const best = pickBestAudioMatch(results, track);
-            videoId = best?.videoId || results?.[0]?.videoId || null;
-            resolvedFullCache.current.set(track.id, videoId);
-          } catch { videoId = null; }
-        }
-      }
-      if (videoId) {
-        const full = await fullSrcFor(videoId);
-        if (full) return full;
-      }
-    }
-
-    if (track.preview) return { src: track.preview, preview: true };
-    if (track.videoId) {
-      const full = await fullSrcFor(track.videoId);
-      if (full) return full;
-    }
-    return null;
-  }, [settings.audioQuality, settings.audioFormat]);
-
-  const resumeAudioCtx = useCallback(() => {
-    const graph = ensureAudioGraph();
-    graph?.ctx?.resume?.().catch(() => {});
-  }, [ensureAudioGraph]);
-
-  useEffect(() => {
-    const unlock = () => {
-      resumeAudioCtx();
-      const alt = altAudioRef.current;
-      if (alt && !alt.getAttribute("src")) {
-        try {
-          alt.src = SILENT_WAV;
-          alt.play().then(() => { alt.pause(); alt.removeAttribute("src"); try { alt.load(); } catch {} })
-            .catch(() => { alt.removeAttribute("src"); });
-        } catch {}
-      }
-    };
-    window.addEventListener("pointerdown", unlock, { once: true, passive: true });
-    window.addEventListener("keydown", unlock, { once: true });
-    return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-    };
-  }, [resumeAudioCtx]);
-
-  // ===================== MIX: lagu menyatu ke lagu berikutnya tanpa jeda =====================
-  const mixOn = !!settings.mixEnabled && !inRoom;
-  const mixSeconds = clamp(Number(settings.mixSeconds) || 8, 2, 20);
-  const mixNextPos = posInOrder + 1 < order.length ? posInOrder + 1 : (repeat === "all" && order.length > 1 ? 0 : -1);
-  const mixNextTrack = mixNextPos >= 0 ? (queueList[order[mixNextPos]] || null) : null;
-  const mixPlanned = mixOn && repeat !== "one" && settings.autoplay !== false && !!currentTrack
-    && !!mixNextTrack && mixNextTrack.id !== currentTrack.id && clipDuration > mixSeconds * 2 + 2;
-  // Posisi penanda di bar durasi = titik di mana mix mulai berjalan.
-  const mixMarkerRatio = mixPlanned ? clamp((clipDuration - mixSeconds) / clipDuration, 0, 1) : null;
-
-  const abortMix = () => {
-    const m = mixRef.current;
-    m.token += 1;
-    m.starting = false;
-    m.active = false;
-    m.targetId = null; m.nextPos = -1; m.resolved = null;
-    const graph = audioGraphRef.current;
-    const main = audioRef.current;
-    const alt = altAudioRef.current;
-    if (graph?.inputs) {
-      const now = graph.ctx.currentTime;
-      graph.inputs.forEach((inp, el) => {
-        inp.gain.gain.cancelScheduledValues(now);
-        inp.gain.gain.setValueAtTime(el === main ? 1 : 0, now);
-      });
-    }
-    if (alt) {
-      try { alt.pause(); } catch {}
-      if (alt.getAttribute("src")) { alt.removeAttribute("src"); try { alt.load(); } catch {} }
-      delete alt.dataset.mixFor;
-    }
-    setIsMixing(false);
-  };
-
-  const preloadMixTarget = () => {
-    if (getPreferredAudioFormat() === "flac") return; // FLAC besar: jangan rebut bandwidth lagu yang sedang jalan
-    const alt = altAudioRef.current;
-    const cached = nextResolvedRef.current;
-    if (!alt || !mixNextTrack || !cached || cached.id !== mixNextTrack.id || mixRef.current.active) return;
-    if (alt.dataset.mixFor === String(mixNextTrack.id)) return;
-    alt.dataset.mixFor = String(mixNextTrack.id);
-    alt.src = cached.resolved.src;
-    try { alt.load(); } catch {}
-  };
-
-  const startMix = async (audio) => {
-    const m = mixRef.current;
-    if (m.active || m.starting) return;
-    const tr = mixNextTrack;
-    const nextPos = mixNextPos;
-    const alt = altAudioRef.current;
-    const graph = ensureAudioGraph();
-    if (!tr || !alt || !graph?.inputs?.has(alt) || !graph.inputs.has(audio)) return;
-    m.starting = true;
-    const token = ++m.token;
-    const keyAtStart = currentKey;
-    const stale = () => token !== m.token || audioRef.current !== audio;
-    try {
-      let resolved = nextResolvedRef.current?.id === tr.id ? nextResolvedRef.current.resolved : null;
-      if (!resolved) resolved = await resolveAudioSrc(tr);
-      if (!resolved || stale()) throw new Error("mix-unavailable");
-      const inA = graph.inputs.get(audio);
-      const inB = graph.inputs.get(alt);
-      const t0 = graph.ctx.currentTime;
-      inB.gain.gain.cancelScheduledValues(t0);
-      inB.gain.gain.setValueAtTime(0, t0);
-      if (alt.dataset.mixFor !== String(tr.id) || !alt.getAttribute("src")) {
-        alt.src = resolved.src;
-        alt.dataset.mixFor = String(tr.id);
-      }
-      try { alt.currentTime = 0; } catch {}
-      alt.volume = audio.volume;
-      resumeAudioCtx();
-      await Promise.race([alt.play(), new Promise((_, rej) => setTimeout(() => rej(new Error("mix-timeout")), 6000))]);
-      if (stale()) throw new Error("mix-stale");
-      // Hitung ulang sisa waktu setelah lagu berikutnya benar-benar jalan, supaya fade pas dengan akhir lagu.
-      const remaining = audio.duration - audio.currentTime;
-      if (!isFinite(remaining) || remaining < 1) throw new Error("mix-late");
-      const now = graph.ctx.currentTime;
-      inA.gain.gain.cancelScheduledValues(now);
-      inA.gain.gain.setValueAtTime(1, now);
-      inA.gain.gain.setValueCurveAtTime(MIX_CURVE_OUT, now, remaining);
-      inB.gain.gain.cancelScheduledValues(now);
-      inB.gain.gain.setValueAtTime(0, now);
-      inB.gain.gain.setValueCurveAtTime(MIX_CURVE_IN, now, remaining);
-      m.active = true;
-      m.starting = false;
-      m.targetId = tr.id;
-      m.nextPos = nextPos;
-      m.resolved = resolved;
-      setIsMixing(true);
-    } catch {
-      // Gagal menyiapkan mix -> kembali ke transisi biasa (lagu berikutnya jalan setelah lagu ini selesai).
-      if (token === m.token) { abortMix(); mixBlockedKeyRef.current = keyAtStart; }
-    }
-  };
-
-  const finalizeMix = () => {
-    const m = mixRef.current;
-    if (!m.active) return;
-    const A = audioRef.current;
-    const B = altAudioRef.current;
-    const graph = audioGraphRef.current;
-    const { targetId, nextPos, resolved } = m;
-    m.token += 1;
-    m.active = false; m.starting = false;
-    m.targetId = null; m.nextPos = -1; m.resolved = null;
-    // Tukar peran: elemen yang sudah memutar lagu berikutnya jadi elemen utama.
-    audioRef.current = B;
-    altAudioRef.current = A;
-    skipLoadKeyRef.current = targetId;
-    handoffRef.current = resolved;
-    if (graph?.inputs) {
-      const now = graph.ctx.currentTime;
-      const inA = graph.inputs.get(A);
-      const inB = graph.inputs.get(B);
-      inB.gain.gain.cancelScheduledValues(now); inB.gain.gain.setValueAtTime(1, now);
-      inA.gain.gain.cancelScheduledValues(now); inA.gain.gain.setValueAtTime(0, now);
-    }
-    try { A.pause(); } catch {}
-    A.removeAttribute("src");
-    try { A.load(); } catch {}
-    delete A.dataset.mixFor;
-    B.volume = muted ? 0 : volume;
-    const d = B.duration;
-    setCurrentTime(B.currentTime);
-    if (isFinite(d) && d > 0) { setClipDuration(d); writeProgress(B.currentTime, d); }
-    setLoadingAudio(false);
-    setIsMixing(false);
-    setPosInOrder(nextPos);
-  };
-
-  const mixTick = (audio) => {
-    if (!mixOn) return;
-    const m = mixRef.current;
-    const dur = audio.duration;
-    if (!isFinite(dur) || dur <= 0) return;
-    const remaining = dur - audio.currentTime;
-    if (m.active) { if (remaining <= 0.12) finalizeMix(); return; }
-    if (m.starting || !mixPlanned || audio.paused) return;
-    if (mixBlockedKeyRef.current === currentKey) {
-      if (remaining > mixSeconds + 1.5) mixBlockedKeyRef.current = null; // user mundur sebelum zona mix -> boleh mix lagi
-      return;
-    }
-    if (remaining <= mixSeconds + 8 && remaining > 0) preloadMixTarget();
-    if (remaining <= mixSeconds && remaining > 1.2) startMix(audio);
-  };
-
-  useEffect(() => {
-    mixTickRef.current = mixTick;
-    abortMixRef.current = abortMix;
-    finalizeMixRef.current = finalizeMix;
-  });
-  useEffect(() => { if (!mixOn) abortMixRef.current?.(); }, [mixOn]);
-  // ===========================================================================================
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (!currentTrack) { abortMixRef.current?.(); audio.pause(); audio.removeAttribute("src"); setAudioFormat(null); return; }
     let cancelled = false;
-    // Perpindahan hasil Mix: lagu berikutnya sudah jalan di elemen audio lain -> jangan muat ulang / mulai dari nol.
-    const handoff = skipLoadKeyRef.current != null && skipLoadKeyRef.current === currentTrack.id ? handoffRef.current : null;
-    skipLoadKeyRef.current = null;
-    handoffRef.current = null;
-    if (!handoff) { abortMixRef.current?.(); setLoadingAudio(true); }
-    (handoff ? Promise.resolve(handoff) : resolveAudioSrc(currentTrack)).then((resolved) => {
-      if (cancelled) return;
-      if (!resolved) {
-        setLoadingAudio(false);
-        pushToast(`${t("toastAudioUnavailable")} "${currentTrack.title}"`);
-        return;
+    const tryPlay = () => {
+      const p = video.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => { if (!cancelled) markPlaying(true); }).catch(() => { if (!cancelled) markPlaying(false); });
+      } else if (!cancelled) {
+        markPlaying(!video.paused);
       }
-      setIsPreviewClip(resolved.preview);
-      const isNewSrc = !handoff && audio.src !== resolved.src;
-      if (isNewSrc) audio.src = resolved.src;
-      if (pendingResumeTimeRef.current > 0) {
-        audio.currentTime = pendingResumeTimeRef.current;
-        pendingResumeTimeRef.current = 0;
-      }
-      setAudioFormat(null);
-      if (resolved.local) {
-        const ext = (currentTrack.fileExt || "").toUpperCase();
-        setAudioFormat(ext ? { label: ext, mimeType: `audio/${currentTrack.fileExt}`, codec: ext.toLowerCase(), container: ext } : "unavailable");
-      } else if (resolved.preview) {
-        setAudioFormat({ label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" });
-      } else if (resolved.videoId) {
-        if (getPreferredAudioFormat() === "flac") {
-          setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
-        } else Api.trackAudioInfo(resolved.videoId)
-          .then((info) => {
-            if (cancelled) return;
-            const unified = unifyAudioInfoFields(info);
-            const label = audioLabelFromInfo(info);
-            if (!unified || !label) { setAudioFormat("unavailable"); return; }
-            setAudioFormat({ label, mimeType: unified.mimeType, codec: unified.codec, container: unified.container });
-          })
-          .catch(() => { if (!cancelled) setAudioFormat("unavailable"); });
-      } else {
-        setAudioFormat("unavailable");
-      }
-      audio.volume = muted ? 0 : volume;
-      wasFadedOutRef.current = false;
-      const graph = ensureAudioGraph();
-      if (graph && settings.crossfadeSeconds > 0 && !inRoom && !mixOn && !handoff) {
-        graph.fadeGain.gain.cancelScheduledValues(graph.ctx.currentTime);
-        graph.fadeGain.gain.setValueAtTime(0, graph.ctx.currentTime);
-        graph.fadeGain.gain.linearRampToValueAtTime(1, graph.ctx.currentTime + settings.crossfadeSeconds);
-      } else if (graph) {
-        graph.fadeGain.gain.cancelScheduledValues(graph.ctx.currentTime);
-        graph.fadeGain.gain.setValueAtTime(1, graph.ctx.currentTime);
-      }
-
-      let shouldPlay = isPlaying;
-      if (inRoom) {
-        const sync = roomSyncRef.current;
-        if (sync) {
-          if (sync.hardSeek || isNewSrc) audio.currentTime = sync.position || 0;
-          shouldPlay = isPlaying && sync.allowAutoplay;
-        }
-      }
-      if (shouldPlay) { resumeAudioCtx(); audio.play().catch(() => {}); }
-    });
-    return () => { cancelled = true; };
-  }, [currentKey]);
-
-  useEffect(() => {
-    if (!inRoom) return;
-    const sync = roomSyncRef.current;
-    const audio = audioRef.current;
-    if (!sync || !audio || !currentTrack) return;
-    const drift = Math.abs((audio.currentTime || 0) - (sync.position || 0));
-    if (sync.hardSeek || drift > 1.5) audio.currentTime = sync.position || 0;
-  }, [roomSyncTick, inRoom]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack) return;
-    if (isPlaying) { resumeAudioCtx(); audio.play().catch(() => {}); }
-    else {
-      if (mixRef.current.active || mixRef.current.starting) abortMixRef.current?.();
-      audio.pause();
-    }
-  }, [isPlaying]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) audio.volume = muted ? 0 : volume;
-    const alt = altAudioRef.current;
-    if (alt) alt.volume = muted ? 0 : volume;
-  }, [volume, muted]);
-
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
-  useEffect(() => { retryCountRef.current = 0; }, [currentKey]);
-
-  useEffect(() => {
-    if (!currentTrack || inRoom || repeat === "one") return;
-    const nextIdx = posInOrder + 1;
-    if (nextIdx >= order.length) return;
-    const nextTrack = queueList[order[nextIdx]];
-    if (!nextTrack) return;
-    let cancelled = false;
-    // Pra-siapkan tiket lagu berikutnya supaya transisi tidak perlu meminta
-    // tiket lagi (±1–2 s). Badan file hanya dipra-unduh untuk format ringan;
-    // FLAC 20–29 MB TIDAK diambil penuh — di jalur ~5 Mbps pra-unduhan penuh
-    // merebut bandwidth dari lagu yang sedang diputar (terukur: stream utama
-    // turun ke ~1,4 Mbps → audio putus-putus).
-    const skipBody = getPreferredAudioFormat() === "flac";
-    resolveAudioSrc(nextTrack, { prefetch: true }).then((resolved) => {
-      if (cancelled || !resolved) return;
-      nextResolvedRef.current = { id: nextTrack.id, resolved };
-      if (skipBody) return;
-      const pre = preloadAudioRef.current;
-      if (pre && pre.src !== resolved.src) {
-        pre.src = resolved.src;
-        try { pre.load(); } catch { }
-      }
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [currentKey, posInOrder, order, queueList, inRoom, repeat, resolveAudioSrc]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const syncDuration = () => {
-      const d = audio.duration;
-      if (isFinite(d) && d > 0) setClipDuration(d);
     };
-    const onTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-      writeProgress(audio.currentTime, audio.duration || clipDuration);
-      const cf = mixOn ? 0 : (settings.crossfadeSeconds || 0);
-      if (cf > 0 && !inRoom && repeat !== "one" && !wasFadedOutRef.current) {
-        const dur = audio.duration || clipDuration;
-        if (isFinite(dur) && dur > 0 && dur - audio.currentTime <= cf) {
-          const graph = audioGraphRef.current;
-          if (graph) {
-            wasFadedOutRef.current = true;
-            graph.fadeGain.gain.cancelScheduledValues(graph.ctx.currentTime);
-            graph.fadeGain.gain.setValueAtTime(graph.fadeGain.gain.value, graph.ctx.currentTime);
-            graph.fadeGain.gain.linearRampToValueAtTime(0.001, graph.ctx.currentTime + Math.max(0.05, dur - audio.currentTime));
+
+    if (streamType === "hls") {
+      let hls = null;
+      import("hls.js")
+        .then((mod) => {
+          if (cancelled) return;
+          const HlsClass = mod.default || mod;
+          if (!HlsClass.isSupported()) {
+            setStatus("error");
+            setErrorMsg(t("videoUnavailable"));
+            return;
           }
-        }
-      }
-      mixTickRef.current?.(audio);
-    };
-    const onSeeking = () => {
-      const m = mixRef.current;
-      if (m.active || m.starting) { abortMixRef.current?.(); mixBlockedKeyRef.current = currentKey; }
-    };
-    const onEnded = () => {
-      if (inRoom) { roomTrackEndedRef.current?.(); return; }
-      if (mixRef.current.active) { finalizeMixRef.current?.(); return; }
-      if (mixRef.current.starting) abortMixRef.current?.();
-      if (repeat === "one") { audio.currentTime = 0; audio.play().catch(() => {}); return; }
-      if (settings.autoplay === false) { setIsPlaying(false); pushToast(t("toastAutoplayOff")); return; }
-      nextRef.current(true);
-    };
-    let stalledTimer = null;
-    const clearStalledTimer = () => { if (stalledTimer) { clearTimeout(stalledTimer); stalledTimer = null; } };
-
-    const recoverPlayback = async () => {
-      if (recoveringRef.current) return;
-      if (retryCountRef.current >= 3) return;
-      if (!currentTrack || inRoom) return;
-      const resumeAt = audio.currentTime || 0;
-      recoveringRef.current = true;
-      retryCountRef.current += 1;
-      try {
-        const resolved = await resolveAudioSrc(currentTrack, { forceFresh: true });
-        if (!resolved) return;
-        audio.src = resolved.src;
-        audio.currentTime = resumeAt;
-        if (isPlayingRef.current) {
-          resumeAudioCtx();
-          await audio.play().catch(() => {});
-        }
-      } catch {
-      } finally {
-        recoveringRef.current = false;
-      }
-    };
-    const onError = () => {
-      setLoadingAudio(false);
-      recoverPlayback();
-    };
-    const onStalled = () => {
-      clearStalledTimer();
-      stalledTimer = setTimeout(() => { recoverPlayback(); }, 6000);
-    };
-    const onCanPlay = () => { setLoadingAudio(false); retryCountRef.current = 0; clearStalledTimer(); };
-    const onPlaying = () => { setLoadingAudio(false); retryCountRef.current = 0; clearStalledTimer(); };
-    const onWaiting = () => {
-      setLoadingAudio(true);
-      clearStalledTimer();
-      stalledTimer = setTimeout(() => { recoverPlayback(); }, 8000);
-    };
-    audio.addEventListener("loadedmetadata", syncDuration);
-    audio.addEventListener("durationchange", syncDuration);
-    audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("seeking", onSeeking);
-    audio.addEventListener("error", onError);
-    audio.addEventListener("stalled", onStalled);
-    audio.addEventListener("canplay", onCanPlay);
-    audio.addEventListener("playing", onPlaying);
-    audio.addEventListener("waiting", onWaiting);
-    return () => {
-      clearStalledTimer();
-      audio.removeEventListener("loadedmetadata", syncDuration);
-      audio.removeEventListener("durationchange", syncDuration);
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("seeking", onSeeking);
-      audio.removeEventListener("error", onError);
-      audio.removeEventListener("stalled", onStalled);
-      audio.removeEventListener("canplay", onCanPlay);
-      audio.removeEventListener("playing", onPlaying);
-      audio.removeEventListener("waiting", onWaiting);
-    };
-  }, [repeat, inRoom, mixOn, writeProgress, settings.crossfadeSeconds, settings.autoplay, pushToast, t, clipDuration, currentTrack, resolveAudioSrc, resumeAudioCtx]);
-
-  useEffect(() => {
-    const onVisible = () => {
-      const audio = audioRef.current;
-      if (!audio) return;
-      if (document.visibilityState !== "visible") return;
-      resumeAudioCtx();
-      setCurrentTime(audio.currentTime);
-      writeProgress(audio.currentTime, audio.duration || clipDuration);
-      if (isFinite(audio.duration) && audio.duration > 0) setClipDuration(audio.duration);
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [writeProgress, clipDuration, resumeAudioCtx]);
-
-  useEffect(() => {
-    if (!audioRef.current) return undefined;
-    const nudge = () => {
-      const audio = audioRef.current;
-      if (!audio || !isPlayingRef.current) return;
-      const graph = audioGraphRef.current;
-      if (graph?.ctx && graph.ctx.state !== "running") graph.ctx.resume().catch(() => {});
-      if (audio.paused) audio.play().catch(() => {});
-    };
-    const id = setInterval(nudge, 3000);
-    document.addEventListener("visibilitychange", nudge);
-    window.addEventListener("focus", nudge);
-    window.addEventListener("pageshow", nudge);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", nudge);
-      window.removeEventListener("focus", nudge);
-      window.removeEventListener("pageshow", nudge);
-    };
-  }, []);
-
-  useEffect(() => {
-    let raf;
-    function tick() {
-      const audio = audioRef.current;
-      if (audio && !audio.paused) writeProgress(audio.currentTime, audio.duration || clipDuration);
-      raf = requestAnimationFrame(tick);
-    }
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [writeProgress, clipDuration]);
-
-  const scanLocalFiles = useCallback(async (fileList) => {
-    const files = Array.from(fileList || []).filter((f) => {
-      if (f.type && f.type.startsWith("audio/")) return true;
-      return LOCAL_AUDIO_EXT_RE.test(f.name);
-    });
-    if (!files.length) {
-      pushToast(t("toastNoAudioFilesFound") || "Nggak ada file audio ditemukan di folder itu.");
-      return;
-    }
-    setLocalScan({ scanning: true, checked: 0, total: files.length, found: 0 });
-    const results = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const url = URL.createObjectURL(file);
-      const duration = await probeLocalAudioDuration(url);
-      if (duration && duration >= LOCAL_MIN_DURATION_SECONDS) {
-        localObjectUrlsRef.current.push(url);
-        const ext = localExtOf(file.name);
-        const nameNoExt = file.name.replace(/\.[a-z0-9]+$/i, "");
-        results.push({
-          id: `local-${file.name}-${file.size}-${file.lastModified}`,
-          title: nameNoExt || file.name,
-          artist: { name: "Perangkat saya" },
-          cover: null,
-          duration,
-          localUrl: url,
-          fileExt: ext,
-          source: "local",
+          hls = new HlsClass({ enableWorker: true, lowLatencyMode: false, backBufferLength: 60 });
+          hlsRef.current = hls;
+          hls.loadSource(src);
+          hls.attachMedia(video);
+          hls.on(HlsClass.Events.MANIFEST_PARSED, () => { if (!cancelled) tryPlay(); });
+          hls.on(HlsClass.Events.ERROR, (_e, data) => {
+            if (!data?.fatal || cancelled) return;
+            console.error("[aivy-mv] hls.js fatal:", data.details);
+            setStatus("error");
+            setErrorMsg(t("videoUnavailable"));
+          });
+        })
+        .catch(() => {
+          if (!cancelled) { setStatus("error"); setErrorMsg(t("videoUnavailable")); }
         });
-      } else {
-        URL.revokeObjectURL(url);
-      }
-      setLocalScan((s) => ({ ...s, checked: i + 1, found: results.length }));
-    }
-    setLocalTracks((prev) => {
-      const knownIds = new Set(prev.map((tr) => tr.id));
-      return [...prev, ...results.filter((r) => !knownIds.has(r.id))];
-    });
-    setLocalScan((s) => ({ ...s, scanning: false }));
-    pushToast(`${results.length} lagu ditemukan (di atas 1 menit)`);
-  }, [pushToast, t]);
-
-  const clearLocalLibrary = useCallback(() => {
-    localObjectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    localObjectUrlsRef.current = [];
-    setLocalTracks([]);
-    setLocalScan({ scanning: false, checked: 0, total: 0, found: 0 });
-  }, []);
-
-  const buildOrder = useCallback((len, startIndex, shuf) => {
-    const idxs = Array.from({ length: len }, (_, i) => i);
-    if (!shuf) return idxs;
-    const rest = idxs.filter((i) => i !== startIndex);
-    for (let i = rest.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [rest[i], rest[j]] = [rest[j], rest[i]];
-    }
-    return [startIndex, ...rest];
-  }, []);
-
-  const playList = useCallback((rawList, startIndex = 0, source = null, shuffleOverride = null) => {
-    resumeAudioCtx();
-    const list = rawList.map(normalizeTrack).filter(Boolean);
-    if (!list.length) return;
-    if (inRoom) {
-      const baseIndex = room.queue?.length || 0;
-      const safeStart = clamp(startIndex, 0, list.length - 1);
-      list.forEach((t) => socketRef.current?.emit("queue-add", { roomId: room.id, song: t }));
-      socketRef.current?.emit("playback-control", { roomId: room.id, action: "select", payload: { index: baseIndex + safeStart } });
-      return;
-    }
-    const effectiveShuffle = shuffleOverride !== null ? shuffleOverride : shuffle;
-    const safeStart = clamp(startIndex, 0, list.length - 1);
-    setQueueList(list);
-    setOrder(buildOrder(list.length, safeStart, effectiveShuffle));
-
-    setPosInOrder(effectiveShuffle ? 0 : safeStart);
-    setIsPlaying(true);
-    setPlaySource(source);
-    if (shuffleOverride !== null && shuffleOverride !== shuffle) setShuffle(shuffleOverride);
-    if (authUser && settings.historyEnabled !== false) {
-      const t = list[clamp(startIndex, 0, list.length - 1)];
-      Api.addHistory(t.videoId || t.id, { title: t.title, artistName: t.artist?.name || null, artists: trackArtists(t), thumbnail: t.cover, albumId: t.album?.id || null, albumTitle: t.album?.title || null, duration: t.duration, explicit: !!t.explicit }).catch(() => {});
-    }
-  }, [inRoom, room, buildOrder, shuffle, authUser, settings.historyEnabled, resumeAudioCtx]);
-
-  const playSingle = useCallback((rawTrack, source = null) => {
-    resumeAudioCtx();
-    const track = normalizeTrack(rawTrack);
-    if (!track) return;
-    if (inRoom) {
-      const existingIdx = room.queue?.findIndex((t) => String(t.id) === String(track.id) || (track.videoId && String(t.videoId) === String(track.videoId)));
-      if (existingIdx !== undefined && existingIdx !== -1) {
-        socketRef.current?.emit("playback-control", { roomId: room.id, action: "select", payload: { index: existingIdx } });
-      } else {
-        const newIndex = room.queue?.length || 0;
-        socketRef.current?.emit("queue-add", { roomId: room.id, song: track });
-        socketRef.current?.emit("playback-control", { roomId: room.id, action: "select", payload: { index: newIndex } });
-      }
-      return;
+      return () => {
+        cancelled = true;
+        if (hls) { hls.destroy(); hlsRef.current = null; }
+      };
     }
 
-    setPlaySource(source);
-    const existingIdx = queueList.findIndex((t) => t.id === track.id);
-    if (existingIdx !== -1) {
-      const posInOrder = order.indexOf(existingIdx);
-      if (posInOrder !== -1) { setPosInOrder(posInOrder); setIsPlaying(true); return; }
-    }
-
-    setQueueList([track]);
-    setOrder([0]);
-    setPosInOrder(0);
-    setIsPlaying(true);
-    if (authUser && settings.historyEnabled !== false) {
-      Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit }).catch(() => {});
-    }
-  }, [inRoom, room, queueList, order, authUser, settings.historyEnabled, resumeAudioCtx]);
-
-  const radioSeqRef = useRef(0);
-  const playRadio = useCallback((rawTrack, source = null) => {
-    resumeAudioCtx();
-    const track = normalizeTrack(rawTrack);
-    if (!track) return;
-    if (inRoom) { playSingle(track, source); return; }
-
-    const seq = ++radioSeqRef.current;
-    setQueueList([track]);
-    setOrder([0]);
-    setPosInOrder(0);
-    setIsPlaying(true);
-    setPlaySource(source);
-    if (authUser && settings.historyEnabled !== false) {
-      Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit }).catch(() => {});
-    }
-
-    const similarArgs = track.source === "deezer"
-      ? { trackId: track.id }
-      : { title: track.title, artist: track.artist?.name || "" };
-
-    Api.similar(similarArgs).then((res) => {
-      if (seq !== radioSeqRef.current) return;
-      const items = (res?.items || []).map(normalizeTrack).filter(Boolean).filter((t) => t.id !== track.id);
-      if (!items.length) return;
-      setQueueList((list) => {
-        if (seq !== radioSeqRef.current || !(list.length === 1 && list[0].id === track.id)) return list;
-        setOrder((ord) => {
-          if (!(ord.length === 1 && ord[0] === 0)) return ord;
-          const rest = items.map((_, i) => i + 1);
-          if (shuffle) {
-            for (let i = rest.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [rest[i], rest[j]] = [rest[j], rest[i]];
-            }
-          }
-          return [0, ...rest];
-        });
-        return [...list, ...items];
-      });
-    }).catch(() => {});
-  }, [inRoom, playSingle, authUser, settings.historyEnabled, shuffle, resumeAudioCtx]);
-
-  const suggestSeqRef = useRef(0);
-  useEffect(() => {
-    if (inRoom || !currentTrack) { setSuggestedQueue([]); return; }
-    const seq = ++suggestSeqRef.current;
-    const seedTrack = currentTrack;
-    const similarArgs = seedTrack.source === "deezer"
-      ? { trackId: seedTrack.id }
-      : { title: seedTrack.title, artist: seedTrack.artist?.name || "" };
-
-    Api.similar(similarArgs).then((res) => {
-      if (seq !== suggestSeqRef.current) return;
-      const knownIds = new Set(queueList.map((t) => String(t.id)));
-      const items = (res?.items || [])
-        .map(normalizeTrack)
-        .filter(Boolean)
-        .filter((t) => t.id !== seedTrack.id && !knownIds.has(String(t.id)));
-      setSuggestedQueue(items.slice(0, 10));
-    }).catch(() => {
-      if (seq !== suggestSeqRef.current) return;
-      setSuggestedQueue([]);
-    });
-  }, [currentKey, inRoom]);
-
-  const applyRadioContinuation = useCallback((nextTrack, rest) => {
-    setSuggestedQueue(rest);
-    setQueueList((list) => {
-      const newList = [...list, nextTrack];
-      setOrder((ord) => [...ord, newList.length - 1]);
-      return newList;
-    });
-    setPosInOrder((p) => p + 1);
-    setIsPlaying(true);
-    if (authUser && settings.historyEnabled !== false) {
-      Api.addHistory(nextTrack.videoId || nextTrack.id, { title: nextTrack.title, artistName: nextTrack.artist?.name || null, artists: trackArtists(nextTrack), thumbnail: nextTrack.cover, albumId: nextTrack.album?.id || null, albumTitle: nextTrack.album?.title || null, duration: nextTrack.duration, explicit: !!nextTrack.explicit }).catch(() => {});
-    }
-  }, [authUser, settings.historyEnabled]);
-
-  const continueWithRadio = useCallback(() => {
-    const rq = suggestedQueueRef.current;
-    if (!rq.length) return false;
-    const [nextTrack, ...rest] = rq;
-    applyRadioContinuation(nextTrack, rest);
-    return true;
-  }, [applyRadioContinuation]);
-
-  const fetchRadioContinuationNow = useCallback(async (seedTrack) => {
-    if (!seedTrack) return false;
-    try {
-      const similarArgs = seedTrack.source === "deezer"
-        ? { trackId: seedTrack.id }
-        : { title: seedTrack.title, artist: seedTrack.artist?.name || "" };
-      const res = await Api.similar(similarArgs);
-      const knownIds = new Set(queueListRef.current.map((t) => String(t.id)));
-      const items = (res?.items || [])
-        .map(normalizeTrack)
-        .filter(Boolean)
-        .filter((t) => t.id !== seedTrack.id && !knownIds.has(String(t.id)));
-      if (!items.length) return false;
-      applyRadioContinuation(items[0], items.slice(1, 5));
-      return true;
-    } catch {
-      return false;
-    }
-  }, [applyRadioContinuation]);
-
-  const promoteSuggestion = useCallback((track) => {
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
-    addToQueueEndRef.current?.(track);
-  }, []);
-
-  // Hapus satu saran AutoPlay dari daftar (tombol ✕ di antrean now playing mobile).
-  const dismissSuggestion = useCallback((track) => {
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
-  }, []);
-
-  // Putar saran AutoPlay sekarang juga: sisipkan tepat setelah lagu yang sedang diputar lalu pindah ke sana.
-  const playSuggestion = useCallback((rawTrack) => {
-    const track = normalizeTrack(rawTrack);
-    if (!track || inRoom) return;
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
-    setQueueList((list) => {
-      const newList = [...list, track];
-      const idx = newList.length - 1;
-      setOrder((ord) => { const c = [...ord]; c.splice(posInOrder + 1, 0, idx); return c; });
-      return newList;
-    });
-    setPosInOrder(posInOrder + 1);
-    setIsPlaying(true);
-  }, [inRoom, posInOrder]);
-
-  const togglePlay = useCallback(() => {
-    if (!currentTrack) return;
-    resumeAudioCtx();
-    if (inRoom) {
-      socketRef.current?.emit("playback-control", { roomId: room.id, action: isPlaying ? "pause" : "play" });
-      return;
-    }
-    setIsPlaying((p) => !p);
-  }, [currentTrack, inRoom, room, isPlaying, resumeAudioCtx]);
-
-  const next = useCallback((auto = false) => {
-    if (mixRef.current.active) { finalizeMixRef.current?.(); return; }
-    if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "next" }); return; }
-    const isLast = posInOrder >= order.length - 1;
-    if (isLast) {
-      if (repeat === "all" && order.length) { setPosInOrder(0); return; }
-      if (repeat !== "one" && settings.autoplay !== false) {
-        if (continueWithRadio()) return;
-        fetchRadioContinuationNow(currentTrack).then((ok) => {
-          if (!ok && auto) setIsPlaying(false);
-        });
-        return;
-      }
-      if (!auto) return;
-      setIsPlaying(false);
-      return;
-    }
-    setPosInOrder((p) => p + 1);
-  }, [inRoom, room, order.length, posInOrder, repeat, settings.autoplay, continueWithRadio, fetchRadioContinuationNow, currentTrack]);
-  const nextRef = useRef(next);
-  useEffect(() => { nextRef.current = next; }, [next]);
-
-  const prev = useCallback(() => {
-    if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "prev" }); return; }
-    const audio = audioRef.current;
-    if (audio && audio.currentTime > 3) { audio.currentTime = 0; return; }
-    setPosInOrder((p) => (p <= 0 ? (repeat === "all" ? Math.max(order.length - 1, 0) : 0) : p - 1));
-  }, [inRoom, room, order.length, repeat]);
-
-  const seekRatio = useCallback((ratio) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (clipDuration || 0);
-    if (!dur) return;
-    const t = clamp(ratio, 0, 1) * dur;
-    if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "seek", payload: { position: t } }); return; }
-    audio.currentTime = t;
-    setCurrentTime(t);
-    writeProgress(t, dur);
-  }, [inRoom, room, clipDuration, writeProgress]);
-
-  const seekTo = useCallback((seconds) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : (clipDuration || 0);
-    const t = clamp(seconds, 0, dur || seconds);
-    if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "seek", payload: { position: t } }); return; }
-    audio.currentTime = t;
-    setCurrentTime(t);
-    writeProgress(t, dur);
-  }, [inRoom, room, clipDuration, writeProgress]);
-
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
-    const ms = navigator.mediaSession;
-    const safe = (fn) => (...args) => { try { fn(...args); } catch {} };
-    ms.setActionHandler("play", safe(() => { if (!isPlaying) togglePlay(); }));
-    ms.setActionHandler("pause", safe(() => { if (isPlaying) togglePlay(); }));
-    ms.setActionHandler("previoustrack", safe(() => prev()));
-    ms.setActionHandler("nexttrack", safe(() => next()));
-    ms.setActionHandler("seekto", safe((details) => {
-      if (details?.seekTime != null) seekTo(details.seekTime);
-    }));
-    ms.setActionHandler("stop", safe(() => { if (isPlaying) togglePlay(); }));
-    return () => {
-      try {
-        ms.setActionHandler("play", null);
-        ms.setActionHandler("pause", null);
-        ms.setActionHandler("previoustrack", null);
-        ms.setActionHandler("nexttrack", null);
-        ms.setActionHandler("seekto", null);
-        ms.setActionHandler("stop", null);
-      } catch {}
-    };
-  }, [isPlaying, togglePlay, prev, next, seekTo]);
-
-  const toggleShuffle = useCallback(() => {
-    setShuffle((s) => {
-      const ns = !s;
-      if (queueList.length) {
-        const { order: curOrder, posInOrder: curPos } = orderPosRef.current;
-        const curListIdx = curOrder[curPos];
-        const newOrder = buildOrder(queueList.length, curListIdx, ns);
-        const newPos = newOrder.indexOf(curListIdx);
-        orderPosRef.current = { order: newOrder, posInOrder: newPos < 0 ? 0 : newPos };
-        setOrder(newOrder);
-        setPosInOrder(newPos < 0 ? 0 : newPos);
-      }
-      return ns;
-    });
-  }, [queueList.length, buildOrder]);
-
-  const cycleRepeat = useCallback(() => setRepeat((r) => (r === "off" ? "all" : r === "all" ? "one" : "off")), []);
-  const setVolume = useCallback((v) => { setVolumeState(clamp(v, 0, 1)); if (v > 0) setMuted(false); }, []);
-  const toggleMute = useCallback(() => setMuted((m) => !m), []);
-
-  const toggleLike = useCallback(async (track) => {
-    if (!authUser) { pushToast(t("toastLoginToSave")); return; }
-    const key = String(track.videoId || track.id);
-    const willLike = !liked.has(key);
-    setLiked((prev) => { const n = new Set(prev); willLike ? n.add(key) : n.delete(key); return n; });
-    pushToast(`${willLike ? t("toastAddedLiked") : t("toastRemovedLiked")} — ${track.title}`);
-    try {
-      if (willLike) await Api.like(key, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit });
-      else await Api.unlike(key);
-    } catch { pushToast(t("toastLikeFailed")); }
-  }, [authUser, liked, pushToast, t]);
-
-  const followedArtistIds = useMemo(() => new Set(followedArtists.map((a) => String(a.id))), [followedArtists]);
-  const savedAlbumIds = useMemo(() => new Set(savedAlbums.map((a) => String(a.id))), [savedAlbums]);
-
-  const toggleFollowArtist = useCallback(async (artist) => {
-    if (!authUser) { pushToast(t("toastLoginToFollow")); return; }
-    const id = artist?.id ? String(artist.id) : null;
-    if (!id || !artist?.name) return;
-    const willFollow = !followedArtists.some((a) => String(a.id) === id);
-    const image = artist.image || artist.banner || null;
-    setFollowedArtists((prev) => willFollow
-      ? [{ id, name: artist.name, image }, ...prev.filter((a) => String(a.id) !== id)]
-      : prev.filter((a) => String(a.id) !== id));
-    pushToast(`${willFollow ? t("followedToast") : t("unfollowedToast")} ${artist.name}`);
-    try {
-      if (willFollow) await Api.followArtist(id, { name: artist.name, image });
-      else await Api.unfollowArtist(id);
-    } catch {
-      setFollowedArtists((prev) => willFollow
-        ? prev.filter((a) => String(a.id) !== id)
-        : [{ id, name: artist.name, image }, ...prev.filter((a) => String(a.id) !== id)]);
-      pushToast(t("toastFollowFailed"));
-    }
-  }, [authUser, followedArtists, pushToast, t]);
-
-  const toggleSaveAlbum = useCallback(async (album) => {
-    if (!authUser) { pushToast(t("toastLoginToSave")); return; }
-    const id = album?.id ? String(album.id) : null;
-    if (!id || !album?.title) return;
-    const willSave = !savedAlbums.some((a) => String(a.id) === id);
-    const entry = {
-      id,
-      title: album.title,
-      cover: album.cover || null,
-      artist: album.artist?.name ? { id: album.artist.id || null, name: album.artist.name } : null,
-      releaseDate: album.releaseDate || null,
-    };
-    setSavedAlbums((prev) => willSave
-      ? [entry, ...prev.filter((a) => String(a.id) !== id)]
-      : prev.filter((a) => String(a.id) !== id));
-    pushToast(`${willSave ? t("toastAlbumSaved") : t("toastAlbumRemoved")} — ${album.title}`);
-    try {
-      if (willSave) await Api.saveAlbum(id, { title: entry.title, cover: entry.cover, artistId: entry.artist?.id || null, artistName: entry.artist?.name || null, releaseDate: entry.releaseDate });
-      else await Api.unsaveAlbum(id);
-    } catch {
-      setSavedAlbums((prev) => willSave
-        ? prev.filter((a) => String(a.id) !== id)
-        : [entry, ...prev.filter((a) => String(a.id) !== id)]);
-      pushToast(t("toastAlbumFailed"));
-    }
-  }, [authUser, savedAlbums, pushToast, t]);
-
-  const addToQueueEnd = useCallback((rawTrack) => {
-    const track = normalizeTrack(rawTrack);
-    if (!track) return;
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
-    if (inRoom) { socketRef.current?.emit("queue-add", { roomId: room.id, song: track }); pushToast(`${t("toastAddedRoomQueue")} — ${track.title}`); return; }
-    setQueueList((list) => {
-      const newList = [...list, track];
-      setOrder((ord) => [...ord, newList.length - 1]);
-      return newList;
-    });
-    pushToast(`${t("toastAddedQueue")} — ${track.title}`);
-  }, [inRoom, room, pushToast, t]);
-  useEffect(() => { addToQueueEndRef.current = addToQueueEnd; }, [addToQueueEnd]);
-
-  const playNextInQueue = useCallback((rawTrack) => {
-    const track = normalizeTrack(rawTrack);
-    if (inRoom) { addToQueueEnd(track); return; }
-    setQueueList((list) => {
-      const newList = [...list, track];
-      setOrder((ord) => { const c = [...ord]; c.splice(posInOrder + 1, 0, newList.length - 1); return c; });
-      return newList;
-    });
-    pushToast(`${t("toastPlayAfterThis")} — ${track.title}`);
-  }, [inRoom, addToQueueEnd, posInOrder, pushToast, t]);
-
-  const addAllToQueueEnd = useCallback((rawTracks) => {
-    const tracks = (rawTracks || []).map(normalizeTrack).filter(Boolean);
-    if (!tracks.length) return;
-    if (inRoom) { tracks.forEach((track) => socketRef.current?.emit("queue-add", { roomId: room.id, song: track })); pushToast(t("toastAddedQueue")); return; }
-    setQueueList((list) => {
-      const newList = [...list, ...tracks];
-      setOrder((ord) => [...ord, ...tracks.map((_, i) => list.length + i)]);
-      return newList;
-    });
-    pushToast(t("toastAddedQueue"));
-  }, [inRoom, room, pushToast, t]);
-
-  const playAllNext = useCallback((rawTracks) => {
-    const tracks = (rawTracks || []).map(normalizeTrack).filter(Boolean);
-    if (!tracks.length) return;
-    if (inRoom) { addAllToQueueEnd(tracks); return; }
-    setQueueList((list) => {
-      const newList = [...list, ...tracks];
-      setOrder((ord) => {
-        const c = [...ord];
-        const inserted = tracks.map((_, i) => list.length + i);
-        c.splice(posInOrder + 1, 0, ...inserted);
-        return c;
-      });
-      return newList;
-    });
-    pushToast(t("toastPlayAfterThis"));
-  }, [inRoom, addAllToQueueEnd, posInOrder, pushToast, t]);
-
-  const removeFromQueue = useCallback((upNextIndex) => {
-    if (inRoom) {
-      const absolutePos = (room?.currentIndex ?? -1) + 1 + upNextIndex;
-      socketRef.current?.emit("queue-remove", { roomId: room.id, position: absolutePos });
-      return;
-    }
-    setOrder((ord) => {
-      const absolutePos = posInOrder + 1 + upNextIndex;
-      return ord.filter((_, i) => i !== absolutePos);
-    });
-  }, [inRoom, room, posInOrder]);
-
-  const moveQueueItem = useCallback((fromUpNextIndex, toUpNextIndex) => {
-    if (fromUpNextIndex === toUpNextIndex) return;
-    if (inRoom) {
-      const base = (room?.currentIndex ?? -1) + 1;
-      socketRef.current?.emit("queue-reorder", { roomId: room.id, from: base + fromUpNextIndex, to: base + toUpNextIndex });
-      return;
-    }
-    setOrder((ord) => {
-      const base = posInOrder + 1;
-      const next = [...ord];
-      const [moved] = next.splice(base + fromUpNextIndex, 1);
-      if (moved === undefined) return ord;
-      next.splice(base + toUpNextIndex, 0, moved);
-      return next;
-    });
-  }, [inRoom, room, posInOrder]);
-
-  const selectQueuePosition = useCallback((absolutePosition) => {
-    if (inRoom) {
-      socketRef.current?.emit("playback-control", { roomId: room.id, action: "select", payload: { index: absolutePosition } });
-      return;
-    }
-    setPosInOrder(clamp(absolutePosition, 0, Math.max(order.length - 1, 0)));
-    setIsPlaying(true);
-  }, [inRoom, room, order.length]);
-
-  const clearUpNext = useCallback(() => {
-    if (inRoom) { socketRef.current?.emit("queue-clear", { roomId: room.id }); pushToast(t("toastQueueCleared")); return; }
-    setOrder((ord) => ord.slice(0, posInOrder + 1));
-    pushToast(t("toastQueueCleared"));
-  }, [inRoom, room, posInOrder, pushToast, t]);
-
-  const createPlaylist = useCallback(async (name, description) => {
-    if (!authUser) { pushToast(t("toastLoginToCreatePlaylist")); return null; }
-    try {
-      const pl = await Api.createPlaylist({ name, description, isPublic: false });
-      setPlaylists((p) => [...p, { ...pl, songs: [] }]);
-      pushToast(`${t("toastPlaylistCreated")} "${name}"`);
-      return pl.id;
-    } catch { pushToast(t("toastPlaylistCreateFailed")); return null; }
-  }, [authUser, pushToast, t]);
-
-  const setPlaylistDetail = useCallback((detail) => {
-
-    const songs = (detail.songs || []).map((s) => ({
-      id: s.video_id,
-      videoId: s.video_id,
-      title: s.title,
-      artist: s.artist || (s.artist_name ? { name: s.artist_name } : null),
-      artists: s.artists || null,
-      album: s.album || null,
-      cover: s.thumbnail,
-      duration: s.duration,
-      explicit: !!s.explicit,
-    }));
-    setPlaylists((list) => {
-      const exists = list.some((pl) => String(pl.id) === String(detail.id));
-      if (exists) return list.map((pl) => String(pl.id) === String(detail.id) ? { ...pl, ...detail, songs } : pl);
-      return [...list, { ...detail, songs }];
-    });
-  }, []);
-
-  const addToPlaylist = useCallback(async (playlistId, rawTrack) => {
-    const track = normalizeTrack(rawTrack);
-    const key = track.videoId || track.id;
-
-    setPlaylists((list) => list.map((pl) => (String(pl.id) === String(playlistId) && !pl.songs?.some((s) => String(s.videoId || s.id) === String(key))
-      ? { ...pl, songs: [...(pl.songs || []), track] } : pl)));
-    try {
-      await Api.addSong(playlistId, key, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit });
-      pushToast(t("toastAddedToPlaylist"));
-    } catch { pushToast(t("toastAddToPlaylistFailed")); }
-  }, [pushToast, t]);
-
-  const removeFromPlaylist = useCallback(async (playlistId, trackId) => {
-    setPlaylists((list) => list.map((pl) => (String(pl.id) === String(playlistId) ? { ...pl, songs: pl.songs.filter((s) => String(s.id) !== String(trackId)) } : pl)));
-    try { await Api.removeSong(playlistId, trackId); } catch { pushToast(t("toastRemoveFromPlaylistFailed")); }
-  }, [pushToast, t]);
-
-  const deletePlaylist = useCallback(async (playlistId) => {
-    setPlaylists((list) => list.filter((p) => String(p.id) !== String(playlistId)));
-    try { await Api.deletePlaylist(playlistId); pushToast(t("toastPlaylistDeleted")); } catch { pushToast(t("toastPlaylistDeleteFailed")); }
-  }, [pushToast, t]);
-
-  const setPlaylistCover = useCallback(async (playlistId, thumbnailUrl, videoId = null) => {
-    const prev = playlists.find((p) => String(p.id) === String(playlistId));
-    const prevCover = prev?.cover_thumbnail;
-    setPlaylists((list) => list.map((pl) => (String(pl.id) === String(playlistId) ? { ...pl, cover_thumbnail: thumbnailUrl } : pl)));
-    try {
-      await Api.updatePlaylist(playlistId, { coverThumbnail: thumbnailUrl, coverVideoId: videoId });
-      pushToast(t("coverUpdatedToast"));
-    } catch {
-      setPlaylists((list) => list.map((pl) => (String(pl.id) === String(playlistId) ? { ...pl, cover_thumbnail: prevCover } : pl)));
-      pushToast(t("coverUpdateFailedToast"));
-    }
-  }, [playlists, pushToast, t]);
-
-  const updatePlaylistMeta = useCallback(async (playlistId, { name, description, isPublic } = {}) => {
-    const prev = playlists.find((p) => String(p.id) === String(playlistId));
-    if (!prev) return false;
-    const patch = {};
-    if (name !== undefined) patch.name = name;
-    if (description !== undefined) patch.description = description;
-    if (isPublic !== undefined) patch.isPublic = isPublic;
-    setPlaylists((list) => list.map((pl) => (String(pl.id) === String(playlistId) ? {
-      ...pl,
-      ...(name !== undefined ? { name } : {}),
-      ...(description !== undefined ? { description } : {}),
-      ...(isPublic !== undefined ? { is_public: isPublic } : {}),
-    } : pl)));
-    try {
-      await Api.updatePlaylist(playlistId, patch);
-      pushToast(t("playlistUpdatedToast"));
-      return true;
-    } catch {
-      setPlaylists((list) => list.map((pl) => (String(pl.id) === String(playlistId) ? prev : pl)));
-      pushToast(t("playlistUpdateFailedToast"));
-      return false;
-    }
-  }, [playlists, pushToast, t]);
-
-  const settingsRef = useRef(settings);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
-  const authUserRef = useRef(authUser);
-  useEffect(() => { authUserRef.current = authUser; }, [authUser]);
-  const tRef = useRef(t);
-  useEffect(() => { tRef.current = t; }, [t]);
-  const prevMemberCountRef = useRef(0);
-  const firstSyncPendingRef = useRef(false);
-
-  const applyRoomState = useCallback((fullRoom, action) => {
-    const isFirstSync = firstSyncPendingRef.current;
-    firstSyncPendingRef.current = false;
-    const allowAutoplay = !isFirstSync || settingsRef.current.autoJoinRoomAudio !== false;
-    const hardSeek = isFirstSync || ["seek", "select", "next", "prev"].includes(action);
-
-    roomSyncRef.current = { position: fullRoom.position || 0, hardSeek, allowAutoplay };
-    setRoomSyncTick((v) => v + 1);
-
-    if (isFirstSync) setChatMessages(Array.isArray(fullRoom.chatMessages) ? fullRoom.chatMessages : []);
-    setRoom(fullRoom);
-    prevMemberCountRef.current = fullRoom.members?.length || 0;
-    setQueueList(fullRoom.queue.map(normalizeTrack));
-    setOrder(fullRoom.queue.map((_, i) => i));
-    setPosInOrder(fullRoom.currentIndex >= 0 ? fullRoom.currentIndex : 0);
-    setIsPlaying(isFirstSync ? (fullRoom.isPlaying && allowAutoplay) : fullRoom.isPlaying);
-  }, []);
-
-  const ensureSocket = useCallback(() => {
-    if (socketRef.current) return socketRef.current;
-    const socket = io(SOCKET_ORIGIN, {
-      path: SOCKET_PATH,
-      withCredentials: true,
-      auth: (cb) => cb(getAuthToken() ? { token: getAuthToken() } : {}),
-      autoConnect: true,
-      transports: ["websocket", "polling"],
-    });
-    socket.on("members-updated", (members) => {
-      setRoom((r) => {
-        if (!r) return r;
-        const isHost = authUserRef.current && r.hostId === authUserRef.current.id;
-        if (isHost && settingsRef.current.notifyRoomInvite !== false && members.length > prevMemberCountRef.current && prevMemberCountRef.current > 0) {
-          const joined = members.find((m) => !r.members?.some((old) => old.id === m.id));
-          if (joined) pushToast(`${joined.username} ${tRef.current("toastMemberJoined")}`);
-        }
-        prevMemberCountRef.current = members.length;
-        return { ...r, members };
-      });
-    });
-    socket.on("queue-updated", ({ queue, currentIndex }) => {
-      setRoom((r) => (r ? { ...r, queue, currentIndex } : r));
-      setQueueList(queue.map(normalizeTrack));
-      setOrder(queue.map((_, i) => i));
-      setPosInOrder(currentIndex >= 0 ? currentIndex : 0);
-    });
-    socket.on("playback-sync", (fullRoom) => { applyRoomState(fullRoom, fullRoom.action); });
-    socket.on("skip-vote-updated", ({ count, total, needed }) => {
-      setRoom((r) => (r ? { ...r, skipVote: { count, total, needed } } : r));
-    });
-    socket.on("chat-message", (msg) => {
-      setChatMessages((prev) => {
-        const next = [...prev, msg];
-        return next.length > 300 ? next.slice(-300) : next;
-      });
-    });
-    socketRef.current = socket;
-    return socket;
-  }, [applyRoomState]);
-
-  const refreshPublicRooms = useCallback(() => { Api.publicRooms().then(setPublicRooms).catch(() => {}); }, []);
-
-  const createRoom = useCallback((opts) => new Promise((resolve) => {
-    if (!authUser) { pushToast(t("toastLoginToCreateRoom")); resolve(null); return; }
-    const socket = ensureSocket();
-    firstSyncPendingRef.current = true;
-    socket.emit("create-room", opts, (res) => {
-      if (res.error) { setRoomError(res.error); pushToast(res.error); resolve(null); return; }
-      setRoomError(null);
-      applyRoomState(res.room, "select");
-      resolve(res.room);
-    });
-  }), [authUser, ensureSocket, applyRoomState, pushToast, t]);
-
-  const joinRoom = useCallback((id, password) => new Promise((resolve) => {
-    if (!authUser) { pushToast(t("toastLoginToJoinRoom")); resolve(null); return; }
-    const socket = ensureSocket();
-    firstSyncPendingRef.current = true;
-    socket.emit("join-room", { roomId: id, password }, (res) => {
-      if (res.error) { setRoomError(res.error); resolve(null); return; }
-      setRoomError(null);
-      applyRoomState(res.room, "select");
-      resolve(res.room);
-    });
-  }), [authUser, ensureSocket, applyRoomState, pushToast, t]);
-
-  const leaveRoom = useCallback(() => {
-    socketRef.current?.emit("leave-room");
-    setRoom(null);
-    roomSyncRef.current = null;
-    setQueueList([]); setOrder([]); setPosInOrder(0); setIsPlaying(false);
-    setChatMessages([]);
-  }, []);
-
-  const sendChatMessage = useCallback((text, extra = {}) => {
-    if (!room || !authUser) return;
-    const payload = { roomId: room.id, ...extra };
-    const trimmed = (text || "").trim();
-    if (trimmed) payload.text = trimmed.slice(0, 500);
-    socketRef.current?.emit("chat-message", payload);
-  }, [room, authUser]);
-
-  const voteSkip = useCallback(() => new Promise((resolve) => {
-    if (!room || !authUser) { resolve(null); return; }
-    socketRef.current?.emit("skip-vote", { roomId: room.id }, (res) => resolve(res || null));
-  }), [room, authUser]);
-
-  useEffect(() => { roomRef.current = room; }, [room]);
-  useEffect(() => { roomAdvanceKeyRef.current = null; }, [room?.id, room?.currentIndex]);
-
-  const fetchRoomRecommendation = useCallback(async (seeds, queue) => {
-    const known = new Set();
-    queue.forEach((q) => { known.add(String(q.id)); if (q.videoId) known.add(String(q.videoId)); });
-    for (const seed of seeds) {
-      if (!seed) continue;
-      try {
-        const args = seed.source === "deezer"
-          ? { trackId: seed.id }
-          : { title: seed.title, artist: seed.artist?.name || (typeof seed.artist === "string" ? seed.artist : "") };
-        const res = await Api.similar(args);
-        const pick = (res?.items || [])
-          .map(normalizeTrack)
-          .filter(Boolean)
-          .find((x) => x.source !== "local" && !known.has(String(x.id)) && !(x.videoId && known.has(String(x.videoId))));
-        if (pick) return pick;
-      } catch { }
-    }
-    return null;
-  }, []);
-
-  // Dipanggil saat audio room selesai. Hanya satu klien (host, atau member pertama
-  // jika host sudah keluar) yang memajukan lagu supaya tidak terjadi skip ganda.
-  const handleRoomTrackEnded = useCallback(async () => {
-    const me = authUserRef.current;
-    const sock = socketRef.current;
-    if (!room || !me || !sock) return;
-    const members = room.members || [];
-    const hostPresent = members.some((m) => m.id === room.hostId);
-    const leaderId = hostPresent ? room.hostId : members[0]?.id;
-    if (leaderId !== me.id) return;
-
-    const queue = room.queue || [];
-    const idx = room.currentIndex ?? -1;
-    const key = `${room.id}:${idx}`;
-    if (roomAdvanceKeyRef.current === key) return;
-    roomAdvanceKeyRef.current = key;
-    setTimeout(() => { if (roomAdvanceKeyRef.current === key) roomAdvanceKeyRef.current = null; }, 8000);
-
-    if (idx >= 0 && idx < queue.length - 1) {
-      sock.emit("playback-control", { roomId: room.id, action: "next" });
-      return;
-    }
-
-    if (settingsRef.current.autoplay === false) {
-      sock.emit("playback-control", { roomId: room.id, action: "pause" });
-      pushToast(tRef.current("toastAutoplayOff"));
-      return;
-    }
-
-    const seeds = [queue[idx], queue[idx - 1]].filter(Boolean).map(normalizeTrack);
-    const pick = await fetchRoomRecommendation(seeds, queue);
-
-    const latest = roomRef.current;
-    if (!latest || latest.id !== room.id || latest.currentIndex !== idx) return;
-    const latestQueue = latest.queue || [];
-    if (latestQueue.length > idx + 1) {
-      sock.emit("playback-control", { roomId: room.id, action: "next" });
-      return;
-    }
-    if (!pick) {
-      sock.emit("playback-control", { roomId: room.id, action: "pause" });
-      pushToast(tRef.current("toastRoomNoRecommend"));
-      return;
-    }
-    sock.emit("queue-add", { roomId: room.id, song: pick });
-    sock.emit("playback-control", { roomId: room.id, action: "select", payload: { index: latestQueue.length } });
-    pushToast(`${tRef.current("toastRoomAutoRecommend")} — ${pick.title}`);
-  }, [room, pushToast, fetchRoomRecommendation]);
-  useEffect(() => { roomTrackEndedRef.current = handleRoomTrackEnded; }, [handleRoomTrackEnded]);
-
-  useEffect(() => () => { socketRef.current?.disconnect(); }, []);
-
-  const upNext = useMemo(() => order.slice(posInOrder + 1).map((i) => queueList[i]).filter(Boolean), [order, posInOrder, queueList]);
-  const history = useMemo(() => order.slice(0, posInOrder).map((i) => queueList[i]).filter(Boolean), [order, posInOrder, queueList]);
-
-  const value = {
-    queueList, order, posInOrder, currentTrack, upNext, history,
-    currentTrackHasLyrics, playSource,
-    isPlaying, duration: clipDuration, isPreviewClip, audioFormat, loadingAudio,
-    isMixing, mixMarkerRatio, mixSeconds,
-    volume, muted, shuffle, repeat, liked, playlists,
-    followedArtists, followedArtistIds, toggleFollowArtist, savedAlbums, savedAlbumIds, toggleSaveAlbum,
-    playList, togglePlay, next, prev, seekRatio, seekTo, toggleShuffle, cycleRepeat,
-    setShuffle,
-    setVolume, toggleMute, toggleLike, addToQueueEnd, playNextInQueue, addAllToQueueEnd, playAllNext,
-    removeFromQueue, moveQueueItem, clearUpNext, selectQueuePosition,
-    playSingle, playRadio, createPlaylist, addToPlaylist, removeFromPlaylist, deletePlaylist, setPlaylistDetail, setPlaylistCover, updatePlaylistMeta, refreshPlaylists,
-    registerProgressEl,
-    suggestedQueue, promoteSuggestion, dismissSuggestion, playSuggestion,
-    room, publicRooms, roomError, refreshPublicRooms, createRoom, joinRoom, leaveRoom,
-    chatMessages, sendChatMessage, voteSkip,
-    promptCast, getAudioSrc,
-    localTracks, localScan, scanLocalFiles, clearLocalLibrary,
-    getAnalyser, getAudioContext, outputDevice, setOutputDevice,
+    video.src = src;
+    tryPlay();
+    return () => { cancelled = true; };
+  }, [status, src, streamType, t, markPlaying]);
+
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v || v.readyState === 0) return;
+    if (v.paused) v.play().then(() => markPlaying(true)).catch(() => {});
+    else v.pause();
   };
-  return <PlayerCtx.Provider value={value}>{children}</PlayerCtx.Provider>;
+  const onSeek = (e) => {
+    const v = videoRef.current;
+    if (!v || !Number.isFinite(v.duration)) return;
+    const next = Math.min(Math.max(Number(e.target.value) || 0, 0), v.duration);
+    v.currentTime = next;
+    setCurrentTime(next);
+  };
+  const toggleMute = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setMuted(v.muted);
+  };
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      const p = document.exitFullscreen?.();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } else {
+      const el = stageRef.current;
+      if (el?.requestFullscreen) el.requestFullscreen().catch(() => {});
+    }
+  };
+
+  if (!video) return null;
+  const artistName = video.artist?.name || video.artists?.[0]?.name || "";
+  const year = video.year || (video.releaseDate ? String(video.releaseDate).slice(0, 4) : null);
+  const meta = [video.views, year, video.duration ? formatDuration(video.duration) : null]
+    .filter(Boolean)
+    .join(" \u00b7 ");
+  const poster = video.cover || video.thumbnail || null;
+
+  return (
+    <div className="aivy-mv-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={video.title || t("musicVideos")}>
+      <div className="aivy-mv-card" onClick={(e) => e.stopPropagation()}>
+        <div className="aivy-mv-top">
+          <span className="aivy-mv-badge"><Film size={15} /> {t("musicVideos")}</span>
+          <button className="aivy-mv-close" onClick={onClose} aria-label={t("close")}><X size={22} /></button>
+        </div>
+        <div className="aivy-mv-stage" ref={stageRef} onMouseMove={pokeControls} onTouchStart={pokeControls}>
+          {vId ? (
+            <>
+              <video
+                ref={videoRef}
+                className="aivy-mv-video"
+                poster={poster || undefined}
+                playsInline
+                preload="auto"
+                onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+                onPlay={() => { markPlaying(true); pokeControls(); }}
+                onPause={() => { markPlaying(false); setControlsHidden(false); }}
+                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime || 0)}
+                onLoadedMetadata={(e) => setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
+                onDurationChange={(e) => setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
+                onEnded={() => markPlaying(false)}
+              />
+              {status === "loading" && (
+                <div className="aivy-mv-loading">
+                  <StarLoader size={52} color="#fff" />
+                  <span>{t("loadingVideo")}</span>
+                </div>
+              )}
+              {status === "error" && (
+                <div className="aivy-mv-error">
+                  {poster ? <img src={poster} alt="" /> : null}
+                  <span className="aivy-mv-error-msg">{errorMsg || t("videoUnavailable")}</span>
+                  <div className="aivy-mv-error-acts">
+                    <button type="button" className="aivy-mv-retry" onClick={reload}>
+                      <RefreshCw size={14} /> {t("retry")}
+                    </button>
+                    {onAudioPlay ? (
+                      <button type="button" className="aivy-mv-audio-inline" onClick={onAudioPlay}>
+                        <Music2 size={14} /> {t("playAudio")}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+              {status === "ready" && !playing && (
+                <button type="button" className="aivy-mv-big-play" onClick={togglePlay} aria-label={t("play")}>
+                  <Play size={34} fill="currentColor" style={{ marginLeft: 4 }} />
+                </button>
+              )}
+              {status === "ready" && (
+                <div className={`aivy-mv-controls${controlsHidden ? " is-hidden" : ""}`} onClick={(e) => e.stopPropagation()}>
+                  <button type="button" className="aivy-mv-cbtn" onClick={togglePlay} aria-label={playing ? t("pause") : t("play")}>
+                    {playing ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
+                  </button>
+                  <span className="aivy-mv-time">{formatTime(currentTime)} <em>/</em> {formatTime(duration)}</span>
+                  <input
+                    className="aivy-mv-seek"
+                    type="range"
+                    min={0}
+                    max={duration > 0 ? Math.floor(duration * 10) / 10 : 0}
+                    step={0.1}
+                    value={Math.min(currentTime, duration || 0)}
+                    onChange={onSeek}
+                    disabled={!duration}
+                    aria-label={t("play")}
+                  />
+                  <button type="button" className="aivy-mv-cbtn" onClick={toggleMute} aria-label={muted ? t("unmute") : t("mute")}>
+                    {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                  </button>
+                  <button type="button" className="aivy-mv-cbtn" onClick={toggleFullscreen} aria-label={fullscreen ? t("exitFullscreen") : t("fullscreen")}>
+                    {fullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="aivy-mv-na">
+              {poster ? <img src={poster} alt="" /> : null}
+              <span>{t("videoUnavailable")}</span>
+            </div>
+          )}
+        </div>
+        <div className="aivy-mv-info">
+          <div className="aivy-mv-titles">
+            <div className="aivy-mv-title">{video.title || t("unknownTitle")}</div>
+            {artistName ? <div className="aivy-mv-artist">{artistName}</div> : null}
+            {meta ? <div className="aivy-mv-meta">{meta}</div> : null}
+          </div>
+          <div className="aivy-mv-acts">
+            {onAudioPlay ? (
+              <button type="button" className="aivy-mv-audio-btn" onClick={onAudioPlay}>
+                <Music2 size={16} /> {t("playAudio")}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

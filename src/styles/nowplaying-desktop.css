@@ -233,6 +233,7 @@
 .npd .aivy-scrubber:hover .track, .npd .aivy-scrubber.dragging .track{ height: 11px; }
 .npd .aivy-scrubber .fill{ background: rgba(255,255,255,.9); }
 .npd .aivy-scrubber .thumb{ background: #fff; }
+.npd .aivy-scrubber{ --mix-shine: rgba(255,255,255,.95); }
 .npd .aivy-scrubber.is-loading .track{ background: rgba(255,255,255,.2); }
 .npd-times{ display: flex; justify-content: space-between; margin-top: 3px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.62); font-variant-numeric: tabular-nums; }
 

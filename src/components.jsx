@@ -235,30 +235,84 @@ function WaveformBars({ seed, className }) {
 
 export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, className = "", loading = false, waveformSeed = null }) {
   const trackRef = useRef(null);
+  // Drag disimpan di ref (sinkron, tidak telat render) + state hanya untuk kelas CSS.
+  const dragIdRef = useRef(null);
   const [dragging, setDragging] = useState(false);
-  // Mix: penanda di bar = titik mulai mix; saat mix berjalan bar "shining" lalu berkedip sampai selesai.
+  // Mix: penanda di bar = titik mulai mix; saat mix berjalan seluruh bar jadi penuh & "shining" sampai mix selesai.
   const { mixMarkerRatio, isMixing } = usePlayer();
   const hasMix = mixMarkerRatio != null;
+  // Setelah mix selesai bar menyusut mulus ke posisi lagu baru (bukan loncat).
+  const [settling, setSettling] = useState(false);
+  const wasMixingRef = useRef(false);
+  useEffect(() => {
+    if (wasMixingRef.current && !isMixing) {
+      setSettling(true);
+      const id = setTimeout(() => setSettling(false), 700);
+      wasMixingRef.current = isMixing;
+      return () => clearTimeout(id);
+    }
+    wasMixingRef.current = isMixing;
+  }, [isMixing]);
+
   const ratioFromEvent = (e) => {
     const rect = trackRef.current.getBoundingClientRect();
     return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   };
-  if (loading) {
-    return (
-      <div className={`aivy-scrubber is-loading ${className}`} role="slider" aria-label="Posisi lagu" aria-busy="true">
-        <div className="track skeleton-shine" />
-      </div>
-    );
-  }
+  const endDrag = useCallback((e) => {
+    if (dragIdRef.current == null) return;
+    const id = dragIdRef.current;
+    dragIdRef.current = null;
+    setDragging(false);
+    try { trackRef.current?.releasePointerCapture(e?.pointerId ?? id); } catch {}
+  }, []);
+  // Pengaman: kalau pointerup hilang (elemen di-render ulang, kursor lepas di luar jendela, tab blur), drag tetap berhenti.
+  useEffect(() => {
+    if (!dragging) return;
+    const stop = (e) => endDrag(e);
+    window.addEventListener("pointerup", stop, true);
+    window.addEventListener("pointercancel", stop, true);
+    window.addEventListener("blur", stop);
+    return () => {
+      window.removeEventListener("pointerup", stop, true);
+      window.removeEventListener("pointercancel", stop, true);
+      window.removeEventListener("blur", stop);
+    };
+  }, [dragging, endDrag]);
+
+  // Skeleton loading tidak boleh mengganti elemen (itu penyebab pointerup hilang). Selama drag, skeleton disembunyikan.
+  const showSkeleton = loading && !dragging;
+  const cls = [
+    "aivy-scrubber",
+    dragging ? "dragging" : "",
+    waveformSeed ? "has-waveform" : "",
+    showSkeleton ? "is-loading" : "",
+    hasMix && !isMixing ? "has-mix" : "",
+    hasMix && isMixing ? "is-mixing" : "",
+    settling ? "mix-settle" : "",
+    className,
+  ].filter(Boolean).join(" ");
   return (
     <div
-      ref={trackRef} className={`aivy-scrubber ${dragging ? "dragging" : ""} ${waveformSeed ? "has-waveform" : ""} ${hasMix && !isMixing ? "has-mix" : ""} ${hasMix && isMixing ? "is-mixing" : ""} ${className}`}
+      ref={trackRef} className={cls}
       style={hasMix ? { "--mix-zone": `${((1 - mixMarkerRatio) * 100).toFixed(3)}%` } : undefined}
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragging(true); onSeekRatio(ratioFromEvent(e)); }}
-      onPointerMove={(e) => { if (dragging) onSeekRatio(ratioFromEvent(e)); }}
-      onPointerUp={(e) => { setDragging(false); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {} }}
-      onPointerCancel={(e) => { setDragging(false); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {} }}
-      role="slider" aria-label="Posisi lagu" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((getRatio ? getRatio() : 0) * 100)}
+      onPointerDown={(e) => {
+        if (loading) return;
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+        dragIdRef.current = e.pointerId;
+        setDragging(true);
+        onSeekRatio(ratioFromEvent(e));
+      }}
+      onPointerMove={(e) => {
+        if (dragIdRef.current !== e.pointerId) return;
+        // Mouse sudah tidak ditekan tapi drag masih aktif -> berhenti, jangan ngikut kursor.
+        if (e.pointerType === "mouse" && (e.buttons & 1) === 0) { endDrag(e); return; }
+        onSeekRatio(ratioFromEvent(e));
+      }}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onLostPointerCapture={endDrag}
+      role="slider" aria-label="Posisi lagu" aria-busy={showSkeleton || undefined} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((getRatio ? getRatio() : 0) * 100)}
     >
       <div className="track">
         {waveformSeed && <WaveformBars seed={waveformSeed} className="wave-bg" />}
@@ -267,6 +321,7 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
         </div>
         {/* Penanda di dalam track (tidak keluar dari bar) & hilang saat mix berjalan */}
         {hasMix && !isMixing && <div className="mix-marker" style={{ left: `calc(${mixMarkerRatio.toFixed(5)} * (100% - 3px))` }} aria-hidden="true" />}
+        {showSkeleton && <div className="skeleton-shine scrub-skel" aria-hidden="true" />}
       </div>
       <div className="thumb" ref={registerThumb} />
     </div>
