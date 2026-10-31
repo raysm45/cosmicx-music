@@ -1062,8 +1062,12 @@ export function PlayerProvider({ children }) {
         // Siapkan asset di server SEBELUM src di-set. Request media jadi hangat:
         // dapat Content-Length (seekable) dan tak dibatalkan Chrome yang menyerah
         // pada request diam ~5 dtk saat FLAC dingin. Gagal -> lanjut apa adanya.
-        try { await Api.warmStream(src); } catch { }
-        return { src, preview: false, videoId };
+        // `warm.format` memberi tahu format yang benar-benar akan dialirkan
+        // ('flac' | 'webm' | null) supaya label Now Playing tidak berbohong
+        // saat FLAC turun ke opus.
+        let format = null;
+        try { format = (await Api.warmStream(src))?.format || null; } catch { }
+        return { src, preview: false, videoId, format };
       } catch { return null; }
     };
 
@@ -1331,7 +1335,13 @@ export function PlayerProvider({ children }) {
       } else if (resolved.preview) {
         setAudioFormat({ label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" });
       } else if (resolved.videoId) {
-        if (getPreferredAudioFormat() === "flac") {
+        const served = resolved.format; // format yang BENAR-BENAR dialirkan server
+        if (served === "flac") {
+          setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
+        } else if (served === "webm" || served === "opus") {
+          // FLAC tidak tersedia -> server menurunkan ke opus/webm; tampilkan itu.
+          setAudioFormat({ label: "Opus", mimeType: "audio/webm", codec: "opus", container: "WEBM" });
+        } else if (getPreferredAudioFormat() === "flac") {
           setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
         } else Api.trackAudioInfo(resolved.videoId)
           .then((info) => {

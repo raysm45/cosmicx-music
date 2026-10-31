@@ -144,13 +144,14 @@ export const Api = {
   // mengalirkan isi. Request media berikutnya jadi hangat: dapat Content-Length
   // (seekable) dan tidak dibatalkan Chrome karena diam. Gagal -> abaikan saja.
   async warmStream(url) {
-    if (!url) return false;
+    if (!url) return null;
     const u = url.includes("?") ? `${url}&warm=1` : `${url}?warm=1`;
     try {
       const res = await fetch(u, { method: "GET", cache: "no-store" });
-      return res.ok;
+      if (!res.ok) return null;
+      return await res.json();
     } catch {
-      return false;
+      return null;
     }
   },
 
