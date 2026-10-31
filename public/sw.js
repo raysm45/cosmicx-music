@@ -1,6 +1,6 @@
 
-const CACHE_NAME = "aivy-shell-v3-halloween";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/favicon.png", "/halloween/logo-mark-96.png"];
+const CACHE_NAME = "aivy-shell-v5-brand";
+const APP_SHELL = ["/", "/manifest.webmanifest", "/favicon.png", "/favicon.svg", "/halloween/logo-mark-96.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
