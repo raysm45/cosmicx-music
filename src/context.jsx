@@ -61,8 +61,8 @@ export function usePlayerTime() {
 const UICtx = createContext(null);
 export function useUI() { return useContext(UICtx); }
 
-export const SIDEBAR_MIN_W = 200;
-export const SIDEBAR_MAX_W = 360;
+export const SIDEBAR_MIN_W = 240;
+export const SIDEBAR_MAX_W = 420;
 export const SIDEBAR_COLLAPSED_W = 72;
 export const RIGHTPANEL_MIN_W = 260;
 export const RIGHTPANEL_MAX_W = 440;
@@ -73,7 +73,7 @@ const SETTINGS_CACHE_KEY = "aivy_settings_cache_v1";
 const PLAYBACK_STATE_KEY = "aivy_playback_state_v1";
 const PLAYBACK_STATE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_PANEL_PREFS = {
-  sidebarWidth: 236,
+  sidebarWidth: 300,
   sidebarCollapsed: false,
   rightPanelWidth: 300,
   rightPanelCollapsed: false,

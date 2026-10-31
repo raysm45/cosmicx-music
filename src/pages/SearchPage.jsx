@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Search, X, Clock, TrendingUp, ArrowLeft, ArrowUpLeft, Mic, Music2, Smile, Globe, ChevronRight, Play, Check, UserPlus, Disc, Mic2 } from "lucide-react";
+import { Search, X, Clock, TrendingUp, ArrowLeft, ArrowUpLeft, Mic, Music2, Smile, Globe, ChevronLeft, ChevronRight, Play, Check, UserPlus, Disc, Mic2 } from "lucide-react";
 import { Api } from "../lib/api.js";
 import { useUI, usePlayer } from "../context.jsx";
 import { useRouter } from "../router.jsx";
@@ -723,12 +723,16 @@ export function SearchPage() {
 
   return (
     <div className="aivy-view-enter">
-      <div className="aivy-search-head-v2">
-        <button className="aivy-icon-btn" onClick={() => back()} aria-label={t("previous")}><ArrowLeft size={18} /></button>
+      <div className="aivy-search-head-v2 sp-search-head">
+        <div className="sp-search-nav">
+          <button className="aivy-navbtn" onClick={() => back()} aria-label={t("previous")}><ChevronLeft size={16} /></button>
+          <button className="aivy-navbtn" onClick={() => window.history.forward()} aria-label={t("next")}><ChevronRight size={16} /></button>
+        </div>
 
         <div className="aivy-search-box-wrap-v2">
-          <div className="aivy-search-box-v2">
-            <Search size={16} />
+          <div className={`aivy-search-box-v2 sp-searchbox ${searching ? "is-loading" : ""}`}>
+            <button type="button" className="sp-search-back" onClick={() => back()} aria-label={t("previous")}><ArrowLeft size={20} /></button>
+            <Search size={18} className="sp-search-ico" />
             <input
               ref={inputRef} className="aivy-input" placeholder={t("searchPlaceholder")}
               value={query} onChange={(e) => onChangeQuery(e.target.value)}

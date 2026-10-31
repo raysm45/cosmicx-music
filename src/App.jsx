@@ -154,9 +154,9 @@ function AppInner() {
     <div className={`aivy-shell ${isMobile ? "is-mobile" : ""} ${rightPanelCollapsed && rightPanelPeek ? "is-rightpanel-peeking" : ""}`} style={shellStyle}>
       {!isMobile && <Sidebar />}
       <main className="aivy-main">
-        {!isImmersiveShorts && <TopBar isMobile={isMobile} />}
+        {!isImmersiveShorts && name !== "search" && <TopBar isMobile={isMobile} />}
         <div id="aivy-content-scroll" className={`aivy-content aivy-scroll ${isMobile ? "is-mobile" : ""} ${name === "shorts" ? "no-pad" : ""} ${FULL_BLEED_ROUTES.has(name) ? "home-full" : ""}`}
-          style={{ paddingBottom: name === "shorts" ? 0 : (isMobile ? (currentTrack ? 150 : 84) : (currentTrack ? 118 : 24)) }}>
+          style={{ paddingBottom: name === "shorts" ? 0 : (isMobile ? (currentTrack ? "calc(var(--sp-tab-h) + var(--sp-mini-h) + var(--sp-mini-gap) + var(--safe-b) + 24px)" : "calc(var(--sp-tab-h) + var(--safe-b) + 24px)") : (currentTrack ? 118 : 24)) }}>
           <ErrorBoundary key={name + JSON.stringify(params)}>
             <Suspense fallback={<ViewLoading />}><Page /></Suspense>
           </ErrorBoundary>

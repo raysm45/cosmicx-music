@@ -1071,63 +1071,228 @@ export function ToastHost({ isMobile }) {
   );
 }
 
-export function AddToPlaylistModal() {
-  const { addToPlaylistTarget, closeAddToPlaylist, pushToast, t } = useUI();
-  const { playlists, addToPlaylist, createPlaylist } = usePlayer();
+/* ============================================================
+   Playlist cover, helper library, dan modal "Simpan ke playlist"
+   ============================================================ */
+const trLang = (settings, id, en) => (settings?.language === "en" ? en : id);
+
+export function PlaylistCover({ playlist, size = 48, radius = 6, className = "" }) {
+  const own = playlist?.cover_thumbnail || null;
+  const songs = playlist?.songs;
+  const covers = useMemo(() => {
+    if (own) return [];
+    const seen = new Set();
+    const out = [];
+    for (const s of songs || []) {
+      const c = s && s.cover;
+      if (c && !seen.has(c)) { seen.add(c); out.push(c); if (out.length === 4) break; }
+    }
+    return out;
+  }, [own, songs]);
+  const box = { width: size, height: size, borderRadius: radius };
+  if (!own && covers.length >= 4) {
+    return (
+      <span className={`sp-plcover is-mosaic ${className}`} style={box} aria-hidden="true">
+        {covers.map((c) => <SmartCover key={c} src={c} seed={c} size={Math.ceil(size / 2)} radius={0} />)}
+      </span>
+    );
+  }
+  const src = own || covers[0] || (songs && songs[0] && songs[0].cover) || null;
+  return (
+    <span className={`sp-plcover ${className}`} style={box} aria-hidden="true">
+      <SmartCover src={src} seed={`pl${playlist?.id}${playlist?.name}`} size={size} radius={0} />
+      {!src && <Music2 className="sp-plcover-ico" size={Math.max(14, Math.round(size * 0.38))} />}
+    </span>
+  );
+}
+
+export function LikedCover({ size = 48, radius = 6, className = "" }) {
+  return (
+    <span className={`sp-plcover sp-liked-cover ${className}`} style={{ width: size, height: size, borderRadius: radius }} aria-hidden="true">
+      <Heart size={Math.max(14, Math.round(size * 0.42))} fill="currentColor" />
+    </span>
+  );
+}
+
+// Playlist dari /api/playlists biasanya belum membawa daftar lagu. Ambil detailnya
+// (4 sekaligus) supaya cover & jumlah lagu bisa tampil di sidebar / modal.
+function usePlaylistDetails(playlists) {
+  const { setPlaylistDetail } = usePlayer();
+  const requestedRef = useRef(new Set());
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
+  useEffect(() => {
+    const pending = playlists.filter((pl) => !Array.isArray(pl.songs) && !requestedRef.current.has(String(pl.id)));
+    if (!pending.length) return;
+    pending.forEach((pl) => requestedRef.current.add(String(pl.id)));
+    (async () => {
+      for (let i = 0; i < pending.length; i += 4) {
+        await Promise.all(pending.slice(i, i + 4).map((pl) =>
+          Api.playlist(pl.id)
+            .then((detail) => { if (aliveRef.current) setPlaylistDetail(detail); })
+            .catch(() => {})
+        ));
+        if (!aliveRef.current) return;
+      }
+    })();
+  }, [playlists, setPlaylistDetail]);
+}
+
+const trackKey = (x) => String(x?.videoId || x?.id);
+const playlistHas = (pl, track) => (pl.songs || []).find((s) => trackKey(s) === trackKey(track) || String(s.id) === String(track.id)) || null;
+const playlistCount = (pl) => (Array.isArray(pl.songs) ? pl.songs.length : (pl.song_count ?? 0));
+
+function AddToPlaylistSheet({ targets, onClose }) {
+  const { pushToast, t, settings } = useUI();
+  const { playlists, addToPlaylist, removeFromPlaylist, createPlaylist, setPlaylistDetail } = usePlayer();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(() => new Set());
   const inputRef = useRef(null);
+  const multi = targets.length > 1;
+  const tt = (id, en) => trLang(settings, id, en);
+
+  usePlaylistDetails(playlists);
   useEffect(() => { if (creating) inputRef.current?.focus(); }, [creating]);
-  if (!addToPlaylistTarget) return null;
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-  const targets = Array.isArray(addToPlaylistTarget) ? addToPlaylistTarget : [addToPlaylistTarget];
+  const first = targets[0];
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return needle ? playlists.filter((pl) => (pl.name || "").toLowerCase().includes(needle)) : playlists;
+  }, [playlists, q]);
 
-  const handleAdd = (playlistId) => {
-    targets.forEach((track) => addToPlaylist(playlistId, track));
-    if (targets.length > 1) pushToast(t("toastAddedToPlaylist"));
-    closeAddToPlaylist();
+  const toggle = async (pl) => {
+    const key = String(pl.id);
+    if (busy.has(key)) return;
+    setBusy((s) => new Set(s).add(key));
+    try {
+      let songs = pl.songs;
+      if (!Array.isArray(songs)) {
+        try {
+          const detail = await Api.playlist(pl.id);
+          setPlaylistDetail(detail);
+          songs = (detail.songs || []).map((s) => ({ id: s.video_id, videoId: s.video_id }));
+        } catch { songs = []; }
+      }
+      const current = { ...pl, songs };
+      if (multi) {
+        const missing = targets.filter((tr) => !playlistHas(current, tr));
+        if (!missing.length) { pushToast(tt("Semua lagu sudah ada di playlist ini", "All songs are already in this playlist")); return; }
+        missing.forEach((tr) => addToPlaylist(pl.id, tr));
+        return;
+      }
+      const existing = playlistHas(current, first);
+      if (existing) {
+        await removeFromPlaylist(pl.id, existing.id);
+        pushToast(`${tt("Dihapus dari", "Removed from")} ${pl.name}`);
+      } else {
+        await addToPlaylist(pl.id, first);
+      }
+    } finally {
+      setBusy((s) => { const n = new Set(s); n.delete(key); return n; });
+    }
   };
 
   const handleCreate = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     const id = await createPlaylist(trimmed);
-    if (id) targets.forEach((track) => addToPlaylist(id, track));
-    closeAddToPlaylist();
+    if (id) {
+      targets.forEach((tr) => addToPlaylist(id, tr));
+      onClose();
+    }
   };
 
   return (
-    <div className="aivy-modal-backdrop" onClick={closeAddToPlaylist}>
-      <div className="aivy-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="aivy-modal-head">
-          <div className="aivy-modal-title">{t("addToPlaylistTitle")}</div>
-          <button className="aivy-icon-btn sm" onClick={closeAddToPlaylist} aria-label={t("close")}><X size={17} /></button>
+    <div className="sp-atp-backdrop" onClick={onClose} role="presentation">
+      <div className="sp-atp" role="dialog" aria-modal="true" aria-label={tt("Simpan ke playlist", "Save to playlist")} onClick={(e) => e.stopPropagation()}>
+        <span className="sp-atp-grab" aria-hidden="true" />
+        <div className="sp-atp-head">
+          <div className="sp-atp-title">{tt("Simpan ke playlist", "Save to playlist")}</div>
+          <button className="sp-icon-btn" onClick={onClose} aria-label={t("close")}><X size={18} /></button>
         </div>
-        <div className="aivy-playlist-pick">
-          {playlists.map((pl) => (
-            <button key={pl.id} onClick={() => handleAdd(pl.id)}>
-              <Library size={15} color="var(--ink-faint)" />
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.name}</span>
-              {targets.every((tr) => pl.songs?.some((s) => s.id === tr.id)) && <Check size={15} color="var(--accent-strong)" />}
-            </button>
-          ))}
-          {!playlists.length && <div className="eyebrow" style={{ padding: "8px 10px" }}>{t("noPlaylistsYet")}</div>}
-        </div>
-        {creating ? (
-          <div className="aivy-field" style={{ marginBottom: 4 }}>
-            <input ref={inputRef} className="aivy-input" placeholder={t("newPlaylistNamePlaceholder")} value={name} onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setCreating(false); }} />
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button className="aivy-btn-primary" style={{ flex: 1 }} onClick={handleCreate}>{t("createAndAdd")}</button>
-              <button className="aivy-btn-ghost" onClick={() => setCreating(false)}>{t("cancel")}</button>
-            </div>
+
+        <div className="sp-atp-track">
+          {multi ? (
+            <span className="sp-plcover sp-atp-multi" style={{ width: 44, height: 44, borderRadius: 6 }}><ListPlus size={20} /></span>
+          ) : (
+            <span className="sp-plcover" style={{ width: 44, height: 44, borderRadius: 6 }}>
+              <SmartCover src={first?.cover} seed={`${first?.id}${first?.title}`} size={44} radius={0} />
+            </span>
+          )}
+          <div className="sp-atp-track-meta">
+            <div className="t">{multi ? `${targets.length} ${t("songsCount")}` : first?.title}</div>
+            {!multi && <div className="s">{first?.artist?.name || ""}</div>}
           </div>
-        ) : (
-          <button className="aivy-btn-ghost" style={{ width: "100%", marginTop: 4 }} onClick={() => setCreating(true)}><Plus size={15} /> {t("newPlaylist")}</button>
+        </div>
+
+        {playlists.length > 5 && (
+          <div className="sp-atp-search">
+            <Search size={16} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tt("Cari playlist", "Find a playlist")} />
+            {q && <button className="sp-icon-btn sm" onClick={() => setQ("")} aria-label={t("clear")}><X size={14} /></button>}
+          </div>
         )}
+
+        <div className="sp-atp-list aivy-scroll">
+          {creating ? (
+            <div className="sp-atp-create">
+              <span className="sp-plcover sp-atp-plus" style={{ width: 48, height: 48, borderRadius: 6 }}><Plus size={22} /></span>
+              <input
+                ref={inputRef} value={name} onChange={(e) => setName(e.target.value)} maxLength={80}
+                placeholder={t("newPlaylistNamePlaceholder")}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") { e.stopPropagation(); setCreating(false); } }}
+              />
+              <button className="sp-pill-btn primary" onClick={handleCreate} disabled={!name.trim()}>{tt("Buat", "Create")}</button>
+            </div>
+          ) : (
+            <button className="sp-atp-row sp-atp-new" onClick={() => setCreating(true)}>
+              <span className="sp-plcover sp-atp-plus" style={{ width: 48, height: 48, borderRadius: 6 }}><Plus size={22} /></span>
+              <span className="sp-atp-meta"><span className="t">{t("newPlaylist")}</span></span>
+            </button>
+          )}
+
+          {shown.map((pl) => {
+            const has = Array.isArray(pl.songs) ? targets.every((tr) => !!playlistHas(pl, tr)) : false;
+            return (
+              <button key={pl.id} className={`sp-atp-row ${has ? "is-on" : ""}`} onClick={() => toggle(pl)} aria-pressed={has} disabled={busy.has(String(pl.id))}>
+                <PlaylistCover playlist={pl} size={48} radius={6} />
+                <span className="sp-atp-meta">
+                  <span className="t">{pl.name}</span>
+                  <span className="s">{playlistCount(pl)} {t("songsCount")}</span>
+                </span>
+                <span className={`sp-atp-check ${has ? "on" : ""}`} aria-hidden="true">{has && <Check size={14} strokeWidth={3} />}</span>
+              </button>
+            );
+          })}
+
+          {!playlists.length && !creating && <div className="sp-atp-empty">{t("noPlaylistsYet")}</div>}
+          {!!playlists.length && !shown.length && <div className="sp-atp-empty">{tt("Playlist tidak ditemukan", "No playlists found")}</div>}
+        </div>
+
+        <div className="sp-atp-foot">
+          <button className="sp-pill-btn primary wide" onClick={onClose}>{tt("Selesai", "Done")}</button>
+        </div>
       </div>
     </div>
   );
+}
+
+export function AddToPlaylistModal() {
+  const { addToPlaylistTarget, closeAddToPlaylist } = useUI();
+  if (!addToPlaylistTarget) return null;
+  const targets = Array.isArray(addToPlaylistTarget) ? addToPlaylistTarget : [addToPlaylistTarget];
+  if (!targets.length) return null;
+  return <AddToPlaylistSheet targets={targets} onClose={closeAddToPlaylist} />;
 }
 
 export function ConfirmDialog(
@@ -1333,9 +1498,9 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
 
 // MiniPlayer mobile: ringan (tanpa GlassLayers/MarqueeText/SVG ring), GPU scaleX progress + scaleY eq
 export function MiniPlayer({ onExpand }) {
-  const { currentTrack, isPlaying, togglePlay, next, loadingAudio, registerProgressEl } = usePlayer();
+  const { currentTrack, isPlaying, togglePlay, next, loadingAudio, registerProgressEl, liked, toggleLike } = usePlayer();
   const { t, settings } = useUI();
-  const [pulsing, setPulsing] = useState(false);
+  const palette = useCoverPalette(currentTrack?.cover, null);
   const miniRef = useRef(null);
   const fillCleanupRef = useRef(null);
   const registerFill = useCallback((el) => {
@@ -1356,36 +1521,51 @@ export function MiniPlayer({ onExpand }) {
     onDragStart: sheetPeekStart, onDragMove: sheetPeekMove, onDragEnd: handleDragEnd,
   });
   if (!currentTrack) return null;
+  const isLiked = liked.has(String(currentTrack.videoId || currentTrack.id));
+  const tint = Array.isArray(palette) && palette[0] ? palette[0] : null;
   return (
     <div
-      className={`aivy-mini-player ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleClick} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
+      className={`sp-mini ${isPlaying ? "is-playing" : ""}`} ref={miniRef} onClick={handleClick} role="button" tabIndex={0} aria-label={t("openNowPlaying")}
+      style={tint ? { "--mini-tint": tint } : undefined}
       onPointerDown={swipe.onPointerDown} onPointerMove={swipe.onPointerMove} onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
     >
-      <span key={`c-${currentTrack.id}`} className={`aivy-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
-        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={36} radius={settings.noRoundCover ? 4 : 9} />
+      <span key={`c-${currentTrack.id}`} className={`sp-mini-cover ${settings.noRoundCover ? "no-round" : ""}`}>
+        <SmartCover src={currentTrack.cover} seed={currentTrack.id + currentTrack.title} size={44} radius={0} />
       </span>
-      <div key={`m-${currentTrack.id}`} className="meta">
+      <div key={`m-${currentTrack.id}`} className="sp-mini-meta">
         <div className="t-row">
-          <span className="mini-eq" aria-hidden="true"><i /><i /><i /></span>
           {currentTrack.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
           <span className="t">{currentTrack.title}</span>
         </div>
         <span className="a">{currentTrack.artist?.name}</span>
       </div>
-      <div className="mini-controls">
-        <button className="aivy-icon-btn play-btn" onClick={(e) => { e.stopPropagation(); togglePlay(); }} aria-label={isPlaying ? t("pause") : t("play")}>
+      <div className="sp-mini-actions">
+        <button
+          className={`sp-mini-btn ${isLiked ? "is-liked" : ""}`}
+          onClick={(e) => { e.stopPropagation(); toggleLike(currentTrack); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={isLiked ? t("unlike", "Hapus dari disukai") : t("like", "Sukai")} aria-pressed={isLiked}
+        >
+          <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
+        </button>
+        <button
+          className="sp-mini-btn play"
+          onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={isPlaying ? t("pause") : t("play")}
+        >
           <span key={isPlaying ? "pause" : "play"} className="aivy-swap-icon">
-            {isPlaying ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
+            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
           </span>
         </button>
         <button
-          className={`aivy-icon-btn skip-next ${pulsing ? "is-pulsing" : ""}`}
-          onClick={(e) => { e.stopPropagation(); next(false); setPulsing(true); }}
-          onAnimationEnd={() => setPulsing(false)}
+          className="sp-mini-btn"
+          onClick={(e) => { e.stopPropagation(); next(false); }}
+          onPointerDown={(e) => e.stopPropagation()}
           aria-label={t("next")}
-        ><SkipForward size={17} fill="currentColor" /></button>
+        ><SkipForward size={22} fill="currentColor" /></button>
       </div>
-      <div className={`mini-progress ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true">
+      <div className={`sp-mini-progress ${loadingAudio ? "is-loading" : ""}`} aria-hidden="true">
         <span className="fill" ref={registerFill} />
       </div>
     </div>
@@ -4026,20 +4206,49 @@ const NAV_ITEMS = [
 ];
 
 export function Sidebar() {
-  const { name } = useRouter();
+  const { name, params, navigate } = useRouter();
   const {
     authUser, login, t,
     sidebarWidth, setSidebarWidth, sidebarCollapsed, toggleSidebarCollapsed,
     settings, pushToast,
   } = useUI();
-  const { playlists, createPlaylist } = usePlayer();
+  const { playlists, createPlaylist, liked, followedArtists, savedAlbums } = usePlayer();
+  const tt = (id, en) => trLang(settings, id, en);
+
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const inputRef = useRef(null);
-  useEffect(() => { if (creating) inputRef.current?.focus(); }, [creating]);
-  const submitCreate = () => { const val = newName.trim(); if (val) createPlaylist(val); setNewName(""); setCreating(false); };
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [sort, setSort] = useState("default");
+  const createRef = useRef(null);
+  const searchRef = useRef(null);
 
-  const showAnySideLinks = settings.showSideAbout || settings.showSideDiscord || settings.showSideGithub;
+  usePlaylistDetails(playlists);
+
+  useEffect(() => { if (creating) createRef.current?.focus(); }, [creating]);
+  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
+
+  const createGuard = useRef(false);
+  const submitCreate = async () => {
+    if (createGuard.current) return;
+    const val = newName.trim();
+    setNewName("");
+    setCreating(false);
+    if (!val) return;
+    createGuard.current = true;
+    try {
+      const id = await createPlaylist(val);
+      if (id) navigate("playlist", { params: { id } });
+    } finally {
+      createGuard.current = false;
+    }
+  };
+  const startCreate = () => {
+    if (sidebarCollapsed) toggleSidebarCollapsed();
+    setFilter((f) => (f === "albums" || f === "artists" ? "all" : f));
+    setCreating(true);
+  };
 
   useEffect(() => {
     if (!settings.donationReminders) return undefined;
@@ -4058,90 +4267,207 @@ export function Sidebar() {
     width: sidebarWidth, setWidth: setSidebarWidth, min: SIDEBAR_MIN_W, max: SIDEBAR_MAX_W, side: "left",
   });
 
-  const visibleNavItems = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
+  const allNav = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
+  const topNav = sidebarCollapsed ? allNav : allNav.filter((i) => i.route !== "library");
 
+  const songsWord = t("songsCount");
+  const items = useMemo(() => {
+    const list = [];
+    list.push({
+      key: "liked", kind: "playlist", pinned: true, liked: true, to: "liked", params: undefined,
+      title: t("navLikedSongs"), sub: `${t("playlistLabel")} · ${liked.size} ${songsWord}`,
+      active: name === "liked",
+    });
+    playlists.forEach((pl) => {
+      list.push({
+        key: `pl${pl.id}`, kind: "playlist", to: "playlist", params: { id: pl.id }, playlist: pl,
+        title: pl.name, sub: `${t("playlistLabel")} · ${playlistCount(pl)} ${songsWord}`,
+        active: name === "playlist" && String(params?.id) === String(pl.id),
+      });
+    });
+    (savedAlbums || []).forEach((al) => {
+      list.push({
+        key: `al${al.id}`, kind: "album", to: "album", params: { id: al.id }, cover: al.cover,
+        title: al.title, sub: `${t("albumLabel")} · ${al.artist?.name || al.artistLine || ""}`.replace(/ · $/, ""),
+        active: name === "album" && String(params?.id) === String(al.id),
+      });
+    });
+    (followedArtists || []).forEach((a) => {
+      list.push({
+        key: `ar${a.id}`, kind: "artist", to: "artist", params: { id: a.id }, cover: a.image, round: true,
+        title: a.name, sub: t("artistLabel"),
+        active: name === "artist" && String(params?.id) === String(a.id),
+      });
+    });
+    return list;
+  }, [playlists, savedAlbums, followedArtists, liked, name, params, t, songsWord]);
+
+  const visible = useMemo(() => {
+    const kindOf = { playlists: "playlist", albums: "album", artists: "artist" };
+    const needle = query.trim().toLowerCase();
+    let out = items.filter((it) => (filter === "all" || it.kind === kindOf[filter]) && (!needle || it.title.toLowerCase().includes(needle)));
+    if (sort === "alpha") {
+      const pinned = out.filter((it) => it.pinned);
+      const rest = out.filter((it) => !it.pinned).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+      out = [...pinned, ...rest];
+    }
+    return out;
+  }, [items, filter, query, sort]);
+
+  const renderCover = (it, size) => {
+    if (it.liked) return <LikedCover size={size} radius={6} />;
+    if (it.playlist) return <PlaylistCover playlist={it.playlist} size={size} radius={6} />;
+    return (
+      <span className={`sp-plcover ${it.round ? "is-round" : ""}`} style={{ width: size, height: size, borderRadius: it.round ? "50%" : 6 }} aria-hidden="true">
+        <SmartCover src={it.cover} seed={`${it.kind}${it.key}${it.title}`} size={size} radius={0} />
+      </span>
+    );
+  };
+
+  const userChip = authUser ? (
+    <Link to="settings" className="sp-user" title={resolveDisplayName(authUser)}>
+      <Avatar user={authUser} />
+      {!sidebarCollapsed && <span className="sp-user-name">{resolveDisplayName(authUser)}</span>}
+    </Link>
+  ) : (
+    <button className="sp-login" onClick={login} title={t("navLoginDiscord")} aria-label={t("navLoginDiscord")}>
+      <LogIn size={15} />{!sidebarCollapsed && <span>{t("navLoginDiscord")}</span>}
+    </button>
+  );
+
+  /* ---------------- rail (sidebar diciutkan) ---------------- */
   if (sidebarCollapsed) {
     return (
-      <aside className="aivy-sidebar aivy-sidebar-rail">
-        <button
-          className="aivy-panel-icon-btn aivy-rail-toggle"
-          onClick={toggleSidebarCollapsed}
-          aria-label={t("expandSidebar", "Buka sidebar")}
-          title={t("expandSidebar", "Buka sidebar")}
-        >
-          <PanelLeft size={18} />
-        </button>
-        <nav className="aivy-nav aivy-nav-rail">
-          {visibleNavItems.map(({ route, labelKey, icon: Icon }) => (
-            <Link key={route} to={route} className={`aivy-nav-item ${name === route ? "active" : ""}`} title={t(labelKey)} aria-label={t(labelKey)}>
-              <Icon size={18} />
-            </Link>
-          ))}
-        </nav>
-        <div className="aivy-side-footer aivy-side-footer-rail">
-          {authUser ? (
-            <Link to="settings" className="aivy-user-chip aivy-user-chip-rail" title={resolveDisplayName(authUser)} aria-label={resolveDisplayName(authUser)}>
-              <Avatar user={authUser} />
-            </Link>
-          ) : (
-            <button className="aivy-login-btn" onClick={login} title={t("navLoginDiscord")} aria-label={t("navLoginDiscord")}><LogIn size={15} /></button>
-          )}
+      <aside className="aivy-sidebar sp-side is-rail">
+        <div className="sp-panel sp-nav-panel">
+          <nav className="sp-nav">
+            {topNav.map(({ route, labelKey, icon: Icon }) => (
+              <Link key={route} to={route} className={`sp-nav-item ${name === route ? "active" : ""}`} title={t(labelKey)} aria-label={t(labelKey)}>
+                <Icon size={22} strokeWidth={name === route ? 2.5 : 2} />
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="sp-panel sp-lib-panel">
+          <div className="sp-rail-head">
+            <button className="sp-icon-btn" onClick={toggleSidebarCollapsed} title={tt("Buka sidebar", "Expand sidebar")} aria-label={tt("Buka sidebar", "Expand sidebar")}><PanelLeft size={20} /></button>
+            <button className="sp-icon-btn" onClick={startCreate} title={t("createPlaylist")} aria-label={t("createPlaylist")}><Plus size={20} /></button>
+          </div>
+          <div className="sp-lib-list aivy-scroll">
+            {items.map((it) => (
+              <Link key={it.key} to={it.to} params={it.params} className={`sp-lib-row is-rail ${it.active ? "active" : ""}`} title={it.title} aria-label={it.title}>
+                {renderCover(it, 48)}
+              </Link>
+            ))}
+          </div>
+          <div className="sp-side-foot is-rail">{userChip}</div>
         </div>
       </aside>
     );
   }
 
+  /* ---------------- sidebar penuh ---------------- */
+  const chips = [
+    ["playlists", tt("Playlist", "Playlists")],
+    ["albums", "Album"],
+    ["artists", tt("Artis", "Artists")],
+  ];
+  const showCreateCard = !playlists.length && !query && (filter === "all" || filter === "playlists") && !creating;
+  const noResults = !visible.length && !creating && !showCreateCard;
+
   return (
-    <aside className="aivy-sidebar">
-      <div className="aivy-sidebar-topline">
-        <button
-          className="aivy-panel-icon-btn"
-          onClick={toggleSidebarCollapsed}
-          aria-label={t("collapseSidebar", "Tutup sidebar")}
-          title={t("collapseSidebar", "Tutup sidebar")}
-        >
-          <PanelLeft size={18} />
-        </button>
-        <Link to="home" className="aivy-brand"><AnimatedLogo size={34} className="mark" /><div className="word font-display">cosmicx</div></Link>
+    <aside className="aivy-sidebar sp-side">
+      <div className="sp-panel sp-nav-panel">
+        <Link to="home" className="sp-brand"><AnimatedLogo size={32} className="mark" /><span className="word font-display">cosmicx</span></Link>
+        <nav className="sp-nav">
+          {topNav.map(({ route, labelKey, icon: Icon }) => (
+            <Link key={route} to={route} className={`sp-nav-item ${name === route ? "active" : ""}`}>
+              <Icon size={24} strokeWidth={name === route ? 2.5 : 2} /><span>{t(labelKey)}</span>
+            </Link>
+          ))}
+        </nav>
       </div>
-      <nav className="aivy-nav">
-        {visibleNavItems.map(({ route, labelKey, icon: Icon }) => (
-          <Link key={route} to={route} className={`aivy-nav-item ${name === route ? "active" : ""}`}><Icon size={18} /><span>{t(labelKey)}</span></Link>
-        ))}
-      </nav>
-      <div className="aivy-side-section">
-        <div className="eyebrow" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span>{t("navYourPlaylists")}</span>
-          <button className="aivy-icon-btn sm" onClick={() => setCreating((c) => !c)} aria-label={t("createPlaylist")}><Plus size={14} /></button>
-        </div>
-        {creating && (
-          <div style={{ padding: "0 6px 8px" }}>
-            <input ref={inputRef} className="aivy-input" style={{ padding: "7px 12px", fontSize: 13 }} placeholder={t("newPlaylistName")} value={newName}
-              onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitCreate(); if (e.key === "Escape") setCreating(false); }} onBlur={submitCreate} />
-          </div>
-        )}
-        <div className="aivy-playlist-list aivy-scroll">
-          <Link to="liked" className="aivy-playlist-row"><Heart size={15} color="var(--berry)" fill="var(--berry)" /><span>{t("navLikedSongs")}</span></Link>
-          {playlists.map((pl) => <Link key={pl.id} to="playlist" params={{ id: pl.id }} className="aivy-playlist-row"><Library size={15} /><span>{pl.name}</span></Link>)}
-        </div>
-      </div>
-      <div className="aivy-side-links">
-          <Link to="donate" className="aivy-side-link"><Heart size={13} /> {settings.language === "en" ? "Donate" : "Donasi"}</Link>
-          {settings.showSideAbout && <a href="/about" className="aivy-side-link"><Info size={13} /> {t("language") === "en" ? "About" : "Tentang"}</a>}
-          {settings.showSideDiscord && <a href="https://discord.gg/" target="_blank" rel="noreferrer" className="aivy-side-link"><Users size={13} /> Discord</a>}
-          {settings.showSideGithub && <a href="https://github.com/" target="_blank" rel="noreferrer" className="aivy-side-link"><Github size={13} /> GitHub</a>}
-      </div>
-      <div className="aivy-side-footer">
-        {}
-        <Link to="settings" className="aivy-theme-btn"><SettingsIcon size={15} />{t("navSettings")}</Link>
-        {authUser ? (
-          <Link to="settings" className="aivy-user-chip">
-            <Avatar user={authUser} />
-            <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{resolveDisplayName(authUser)}</span>
+
+      <div className="sp-panel sp-lib-panel">
+        <div className="sp-lib-head">
+          <Link to="library" className={`sp-lib-title ${name === "library" ? "active" : ""}`}>
+            <Library size={24} /><span>{tt("Koleksi Kamu", "Your Library")}</span>
           </Link>
-        ) : (
-          <button className="aivy-login-btn" onClick={login}><LogIn size={15} /> {t("navLoginDiscord")}</button>
-        )}
+          <button className="sp-icon-btn" onClick={startCreate} title={t("createPlaylist")} aria-label={t("createPlaylist")}><Plus size={20} /></button>
+          <button className="sp-icon-btn" onClick={toggleSidebarCollapsed} title={tt("Tutup sidebar", "Collapse sidebar")} aria-label={tt("Tutup sidebar", "Collapse sidebar")}><PanelLeft size={19} /></button>
+        </div>
+
+        <div className="sp-chips" role="tablist">
+          {chips.map(([key, label]) => (
+            <button key={key} role="tab" aria-selected={filter === key} className={`sp-chip ${filter === key ? "active" : ""}`} onClick={() => setFilter((f) => (f === key ? "all" : key))}>{label}</button>
+          ))}
+        </div>
+
+        <div className="sp-lib-tools">
+          {searchOpen ? (
+            <div className="sp-lib-search">
+              <Search size={15} />
+              <input
+                ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)}
+                placeholder={tt("Cari di koleksi", "Search in library")}
+                onKeyDown={(e) => { if (e.key === "Escape") { setQuery(""); setSearchOpen(false); } }}
+                onBlur={() => { if (!query) setSearchOpen(false); }}
+              />
+              {query && <button className="sp-icon-btn sm" onMouseDown={(e) => e.preventDefault()} onClick={() => { setQuery(""); searchRef.current?.focus(); }} aria-label={t("clear")}><X size={13} /></button>}
+            </div>
+          ) : (
+            <button className="sp-icon-btn sm" onClick={() => setSearchOpen(true)} title={tt("Cari di koleksi", "Search in library")} aria-label={tt("Cari di koleksi", "Search in library")}><Search size={16} /></button>
+          )}
+          <button className="sp-sort" onClick={() => setSort((s) => (s === "default" ? "alpha" : "default"))} title={tt("Ubah urutan", "Change order")}>
+            {sort === "alpha" ? "A–Z" : tt("Bawaan", "Default")}
+          </button>
+        </div>
+
+        <div className="sp-lib-list aivy-scroll">
+          {creating && (
+            <div className="sp-lib-row sp-lib-create">
+              <span className="sp-plcover sp-atp-plus" style={{ width: 48, height: 48, borderRadius: 6 }}><Plus size={22} /></span>
+              <input
+                ref={createRef} value={newName} maxLength={80}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={t("newPlaylistName")}
+                onKeyDown={(e) => { if (e.key === "Enter") submitCreate(); if (e.key === "Escape") { setNewName(""); setCreating(false); } }}
+                onBlur={() => { if (newName.trim()) submitCreate(); else setCreating(false); }}
+              />
+            </div>
+          )}
+
+          {showCreateCard && (
+            <div className="sp-empty-card">
+              <div className="h">{tt("Buat playlist pertamamu", "Create your first playlist")}</div>
+              <div className="p">{tt("Gampang kok, kita bantu.", "It's easy, we'll help you.")}</div>
+              <button className="sp-pill-btn primary" onClick={authUser ? startCreate : login}>{authUser ? t("createPlaylist") : t("navLoginDiscord")}</button>
+            </div>
+          )}
+
+          {visible.map((it) => (
+            <Link key={it.key} to={it.to} params={it.params} className={`sp-lib-row ${it.active ? "active" : ""}`}>
+              {renderCover(it, 48)}
+              <span className="sp-lib-meta">
+                <span className="t">{it.title}</span>
+                <span className="s">{it.sub}</span>
+              </span>
+            </Link>
+          ))}
+
+          {noResults && <div className="sp-lib-empty">{query ? tt("Tidak ada hasil", "No results") : tt("Belum ada isinya", "Nothing here yet")}</div>}
+        </div>
+
+        <div className="sp-side-foot">
+          {userChip}
+          <div className="sp-foot-actions">
+            <Link to="donate" className="sp-icon-btn sm" title={tt("Donasi", "Donate")} aria-label={tt("Donasi", "Donate")}><Heart size={15} /></Link>
+            {settings.showSideAbout && <a href="/about" className="sp-icon-btn sm" title={tt("Tentang", "About")} aria-label={tt("Tentang", "About")}><Info size={15} /></a>}
+            {settings.showSideDiscord && <a href="https://discord.gg/" target="_blank" rel="noreferrer" className="sp-icon-btn sm" title="Discord" aria-label="Discord"><Users size={15} /></a>}
+            {settings.showSideGithub && <a href="https://github.com/" target="_blank" rel="noreferrer" className="sp-icon-btn sm" title="GitHub" aria-label="GitHub"><Github size={15} /></a>}
+            <Link to="settings" className="sp-icon-btn sm" title={t("navSettings")} aria-label={t("navSettings")}><SettingsIcon size={15} /></Link>
+          </div>
+        </div>
       </div>
 
       <div
@@ -4180,83 +4506,28 @@ const LiquidGlassDefs = React.memo(function LiquidGlassDefs({ ids = LG_DOCK_IDS 
     </svg>
   );
 });
-// MobileDock: Stacked Monolith Deck (GPU translate3d/opacity, tanpa SVG displacement filter)
-function useDockCollapse(routeName, enabled) {
-  const [collapsed, setCollapsed] = useState(false);
-  const stateRef = useRef(false);
-  const set = useCallback((v) => {
-    if (stateRef.current === v) return;
-    stateRef.current = v;
-    setCollapsed(v);
-  }, []);
-  useEffect(() => {
-    set(false);
-    if (!enabled) return undefined;
-    const el = document.getElementById("aivy-content-scroll");
-    if (!el) return undefined;
-    let lastY = el.scrollTop;
-    let acc = 0;
-    let raf = 0;
-    const run = () => {
-      raf = 0;
-      const y = Math.max(0, el.scrollTop);
-      const dy = y - lastY;
-      lastY = y;
-      if (y <= 12) { acc = 0; set(false); return; }
-      if (Math.abs(dy) < 1) return;
-      if ((dy > 0) !== (acc > 0)) acc = 0;
-      acc += dy;
-      if (acc > 32 && y > 60) set(true);
-      else if (acc < -10) set(false);
-    };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(run); };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => { el.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, [routeName, enabled, set]);
-  return [collapsed && enabled, set];
-}
-
+// Navigasi bawah mobile ala Spotify: mini player melayang + tab bar penuh.
 export function MobileDock({ onExpandPlayer }) {
   const { name } = useRouter();
   const { t, settings } = useUI();
   const { currentTrack } = usePlayer();
   const hasTrack = !!currentTrack;
-  const [collapsed] = useDockCollapse(name, hasTrack);
-
   const tabItems = NAV_ITEMS.filter(({ flag }) => settings?.[flag] !== false);
-  const activeTabIdx = tabItems.findIndex((i) => i.route === name);
 
   return (
-    <div className={`aivy-dock ${hasTrack ? "has-track" : ""} ${collapsed ? "is-collapsed" : ""}`}>
-      {hasTrack && (
-        <div className="aivy-dock-slot slot-mini">
-          <MiniPlayer onExpand={onExpandPlayer} />
-        </div>
-      )}
-      <div className="aivy-dock-slot slot-tabs">
-        <nav
-          className="aivy-tabbar"
-          data-lens={activeTabIdx >= 0 ? "on" : "off"}
-          style={{ "--n": Math.max(1, tabItems.length), "--i": Math.max(0, activeTabIdx) }}
-        >
-          <span className="aivy-tab-lens" aria-hidden="true" />
-          {tabItems.map(({ route, labelKey, icon: Icon }) => (
-            <Link
-              key={route}
-              to={route}
-              className={`aivy-tab ${name === route ? "active" : ""}`}
-              aria-label={t(labelKey)}
-              tabIndex={collapsed ? -1 : undefined}
-            >
-              <span className="aivy-tab-icon">
-                <Icon size={19} />
-                <i className="aivy-tab-dot" aria-hidden="true" />
-              </span>
-              <span className="aivy-tab-label">{t(labelKey)}</span>
+    <div className={`sp-dock ${hasTrack ? "has-track" : ""}`}>
+      {hasTrack && <MiniPlayer onExpand={onExpandPlayer} />}
+      <nav className="sp-tabbar" aria-label="Navigasi utama">
+        {tabItems.map(({ route, labelKey, icon: Icon }) => {
+          const active = name === route;
+          return (
+            <Link key={route} to={route} className={`sp-tab ${active ? "active" : ""}`} aria-label={t(labelKey)} aria-current={active ? "page" : undefined}>
+              <Icon size={24} strokeWidth={active ? 2.5 : 1.8} />
+              <span>{t(labelKey)}</span>
             </Link>
-          ))}
-        </nav>
-      </div>
+          );
+        })}
+      </nav>
     </div>
   );
 }
@@ -4267,34 +4538,43 @@ export function TopBar({ isMobile }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const el = document.getElementById("aivy-content-scroll");
-    if (!el) return;
+    if (!el) return undefined;
+    setScrolled(el.scrollTop > 4);
     const onScroll = () => setScrolled(el.scrollTop > 4);
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, [name]);
-  const titleMap = { search: t("navSearch"), library: t("navLibrary"), roomLobby: t("navRooms"), room: t("navRooms"), liked: t("navLikedSongs"), settings: t("navSettings"), shorts: t("navShorts"), home: "" };
+  const titleMap = { library: t("navLibrary"), roomLobby: t("navRooms"), room: t("navRooms"), liked: t("navLikedSongs"), settings: t("navSettings"), shorts: t("navShorts"), home: "" };
+
+  if (isMobile) {
+    const isRoot = name === "home" || name === "library" || name === "roomLobby" || name === "shorts";
+    return (
+      <div className={`sp-topbar ${scrolled ? "scrolled" : ""}`}>
+        {isRoot ? (
+          authUser ? (
+            <Link to="settings" className="sp-topbar-avatar" aria-label={resolveDisplayName(authUser) || "Akun"}><Avatar user={authUser} /></Link>
+          ) : (
+            <AnimatedLogo size={30} />
+          )
+        ) : (
+          <button className="sp-topbar-btn" onClick={back} aria-label={t("previous")}><ArrowLeft size={22} /></button>
+        )}
+        <span className="sp-topbar-title font-display">{titleMap[name] ?? ""}</span>
+        <div className="aivy-topbar-spacer" />
+        {authUser
+          ? (name !== "settings" && <Link to="settings" className="sp-topbar-btn" aria-label={t("navSettings")} title={t("navSettings")}><SettingsIcon size={21} /></Link>)
+          : <button className="sp-pill-btn primary" onClick={login}>{t("navLogin")}</button>}
+      </div>
+    );
+  }
+
   return (
     <div className={`aivy-topbar ${scrolled ? "scrolled" : ""}`}>
-      {isMobile ? (
-        <>
-          {name !== "home" ? <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ArrowLeft size={16} /></button> : <AnimatedLogo size={28} />}
-          <span className="aivy-topbar-title font-display" style={{ fontSize: 15 }}>{titleMap[name] ?? ""}</span>
-        </>
-      ) : (
-        <div className="navbtns">
-          <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ChevronLeft size={16} /></button>
-          <button className="aivy-navbtn" onClick={() => window.history.forward()} aria-label={t("next")}><ChevronRight size={16} /></button>
-        </div>
-      )}
+      <div className="navbtns">
+        <button className="aivy-navbtn" onClick={back} aria-label={t("previous")}><ChevronLeft size={16} /></button>
+        <button className="aivy-navbtn" onClick={() => window.history.forward()} aria-label={t("next")}><ChevronRight size={16} /></button>
+      </div>
       <div className="aivy-topbar-spacer" />
-      {isMobile && (
-        <>
-          {}
-          {!authUser && <Link to="settings" className="aivy-navbtn" aria-label={t("navSettings")} title={t("navSettings")}><SettingsIcon size={15} /></Link>}
-        </>
-      )}
-      {isMobile && !authUser && <button className="aivy-btn-ghost" style={{ padding: "7px 14px", fontSize: 12.5 }} onClick={login}>{t("navLogin")}</button>}
-      {isMobile && authUser && <Link to="settings" aria-label={resolveDisplayName(authUser) || "Akun"} className="aivy-avatar-link"><span className="aivy-topbar-username">{resolveDisplayName(authUser)}</span><Avatar user={authUser} /></Link>}
     </div>
   );
 }
