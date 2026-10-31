@@ -42,18 +42,24 @@ function fit(L, C, h) {
 /* ---------- pilih aksen dari palet ---------- */
 // Palet dari extractFluidColors sudah digelapkan untuk latar, jadi yang dipakai hanya hue + chroma-nya;
 // lightness dicari ulang per permukaan. Mengembalikan null kalau cover praktis monokrom -> theme bawaan.
+const hueDist = (a, b) => { const d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
+const boost = (C) => Math.min(0.17, Math.max(0.07, C * 1.15));
+
+// -> { h, C, h2, C2 } : hue utama + hue kedua (untuk gradien latar; kalau cover satu warna, digeser ~46deg)
 export function pickAccent(palette) {
-  let best = null, bestScore = 0;
+  const cands = [];
   (palette || []).forEach((rgb, i) => {
     const [L, a, b] = rgbToLab(rgb);
     const C = Math.hypot(a, b);
     if (C < 0.045 || L < 0.1 || L > 0.97) return;                       // abu-abu / hampir hitam / hampir putih
     const score = Math.min(C, 0.16) * (1 - i * 0.1) * (L < 0.22 ? 0.7 : 1);   // utamakan warna kuat & dominan
-    if (score > bestScore) { bestScore = score; best = { h: Math.atan2(b, a), C }; }
+    cands.push({ h: Math.atan2(b, a), C, score });
   });
-  if (!best) return null;
-  best.C = Math.min(0.17, Math.max(0.07, best.C * 1.15));
-  return best;
+  if (!cands.length) return null;
+  cands.sort((x, y) => y.score - x.score);
+  const first = cands[0];
+  const sec = cands.find((x) => hueDist(x.h, first.h) > 0.5);
+  return { h: first.h, C: boost(first.C), h2: sec ? sec.h : first.h + 0.8, C2: boost(sec ? sec.C : first.C * 0.9) };
 }
 
 /* ---------- bangun satu set warna yang lolos kontras ---------- */
@@ -61,9 +67,9 @@ export function pickAccent(palette) {
 const PROFILES = {
   light:  { sL: 0.42, aL: 0.48, step: -0.015, cap: 0.17 },   // permukaan terang -> aksen gelap
   dark:   { sL: 0.86, aL: 0.78, step: 0.015, cap: 0.17 },    // permukaan gelap  -> aksen terang
-  island: { sL: 0.92, aL: 0.86, step: 0.01, cap: 0.10 },     // layar Now Playing: selalu di atas latar gelap, tint tipis
+  island: { sL: 0.82, aL: 0.76, step: 0.01, cap: 0.16 },     // layar Now Playing: selalu di atas latar gelap; harus tampak berwarna, bukan putih
 };
-export const ISLAND_SURFACES = [[0.38, 0.38, 0.38]];          // perkiraan terburuk latar fluid + scrim
+export const ISLAND_SURFACES = [[0.3, 0.3, 0.3]];             // perkiraan terburuk latar fluid + scrim
 
 const css = (c) => `rgb(${c.map((v) => Math.round(v * 255)).join(" ")})`;
 const cssA = (c, a) => `rgb(${c.map((v) => Math.round(v * 255)).join(" ")} / ${a})`;
@@ -80,7 +86,7 @@ function pickInk(acc, strong, h, C, light) {
 // -> { strings: [accent, strong, ink, soft] (CSS), ok, rgb: {acc, strong, ink} }
 export function buildSet({ h, C }, { surfaces, light = false, island = false }) {
   const p = PROFILES[island ? "island" : light ? "light" : "dark"];
-  const c = Math.min(C, p.cap);
+  const c = island ? Math.min(Math.max(C, 0.1), p.cap) : Math.min(C, p.cap);   // island: chroma minimal supaya tidak tampak putih
   let sL = p.sL, aL = p.aL, res = null;
   for (let k = 0; k < 24; k++) {
     const strong = fit(sL, c, h), acc = fit(aL, c, h);
@@ -94,4 +100,29 @@ export function buildSet({ h, C }, { surfaces, light = false, island = false }) 
   }
   const soft = cssA(light ? res.strong : res.acc, light ? 0.12 : 0.16);
   return { strings: [css(res.acc), css(res.strong), css(res.ink), soft], ok: res.ok, rgb: res };
+}
+
+/* ---------- mode penuh: seluruh permukaan aplikasi ikut warna cover ---------- */
+// Gelap: latar pekat bernuansa warna cover. Terang: pastel tipis. Teks dihitung ulang supaya tetap lolos AA.
+// -> { strings: [bg, elev, elev2, elev3, line, line-soft, ink, ink-dim, ink-faint, dyn-a, dyn-b], ok, surfaces }
+export function buildSurfaces({ h, C, h2, C2 }, light) {
+  const c = light ? Math.min(Math.max(C * 0.3, 0.018), 0.04) : Math.min(Math.max(C * 0.6, 0.04), 0.1);
+  const L = light
+    ? { bg: 0.955, elev: 0.985, e2: 0.93, e3: 0.9, line: 0.84, soft: 0.9 }
+    : { bg: 0.2, elev: 0.235, e2: 0.27, e3: 0.31, line: 0.37, soft: 0.29 };
+  const bg = fit(L.bg, c, h), elev = fit(L.elev, c, h), e2 = fit(L.e2, c, h), e3 = fit(L.e3, c, h);
+  const line = fit(L.line, c, h), soft = fit(L.soft, c, h);
+  const surfaces = [bg, e2, e3];
+  const step = light ? -0.015 : 0.015;
+  let iL = light ? 0.22 : 0.96, dL = light ? 0.42 : 0.78, fL = light ? 0.56 : 0.62;
+  let ink, dim, faint, ok = false;
+  for (let k = 0; k < 24 && !ok; k++) {
+    ink = fit(iL, 0.015, h); dim = fit(dL, 0.03, h); faint = fit(fL, 0.035, h);
+    ok = surfaces.every((s) => contrast(ink, s) >= 7 && contrast(dim, s) >= MIN_TEXT && contrast(faint, s) >= 3.1);
+    iL += step; dL += step; fL += step;
+  }
+  const c2 = Math.min(C2 == null ? C : C2, 0.14), cA = Math.min(C, 0.14);
+  const glowA = light ? fit(0.9, Math.min(cA, 0.08), h) : fit(0.34, cA, h);
+  const glowB = light ? fit(0.9, Math.min(c2, 0.08), h2) : fit(0.3, c2, h2);
+  return { strings: [bg, elev, e2, e3, line, soft, ink, dim, faint, glowA, glowB].map(css), ok, surfaces };
 }

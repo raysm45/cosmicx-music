@@ -10,6 +10,18 @@
 @property --cv-dk-strong  { syntax: "<color>"; inherits: true; initial-value: #FFFFFF; }
 @property --cv-dk-ink     { syntax: "<color>"; inherits: true; initial-value: #000000; }
 @property --cv-dk-soft    { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.10); }
+/* mode penuh (Warna dinamis) */
+@property --bg            { syntax: "<color>"; inherits: true; initial-value: #000000; }
+@property --bg-elev      { syntax: "<color>"; inherits: true; initial-value: #0B0B0B; }
+@property --bg-elev-2    { syntax: "<color>"; inherits: true; initial-value: #151515; }
+@property --bg-elev-3    { syntax: "<color>"; inherits: true; initial-value: #1F1F1F; }
+@property --line         { syntax: "<color>"; inherits: true; initial-value: #262626; }
+@property --line-soft    { syntax: "<color>"; inherits: true; initial-value: #1A1A1A; }
+@property --ink          { syntax: "<color>"; inherits: true; initial-value: #F2F2F2; }
+@property --ink-dim      { syntax: "<color>"; inherits: true; initial-value: #A6A6A6; }
+@property --ink-faint    { syntax: "<color>"; inherits: true; initial-value: #6B6B6B; }
+@property --dyn-a        { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --dyn-b        { syntax: "<color>"; inherits: true; initial-value: transparent; }
 
 :root{
   --cv-dur: var(--cv-dur-ms, 1700ms);
@@ -18,7 +30,12 @@
     --accent var(--cv-dur) var(--cv-ease), --accent-strong var(--cv-dur) var(--cv-ease),
     --accent-ink var(--cv-dur) var(--cv-ease), --accent-soft var(--cv-dur) var(--cv-ease),
     --cv-dk-accent var(--cv-dur) var(--cv-ease), --cv-dk-strong var(--cv-dur) var(--cv-ease),
-    --cv-dk-ink var(--cv-dur) var(--cv-ease), --cv-dk-soft var(--cv-dur) var(--cv-ease);
+    --cv-dk-ink var(--cv-dur) var(--cv-ease), --cv-dk-soft var(--cv-dur) var(--cv-ease),
+    --bg var(--cv-dur) var(--cv-ease), --bg-elev var(--cv-dur) var(--cv-ease),
+    --bg-elev-2 var(--cv-dur) var(--cv-ease), --bg-elev-3 var(--cv-dur) var(--cv-ease),
+    --line var(--cv-dur) var(--cv-ease), --line-soft var(--cv-dur) var(--cv-ease),
+    --ink var(--cv-dur) var(--cv-ease), --ink-dim var(--cv-dur) var(--cv-ease), --ink-faint var(--cv-dur) var(--cv-ease),
+    --dyn-a var(--cv-dur) var(--cv-ease), --dyn-b var(--cv-dur) var(--cv-ease);
 }
 :root[data-reduced-motion="true"]{ --cv-dur: 0ms; }
 @media (prefers-reduced-motion: reduce){ :root{ --cv-dur: 0ms; } }
@@ -54,3 +71,28 @@
 
 /* Highlight lirik (am-lyrics membaca --am-lyrics-highlight-color lewat shadow DOM) */
 :root[data-cover-theme] .aivy-am-lyrics{ --am-lyrics-highlight-color: var(--accent-strong); }
+
+/* ====================================================================================================
+   MODE PENUH (Warna dinamis): latar gradien dari warna cover + panel sidebar/kanan jadi kaca (seperti halaman artist)
+   Dipagari :root[data-cover-dyn]; --bg/--ink/dst sudah diganti variabel di atas, jadi kartu & teks ikut otomatis.
+   ==================================================================================================== */
+:root[data-cover-dyn] body:not(#_){
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(90% 75% at 0% 0%, var(--dyn-a), transparent 72%),
+    radial-gradient(85% 75% at 100% 100%, var(--dyn-b), transparent 72%);
+  background-attachment: fixed;
+}
+:root[data-cover-dyn] .sp-panel,
+:root[data-cover-dyn] .aivy-rightpanel,
+:root[data-cover-dyn] .aivy-rightpanel-rail{
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ink) 7%, transparent) 0%, transparent 22%),
+    color-mix(in srgb, var(--bg) 26%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(1.25); backdrop-filter: blur(30px) saturate(1.25);
+  border-color: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+:root[data-cover-dyn] .aivy-rightpanel .aivy-panel-card{
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+}
