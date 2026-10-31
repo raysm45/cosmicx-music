@@ -1109,7 +1109,7 @@ export function PlaylistCover({ playlist, size = 48, radius = 6, className = "" 
 export function LikedCover({ size = 48, radius = 6, className = "" }) {
   return (
     <span className={`sp-plcover sp-liked-cover ${className}`} style={{ width: size, height: size, borderRadius: radius }} aria-hidden="true">
-      <Heart size={Math.max(14, Math.round(size * 0.42))} fill="currentColor" />
+      <Heart className="sp-liked-heart" size={Math.max(14, Math.round(size * 0.42))} fill="currentColor" />
     </span>
   );
 }
@@ -4367,7 +4367,7 @@ export function Sidebar() {
           <div className="sp-lib-list aivy-scroll">
             {items.map((it) => (
               <Link key={it.key} to={it.to} params={it.params} className={`sp-lib-row is-rail ${it.active ? "active" : ""}`} title={it.title} aria-label={it.title}>
-                {renderCover(it, 48)}
+                {renderCover(it, 44)}
               </Link>
             ))}
           </div>
