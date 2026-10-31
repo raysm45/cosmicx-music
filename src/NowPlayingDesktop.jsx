@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, MoreHorizontal,
@@ -13,6 +13,8 @@ import { lyricPhase } from "./lib/presenceLyrics.js";
 import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
 import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import { FluidBackground } from "./lib/FluidBackground.jsx";
+import { useSyncedCoverTrack, prepareCover } from "./lib/coverSync.js";
+import { COVER_FADE_MS, EASE_CSS } from "./lib/motion.js";
 import {
   Scrubber, VolumeControl, MarqueeText, AppleLyricsPane, normLyricsFontSize,
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
@@ -23,6 +25,7 @@ import { unifyAudioInfoFields, describeQuality, resolveBitrateKbps } from "./lib
 import "./styles/nowplaying-desktop.css";
 
 const COVER_STYLE = { width: "100%", height: "100%" };
+const COVER_PX = 520;
 const LYRICS_ID = NPD_LYRICS_ID;
 const LYRICS_SHADOW_CSS = ".lyrics-header{display:none!important}.lyrics-footer .footer-content{display:none!important}";
 const FALLBACK_LANGS = [
@@ -377,8 +380,41 @@ function useNpdGlass(rootRef, enabled, hasTrack, queueMode) {
   return ready;
 }
 
+/* ---------- crossfade thumbnail ---------- */
+// Cover lama tetap ter-mount (frozen) di bawah, cover baru fade-in di atasnya (opacity + scale + blur halus),
+// lalu yang lama dibuang. Semua layer dirender dalam SATU array ber-key supaya React tidak me-remount
+// layer yang berpindah dari "current" ke "leaving" (kalau di-remount, gambar akan berkedip).
+function CoverCrossfade({ layerKey, reduce, children }) {
+  const [st, setSt] = useState({ gen: 0, leaving: [] });
+  const last = useRef({ key: layerKey, node: children, animated: false });
+  const timers = useRef(new Set());
+
+  useLayoutEffect(() => {
+    const prev = last.current;
+    if (prev.key !== layerKey && !reduce) {
+      const gone = { key: prev.key, node: prev.node, animated: prev.animated };
+      setSt((s) => ({ gen: s.gen + 1, leaving: [...s.leaving.filter((l) => l.key !== layerKey && l.key !== gone.key), gone].slice(-2) }));
+      const id = setTimeout(() => {
+        timers.current.delete(id);
+        setSt((s) => (s.leaving.includes(gone) ? { ...s, leaving: s.leaving.filter((l) => l !== gone) } : s));
+      }, COVER_FADE_MS + 140);
+      timers.current.add(id);
+    }
+    last.current = { key: layerKey, node: children, animated: st.gen > 0 };
+  });
+
+  useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
+
+  const items = st.leaving
+    .filter((l) => l.key !== layerKey)
+    .map((l) => <div key={l.key} className={`npd-cover-layer ${l.animated ? "is-in" : ""}`} aria-hidden="true">{l.node}</div>);
+  items.push(<div key={layerKey} className={`npd-cover-layer ${st.gen > 0 ? "is-in" : ""}`}>{children}</div>);
+
+  return <div className="npd-cover-layers" style={{ "--npd-xfade": `${COVER_FADE_MS}ms`, "--npd-ease": EASE_CSS }}>{items}</div>;
+}
+
 function FullPlayer({ shown, onClose }) {
-  const { currentTrack, currentTrackHasLyrics, shuffle, toggleShuffle, repeat, cycleRepeat, room, isPlaying, next, prev } = usePlayer();
+  const { currentTrack, currentTrackHasLyrics, shuffle, toggleShuffle, repeat, cycleRepeat, room, isPlaying, next, prev, upNext, suggestedQueue } = usePlayer();
   const { settings, updateSettings, t, authUser } = useUI();
   const [view, setView] = useState("controls");
   const [outputOpen, setOutputOpen] = useState(false);
@@ -391,6 +427,13 @@ function FullPlayer({ shown, onClose }) {
   const swipe = useCoverSwipe({ onNext: () => next(false), onPrev: prev, disabled: swipeLocked });
   const refract = settings.liquidGlass === true && supportsRefraction();
   const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view === "queue");
+
+  // cover + warna latar diganti bersamaan, setelah keduanya siap (lihat lib/coverSync.js)
+  const coverTrack = useSyncedCoverTrack(currentTrack, COVER_PX);
+
+  // pemanasan: siapkan cover lagu berikutnya selagi lagu sekarang main, jadi pergantian lagu langsung mulus
+  const warmSrc = upNext?.[0]?.cover || suggestedQueue?.[0]?.cover || null;
+  useEffect(() => { if (warmSrc) prepareCover(warmSrc, COVER_PX); }, [warmSrc]);
 
   useEffect(() => {
     if (!shown || !rootRef.current) return;
@@ -423,11 +466,11 @@ function FullPlayer({ shown, onClose }) {
 
   const cover = useMemo(() => (
     <AnimatedCover
-      src={currentTrack?.cover} seed={(currentTrack?.id || "") + (currentTrack?.title || "")} size={520} radius={8}
-      style={COVER_STYLE} song={currentTrack?.title} artist={currentTrack?.artist?.name}
+      src={coverTrack.cover} seed={(coverTrack.id || "") + (coverTrack.title || "")} size={COVER_PX} radius={8}
+      style={COVER_STYLE} song={coverTrack.title} artist={coverTrack.artist}
       animated={!!settings.animatedArtwork} reduceMotion={reduceMotion} active={shown}
     />
-  ), [currentTrack?.cover, currentTrack?.id, currentTrack?.title, currentTrack?.artist?.name, settings.animatedArtwork, reduceMotion, shown]);
+  ), [coverTrack, settings.animatedArtwork, reduceMotion, shown]);
 
   if (!currentTrack) return null;
 
@@ -448,8 +491,8 @@ function FullPlayer({ shown, onClose }) {
       onPointerDown={drag.onPointerDown} onPointerMove={drag.onPointerMove} onPointerUp={drag.onPointerUp}
       onPointerCancel={drag.onPointerCancel} onClickCapture={drag.onClickCapture} onDragStart={drag.onDragStart}
     >
-      {settings.coverBackground !== false && currentTrack.cover && (
-        <FluidBackground src={currentTrack.cover} active={shown} playing={isPlaying} still={reduceMotion} />
+      {settings.coverBackground !== false && coverTrack.cover && (
+        <FluidBackground src={coverTrack.cover} active={shown} playing={isPlaying} still={reduceMotion} />
       )}
       <div className="npd-scrim" aria-hidden="true" />
       {refract && <NpdGlassDefs />}
@@ -464,7 +507,7 @@ function FullPlayer({ shown, onClose }) {
             onPointerUp={swipe.onPointerUp} onPointerCancel={swipe.onPointerCancel}
           >
             <div className={`npd-cover ${isPlaying ? "" : "is-paused"}`}>
-              {cover}
+              <CoverCrossfade layerKey={coverTrack.cover || `t:${coverTrack.id}`} reduce={reduceMotion}>{cover}</CoverCrossfade>
               <QualityLine track={currentTrack} visible={view === "controls"} />
             </div>
           </div>

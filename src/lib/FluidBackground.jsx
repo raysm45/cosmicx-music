@@ -1,11 +1,11 @@
 import React, { memo, useEffect, useRef, useState } from "react";
 import { MeshGradient, useCoverPalette } from "./MeshGradient.jsx";
+import { BG_FADE_MS, BG_STAGGER_MS, ease, rgbToLab, labToRgb, matchSlots } from "./motion.js";
 
 const COLORS = 5;
 const RES_SCALE = 0.25;
 const MIN_W = 220;
 const MAX_W = 640;
-const COLOR_EASE = 4.2;
 
 const VERT = `
 attribute vec2 aPos;
@@ -234,6 +234,44 @@ function colorsFromImage(img) {
   return fillColors(picked.map(tuneRgb));
 }
 
+const COLOR_CACHE_LIMIT = 32;
+const colorCache = new Map();
+const colorInflight = new Map();
+
+function loadCorsImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.decoding = "async";
+    img.onload = () => {
+      // decode() = dekode off-main-thread, jadi drawImage 48px nanti tidak memicu jank
+      if (img.decode) img.decode().then(() => resolve(img), () => resolve(img));
+      else resolve(img);
+    };
+    img.onerror = () => reject(new Error("cover load failed"));
+    img.src = src;
+  });
+}
+
+export function getCachedFluidColors(src) { return (src && colorCache.get(src)) || null; }
+
+export function extractFluidColors(src) {
+  const hit = colorCache.get(src);
+  if (hit) return Promise.resolve(hit);
+  let p = colorInflight.get(src);
+  if (p) return p;
+  p = loadCorsImage(src)
+    .then((img) => {
+      const list = colorsFromImage(img);
+      if (colorCache.size >= COLOR_CACHE_LIMIT) colorCache.delete(colorCache.keys().next().value);
+      colorCache.set(src, list);
+      return list;
+    })
+    .finally(() => { colorInflight.delete(src); });
+  colorInflight.set(src, p);
+  return p;
+}
+
 function colorsFromPalette(palette) {
   const out = (palette || []).map((str) => {
     const m = /hsl\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/i.exec(str);
@@ -245,6 +283,8 @@ function colorsFromPalette(palette) {
 }
 
 
+const LAB_TMP = [0, 0, 0];
+
 export const FluidBackground = memo(function FluidBackground({ src, fallbackColor, active = true, playing = true, still = false }) {
   const canvasRef = useRef(null);
   const palette = useCoverPalette(src, fallbackColor);
@@ -255,7 +295,10 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
   const live = useRef({ active, playing, still });
   live.current = { active, playing, still };
 
-  const colors = useRef({ cur: colorsFromPalette(null), target: colorsFromPalette(null), ready: false });
+  // cur   = warna yang sedang tampil (sRGB, dikirim ke shader tiap frame)
+  // from/to = titik awal & tujuan transisi (OKLab). Transisi berbasis WAKTU (bukan per-frame), jadi
+  // tetap mulus saat frame drop, dan kalau lagu diganti di tengah transisi, awalnya = warna yang tampil saat itu.
+  const colors = useRef({ cur: colorsFromPalette(null), from: null, to: null, t0: 0, dur: BG_FADE_MS, running: false, ready: false });
   const clock = useRef({ t: 23.7, last: 0, speed: 1 });
   const rafRef = useRef(0);
   const kick = useRef(() => {});
@@ -285,20 +328,27 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
       c.t += dt * c.speed;
 
       const col = colors.current;
-      let moving = 0;
-      const k = Math.min(1, dt * COLOR_EASE);
-      for (let i = 0; i < COLORS; i++) {
-        for (let j = 0; j < 3; j++) {
-          const d = col.target[i][j] - col.cur[i][j];
-          col.cur[i][j] += d * k;
-          if (Math.abs(d) > moving) moving = Math.abs(d);
+      if (col.running) {
+        const elapsed = now - col.t0;
+        const span = Math.max(1, col.dur - (COLORS - 1) * BG_STAGGER_MS);
+        let done = true;
+        for (let i = 0; i < COLORS; i++) {
+          const pr = Math.min(1, Math.max(0, (elapsed - i * BG_STAGGER_MS) / span));
+          if (pr < 1) done = false;
+          const e = ease(pr);
+          const f = col.from[i], t = col.to[i];
+          LAB_TMP[0] = f[0] + (t[0] - f[0]) * e;
+          LAB_TMP[1] = f[1] + (t[1] - f[1]) * e;
+          LAB_TMP[2] = f[2] + (t[2] - f[2]) * e;
+          labToRgb(LAB_TMP, col.cur[i]);
         }
+        if (done) col.running = false;
       }
 
       const [w, h] = size();
       r.draw(c.t, col.cur, w, h);
 
-      const more = a && !document.hidden && (c.speed > 0.002 || moving > 0.002 || Math.abs(target - c.speed) > 0.002);
+      const more = a && !document.hidden && (c.speed > 0.002 || col.running || Math.abs(target - c.speed) > 0.002);
       if (more) rafRef.current = requestAnimationFrame(frame);
       else c.last = 0;
     };
@@ -333,22 +383,28 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
     const apply = (list) => {
       if (!alive) return;
       const col = colors.current;
-      col.target = list;
-      if (!col.ready) { col.cur = list.map((c) => c.slice()); col.ready = true; }   // pertama kali: langsung, tanpa transisi
+      if (!col.ready || live.current.still) {
+        // pertama kali / reduced motion: langsung, tanpa transisi
+        col.cur = list.map((c) => c.slice());
+        col.running = false;
+        col.ready = true;
+        kick.current();
+        return;
+      }
+      const fromLab = col.cur.map(rgbToLab);
+      col.from = fromLab;
+      col.to = matchSlots(fromLab, list.map(rgbToLab));
+      col.t0 = performance.now();
+      col.dur = BG_FADE_MS;
+      col.running = true;
       kick.current();
     };
     const usePalette = () => apply(colorsFromPalette(paletteRef.current));
 
     if (!src) { usePalette(); return () => { alive = false; }; }
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.decoding = "async";
-    img.onload = () => {
-      if (!alive) return;
-      try { apply(colorsFromImage(img)); } catch { usePalette(); }
-    };
-    img.onerror = usePalette;
-    img.src = src;
+    const cached = getCachedFluidColors(src);
+    if (cached) { apply(cached); return () => { alive = false; }; }   // sudah di-prepare -> mulai di frame yang sama dengan cover
+    extractFluidColors(src).then(apply, usePalette);
     return () => { alive = false; };
   }, [src]);
 
