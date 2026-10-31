@@ -4221,10 +4221,21 @@ export function Sidebar() {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [sort, setSort] = useState("default");
+  const [moreOpen, setMoreOpen] = useState(false);
   const createRef = useRef(null);
   const searchRef = useRef(null);
+  const moreRef = useRef(null);
 
   usePlaylistDetails(playlists);
+
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    const onDown = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setMoreOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [moreOpen]);
 
   useEffect(() => { if (creating) createRef.current?.focus(); }, [creating]);
   useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
@@ -4460,12 +4471,17 @@ export function Sidebar() {
 
         <div className="sp-side-foot">
           {userChip}
-          <div className="sp-foot-actions">
-            <Link to="donate" className="sp-icon-btn sm" title={tt("Donasi", "Donate")} aria-label={tt("Donasi", "Donate")}><Heart size={15} /></Link>
-            {settings.showSideAbout && <a href="/about" className="sp-icon-btn sm" title={tt("Tentang", "About")} aria-label={tt("Tentang", "About")}><Info size={15} /></a>}
-            {settings.showSideDiscord && <a href="https://discord.gg/" target="_blank" rel="noreferrer" className="sp-icon-btn sm" title="Discord" aria-label="Discord"><Users size={15} /></a>}
-            {settings.showSideGithub && <a href="https://github.com/" target="_blank" rel="noreferrer" className="sp-icon-btn sm" title="GitHub" aria-label="GitHub"><Github size={15} /></a>}
-            <Link to="settings" className="sp-icon-btn sm" title={t("navSettings")} aria-label={t("navSettings")}><SettingsIcon size={15} /></Link>
+          <div className="sp-foot-actions" ref={moreRef}>
+            <Link to="settings" className="sp-icon-btn" title={t("navSettings")} aria-label={t("navSettings")}><SettingsIcon size={18} /></Link>
+            <button className={`sp-icon-btn ${moreOpen ? "is-on" : ""}`} onClick={() => setMoreOpen((o) => !o)} aria-haspopup="menu" aria-expanded={moreOpen} title={tt("Lainnya", "More")} aria-label={tt("Lainnya", "More")}><MoreHorizontal size={18} /></button>
+            {moreOpen && (
+              <div className="sp-more-menu" role="menu">
+                <Link to="donate" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Heart size={16} /><span>{tt("Donasi", "Donate")}</span></Link>
+                {settings.showSideAbout && <a href="/about" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Info size={16} /><span>{tt("Tentang", "About")}</span></a>}
+                {settings.showSideDiscord && <a href="https://discord.gg/" target="_blank" rel="noreferrer" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Users size={16} /><span>Discord</span></a>}
+                {settings.showSideGithub && <a href="https://github.com/" target="_blank" rel="noreferrer" role="menuitem" className="sp-more-item" onClick={() => setMoreOpen(false)}><Github size={16} /><span>GitHub</span></a>}
+              </div>
+            )}
           </div>
         </div>
       </div>
