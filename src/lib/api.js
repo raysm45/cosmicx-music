@@ -139,6 +139,21 @@ export const Api = {
     return `${API_BASE}/api/s/${encodeURIComponent(ticket.sid)}`;
   },
 
+  // Warm: panggil SEBELUM men-set src pemutar. Untuk FLAC, server menyiapkan
+  // asset (engine) dan menunggu sampai siap, lalu balas JSON kecil — tidak
+  // mengalirkan isi. Request media berikutnya jadi hangat: dapat Content-Length
+  // (seekable) dan tidak dibatalkan Chrome karena diam. Gagal -> abaikan saja.
+  async warmStream(url) {
+    if (!url) return false;
+    const u = url.includes("?") ? `${url}&warm=1` : `${url}?warm=1`;
+    try {
+      const res = await fetch(u, { method: "GET", cache: "no-store" });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // Unduh lagu lewat tiket stream yang sama dengan pemutaran — server
   // menambahkan `Content-Disposition: attachment; filename="Judul - Artist.ext"`
   // ketika `dl=1`, jadi fetch berat tidak diperlukan.

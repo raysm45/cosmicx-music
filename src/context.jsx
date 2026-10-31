@@ -1042,16 +1042,17 @@ export function PlayerProvider({ children }) {
     const fullSrcFor = async (videoId) => {
       try {
         const artistName = (track.artist?.name || (typeof track.artist === "string" ? track.artist : "") || "").trim();
-        return {
-          src: await Api.getStreamUrl(videoId, {
-            prefetch,
-            forceFresh,
-            title: track.title || "",
-            artist: artistName,
-          }),
-          preview: false,
-          videoId,
-        };
+        const src = await Api.getStreamUrl(videoId, {
+          prefetch,
+          forceFresh,
+          title: track.title || "",
+          artist: artistName,
+        });
+        // Siapkan asset di server SEBELUM src di-set. Request media jadi hangat:
+        // dapat Content-Length (seekable) dan tak dibatalkan Chrome yang menyerah
+        // pada request diam ~5 dtk saat FLAC dingin. Gagal -> lanjut apa adanya.
+        try { await Api.warmStream(src); } catch { }
+        return { src, preview: false, videoId };
       } catch { return null; }
     };
 
