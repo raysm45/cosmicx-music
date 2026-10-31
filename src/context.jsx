@@ -531,6 +531,36 @@ function probeLocalAudioDuration(url) {
   });
 }
 
+// ===== CACHE AUTOPLAY =====
+// Daftar AutoPlay disimpan per seed (lagu terakhir di antrean) supaya daftarnya
+// identik setiap kali antrean yang sama diputar ulang / halaman di-reload —
+// AutoPlay tidak pernah "berubah-ubah" sendiri.
+const AUTOPLAY_CACHE_PREFIX = "cx.autoplay.v2:";
+const AUTOPLAY_CACHE_TTL = 24 * 60 * 60 * 1000;
+const AUTOPLAY_MAX = 200;
+
+function autoplaySeedKey(track) {
+  const id = track?.videoId || track?.id;
+  return id ? String(id) : null;
+}
+
+function loadAutoplayCache(key) {
+  if (!key || typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(AUTOPLAY_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.items) || !parsed.items.length) return null;
+    if (Date.now() - (parsed.at || 0) > AUTOPLAY_CACHE_TTL) return null;
+    return parsed.items;
+  } catch { return null; }
+}
+
+function saveAutoplayCache(key, items) {
+  if (!key || typeof localStorage === "undefined") return;
+  try { localStorage.setItem(AUTOPLAY_CACHE_PREFIX + key, JSON.stringify({ at: Date.now(), items })); } catch {}
+}
+
 function normalizeTrack(raw) {
   if (!raw) return null;
   if (raw.source === "local") {
@@ -605,11 +635,121 @@ export function PlayerProvider({ children }) {
   const roomTrackEndedRef = useRef(null);
   const roomAdvanceKeyRef = useRef(null);
   const [chatMessages, setChatMessages] = useState([]);
-  const [suggestedQueue, setSuggestedQueue] = useState([]);
-  const suggestedQueueRef = useRef([]);
-  useEffect(() => { suggestedQueueRef.current = suggestedQueue; }, [suggestedQueue]);
+  // ===== AUTOPLAY (gaya Spotify) =====
+  // Daftar AutoPlay hidup terpisah dari antrean: dibuat sekali per "konteks"
+  // (seed = lagu terakhir dari antrean yang diisi), tidak pernah ditambahkan
+  // ke queueList, dan tidak diacak/diubah ulang. autoCursor = indeks lagu
+  // AutoPlay terakhir; inAuto = true berarti lagu yang sedang diputar berasal
+  // dari daftar AutoPlay.
+  const [autoList, setAutoList] = useState([]);
+  const [autoCursor, setAutoCursor] = useState(-1);
+  const [inAuto, setInAuto] = useState(false);
+  const autoListRef = useRef([]);
+  useEffect(() => { autoListRef.current = autoList; }, [autoList]);
+  const autoCursorRef = useRef(-1);
+  useEffect(() => { autoCursorRef.current = autoCursor; }, [autoCursor]);
+  const inAutoRef = useRef(false);
+  useEffect(() => { inAutoRef.current = inAuto; }, [inAuto]);
+  const autoSeedKeyRef = useRef(null);
+  const autoSeqRef = useRef(0);
+  const autoPendingRef = useRef(new Map());
+  const autoExtendingRef = useRef(false);
+  // Seed AutoPlay dipatok saat antrean DIISI (bukan lagu terakhir tiap kali
+  // antrean berubah), jadi menambah lagu ke antrean tidak mengubah daftar
+  // AutoPlay. Kalau pin kosong (mis. antrean dipulihkan), fallback ke lagu
+  // terakhir di antrean.
+  const [autoSeedPin, setAutoSeedPin] = useState(null);
   const queueListRef = useRef([]);
   useEffect(() => { queueListRef.current = queueList; }, [queueList]);
+
+  // Seed AutoPlay. Selama antrean tidak diisi ulang, seed tidak berubah, jadi
+  // daftar AutoPlay-nya juga tidak berubah (walau lagu yang diputar berganti
+  // atau user menambah lagu ke antrean).
+  const autoSeedTrack = useMemo(() => {
+    if (autoSeedPin) return autoSeedPin;
+    if (!queueList.length || !order.length) return null;
+    return queueList[order[order.length - 1]] || null;
+  }, [autoSeedPin, queueList, order]);
+  const autoSeedTrackRef = useRef(null);
+  useEffect(() => { autoSeedTrackRef.current = autoSeedTrack; }, [autoSeedTrack]);
+
+  const recordHistory = useCallback((track) => {
+    if (!track || !authUser || settings.historyEnabled === false) return;
+    Api.addHistory(track.videoId || track.id, {
+      title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track),
+      thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null,
+      duration: track.duration, explicit: !!track.explicit,
+    }).catch(() => {});
+  }, [authUser, settings.historyEnabled]);
+
+  // Ambil daftar rekomendasi untuk sebuah seed. Request untuk seed yang sama
+  // yang masih jalan dipakai bersama (tidak dobel).
+  const loadAutoTracks = useCallback((seedTrack) => {
+    const key = autoplaySeedKey(seedTrack) || `${seedTrack?.title || ""}|${seedTrack?.artist?.name || ""}`;
+    const pending = autoPendingRef.current.get(key);
+    if (pending) return pending;
+    const args = seedTrack?.source === "deezer"
+      ? { trackId: seedTrack.id }
+      : { title: seedTrack?.title || "", artist: seedTrack?.artist?.name || "" };
+    const p = Api.similar(args)
+      .then((res) => (res?.items || []).map(normalizeTrack).filter(Boolean))
+      .catch(() => [])
+      .finally(() => { autoPendingRef.current.delete(key); });
+    autoPendingRef.current.set(key, p);
+    return p;
+  }, []);
+
+  // Buang satu lagu dari daftar AutoPlay (dismiss / promote) tanpa menyentuh antrean.
+  const removeFromAuto = useCallback((trackId) => {
+    const list = autoListRef.current;
+    const idx = list.findIndex((t) => String(t.id) === String(trackId));
+    if (idx < 0) return;
+    setAutoList(list.filter((_, i) => i !== idx));
+    if (idx <= autoCursorRef.current) setAutoCursor((c) => Math.max(c - 1, -1));
+  }, []);
+
+  // Maju ke lagu AutoPlay berikutnya yang sudah ada di daftar.
+  const advanceAutoFrom = useCallback((list, nextIdx) => {
+    const track = list?.[nextIdx];
+    if (!track) return false;
+    setAutoCursor(nextIdx);
+    setInAuto(true);
+    setIsPlaying(true);
+    recordHistory(track);
+    return true;
+  }, [recordHistory]);
+
+  const advanceAuto = useCallback(
+    () => advanceAutoFrom(autoListRef.current, autoCursorRef.current + 1),
+    [advanceAutoFrom]
+  );
+
+  // Daftar AutoPlay habis -> ambil lanjutan dari lagu AutoPlay terakhir.
+  // Hanya MENAMBAH; entri yang sudah tampil tidak pernah diganti atau diacak.
+  const extendAuto = useCallback(async () => {
+    if (autoExtendingRef.current) return null;
+    const list = autoListRef.current;
+    if (list.length >= AUTOPLAY_MAX) return null;
+    const last = list[list.length - 1] || autoSeedTrackRef.current;
+    if (!last) return null;
+    autoExtendingRef.current = true;
+    try {
+      const items = await loadAutoTracks(last);
+      const skip = new Set(autoListRef.current.map((t) => String(t.id)));
+      queueListRef.current.forEach((t) => skip.add(String(t.id)));
+      skip.add(String(last.id));
+      const extra = items.filter((t) => !skip.has(String(t.id)));
+      if (!extra.length) return null;
+      const nextList = [...autoListRef.current, ...extra].slice(0, AUTOPLAY_MAX);
+      setAutoList(nextList);
+      saveAutoplayCache(autoSeedKeyRef.current, nextList);
+      return nextList;
+    } catch {
+      return null;
+    } finally {
+      autoExtendingRef.current = false;
+    }
+  }, [loadAutoTracks]);
   const addToQueueEndRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -636,7 +776,7 @@ export function PlayerProvider({ children }) {
     a.preload = "auto";
     return a;
   })());
-  const mixRef = useRef({ active: false, starting: false, token: 0, targetId: null, nextPos: -1, resolved: null });
+  const mixRef = useRef({ active: false, starting: false, token: 0, targetId: null, nextPos: -1, nextAuto: false, nextAutoCursor: -1, resolved: null });
   const mixBlockedKeyRef = useRef(null);
   const nextResolvedRef = useRef(null);
   const skipLoadKeyRef = useRef(null);
@@ -680,6 +820,7 @@ export function PlayerProvider({ children }) {
     setQueueList(saved.queueList);
     setOrder(saved.order);
     setPosInOrder(Math.min(Math.max(saved.posInOrder || 0, 0), saved.order.length - 1));
+    setAutoSeedPin(saved.queueList[saved.queueList.length - 1] || null);
     if (saved.shuffle) setShuffle(true);
     if (saved.repeat === "all" || saved.repeat === "one") setRepeat(saved.repeat);
     if (typeof saved.volume === "number") setVolumeState(clamp(saved.volume, 0, 1));
@@ -816,7 +957,8 @@ export function PlayerProvider({ children }) {
     return true;
   }, [ensureAudioGraph]);
 
-  const currentTrack = queueList.length && order.length ? queueList[order[posInOrder]] : null;
+  const autoCurrentTrack = inAuto && autoCursor >= 0 ? (autoList[autoCursor] || null) : null;
+  const currentTrack = autoCurrentTrack || ((queueList.length && order.length) ? queueList[order[posInOrder]] : null);
   const currentKey = currentTrack ? currentTrack.id : null;
   const inRoom = !!room;
 
@@ -971,7 +1113,9 @@ export function PlayerProvider({ children }) {
   const mixOn = !!settings.mixEnabled && !inRoom;
   const mixSeconds = clamp(Number(settings.mixSeconds) || 8, 2, 20);
   const mixNextPos = posInOrder + 1 < order.length ? posInOrder + 1 : (repeat === "all" && order.length > 1 ? 0 : -1);
-  const mixNextTrack = mixNextPos >= 0 ? (queueList[order[mixNextPos]] || null) : null;
+  const autoNextTrack = autoList[autoCursor + 1] || null;
+  const mixNextTrack = mixNextPos >= 0 ? (queueList[order[mixNextPos]] || null) : autoNextTrack;
+  const mixNextAuto = mixNextPos < 0 && !!autoNextTrack;
   const mixPlanned = mixOn && repeat !== "one" && settings.autoplay !== false && !!currentTrack
     && !!mixNextTrack && mixNextTrack.id !== currentTrack.id && clipDuration > mixSeconds * 2 + 2;
   // Posisi penanda di bar durasi = titik di mana mix mulai berjalan.
@@ -982,7 +1126,7 @@ export function PlayerProvider({ children }) {
     m.token += 1;
     m.starting = false;
     m.active = false;
-    m.targetId = null; m.nextPos = -1; m.resolved = null;
+    m.targetId = null; m.nextPos = -1; m.nextAuto = false; m.nextAutoCursor = -1; m.resolved = null;
     const graph = audioGraphRef.current;
     const main = audioRef.current;
     const alt = altAudioRef.current;
@@ -1017,6 +1161,8 @@ export function PlayerProvider({ children }) {
     if (m.active || m.starting) return;
     const tr = mixNextTrack;
     const nextPos = mixNextPos;
+    const nextAuto = mixNextAuto;
+    const nextAutoCursor = nextAuto ? autoCursor + 1 : -1;
     const alt = altAudioRef.current;
     const graph = ensureAudioGraph();
     if (!tr || !alt || !graph?.inputs?.has(alt) || !graph.inputs.has(audio)) return;
@@ -1056,6 +1202,8 @@ export function PlayerProvider({ children }) {
       m.starting = false;
       m.targetId = tr.id;
       m.nextPos = nextPos;
+      m.nextAuto = nextAuto;
+      m.nextAutoCursor = nextAutoCursor;
       m.resolved = resolved;
       setIsMixing(true);
     } catch {
@@ -1070,10 +1218,10 @@ export function PlayerProvider({ children }) {
     const A = audioRef.current;
     const B = altAudioRef.current;
     const graph = audioGraphRef.current;
-    const { targetId, nextPos, resolved } = m;
+    const { targetId, nextPos, nextAuto, nextAutoCursor, resolved } = m;
     m.token += 1;
     m.active = false; m.starting = false;
-    m.targetId = null; m.nextPos = -1; m.resolved = null;
+    m.targetId = null; m.nextPos = -1; m.nextAuto = false; m.nextAutoCursor = -1; m.resolved = null;
     // Tukar peran: elemen yang sudah memutar lagu berikutnya jadi elemen utama.
     audioRef.current = B;
     altAudioRef.current = A;
@@ -1096,7 +1244,13 @@ export function PlayerProvider({ children }) {
     if (isFinite(d) && d > 0) { setClipDuration(d); writeProgress(B.currentTime, d); }
     setLoadingAudio(false);
     setIsMixing(false);
-    setPosInOrder(nextPos);
+    if (nextAuto && nextAutoCursor >= 0) {
+      setAutoCursor(nextAutoCursor);
+      setInAuto(true);
+      recordHistory(autoListRef.current[nextAutoCursor]);
+    } else {
+      setPosInOrder(nextPos);
+    }
   };
 
   const mixTick = (audio) => {
@@ -1224,9 +1378,10 @@ export function PlayerProvider({ children }) {
 
   useEffect(() => {
     if (!currentTrack || inRoom || repeat === "one") return;
-    const nextIdx = posInOrder + 1;
-    if (nextIdx >= order.length) return;
-    const nextTrack = queueList[order[nextIdx]];
+    const queueNext = posInOrder + 1;
+    const nextTrack = queueNext < order.length
+      ? queueList[order[queueNext]]
+      : (settings.autoplay !== false ? (autoList[autoCursor + 1] || null) : null);
     if (!nextTrack) return;
     let cancelled = false;
     // Pra-siapkan tiket lagu berikutnya supaya transisi tidak perlu meminta
@@ -1246,7 +1401,7 @@ export function PlayerProvider({ children }) {
       }
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [currentKey, posInOrder, order, queueList, inRoom, repeat, resolveAudioSrc]);
+  }, [currentKey, posInOrder, order, queueList, inRoom, repeat, resolveAudioSrc, autoList, autoCursor, settings.autoplay]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -1474,6 +1629,8 @@ export function PlayerProvider({ children }) {
     setPosInOrder(effectiveShuffle ? 0 : safeStart);
     setIsPlaying(true);
     setPlaySource(source);
+    setAutoSeedPin(list[list.length - 1] || null);
+    setAutoList([]); setAutoCursor(-1); setInAuto(false); autoSeedKeyRef.current = null;
     if (shuffleOverride !== null && shuffleOverride !== shuffle) setShuffle(shuffleOverride);
     if (authUser && settings.historyEnabled !== false) {
       const t = list[clamp(startIndex, 0, list.length - 1)];
@@ -1501,13 +1658,15 @@ export function PlayerProvider({ children }) {
     const existingIdx = queueList.findIndex((t) => t.id === track.id);
     if (existingIdx !== -1) {
       const posInOrder = order.indexOf(existingIdx);
-      if (posInOrder !== -1) { setPosInOrder(posInOrder); setIsPlaying(true); return; }
+      if (posInOrder !== -1) { setInAuto(false); setPosInOrder(posInOrder); setIsPlaying(true); return; }
     }
 
     setQueueList([track]);
     setOrder([0]);
     setPosInOrder(0);
     setIsPlaying(true);
+    setAutoSeedPin(track);
+    setAutoList([]); setAutoCursor(-1); setInAuto(false); autoSeedKeyRef.current = null;
     if (authUser && settings.historyEnabled !== false) {
       Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit }).catch(() => {});
     }
@@ -1526,6 +1685,8 @@ export function PlayerProvider({ children }) {
     setPosInOrder(0);
     setIsPlaying(true);
     setPlaySource(source);
+    setAutoSeedPin(track);
+    setAutoList([]); setAutoCursor(-1); setInAuto(false); autoSeedKeyRef.current = null;
     if (authUser && settings.historyEnabled !== false) {
       Api.addHistory(track.videoId || track.id, { title: track.title, artistName: track.artist?.name || null, artists: trackArtists(track), thumbnail: track.cover, albumId: track.album?.id || null, albumTitle: track.album?.title || null, duration: track.duration, explicit: !!track.explicit }).catch(() => {});
     }
@@ -1556,95 +1717,75 @@ export function PlayerProvider({ children }) {
     }).catch(() => {});
   }, [inRoom, playSingle, authUser, settings.historyEnabled, shuffle, resumeAudioCtx]);
 
-  const suggestSeqRef = useRef(0);
+  // ===== AUTO PLAY: daftar stabil per antrean =====
+  // Daftar dibuat sekali untuk seed (lagu terakhir antrean), disimpan di cache,
+  // dan TIDAK berubah hanya karena lagu yang sedang diputar berganti. Yang
+  // mengubahnya cuma aksi user (dismiss/promote) atau daftar yang habis
+  // (lanjutan di-append dari lagu AutoPlay terakhir).
   useEffect(() => {
-    if (inRoom || !currentTrack) { setSuggestedQueue([]); return; }
-    const seq = ++suggestSeqRef.current;
-    const seedTrack = currentTrack;
-    const similarArgs = seedTrack.source === "deezer"
-      ? { trackId: seedTrack.id }
-      : { title: seedTrack.title, artist: seedTrack.artist?.name || "" };
-
-    Api.similar(similarArgs).then((res) => {
-      if (seq !== suggestSeqRef.current) return;
-      const knownIds = new Set(queueList.map((t) => String(t.id)));
-      const items = (res?.items || [])
-        .map(normalizeTrack)
-        .filter(Boolean)
-        .filter((t) => t.id !== seedTrack.id && !knownIds.has(String(t.id)));
-      setSuggestedQueue(items.slice(0, 10));
-    }).catch(() => {
-      if (seq !== suggestSeqRef.current) return;
-      setSuggestedQueue([]);
-    });
-  }, [currentKey, inRoom]);
-
-  const applyRadioContinuation = useCallback((nextTrack, rest) => {
-    setSuggestedQueue(rest);
-    setQueueList((list) => {
-      const newList = [...list, nextTrack];
-      setOrder((ord) => [...ord, newList.length - 1]);
-      return newList;
-    });
-    setPosInOrder((p) => p + 1);
-    setIsPlaying(true);
-    if (authUser && settings.historyEnabled !== false) {
-      Api.addHistory(nextTrack.videoId || nextTrack.id, { title: nextTrack.title, artistName: nextTrack.artist?.name || null, artists: trackArtists(nextTrack), thumbnail: nextTrack.cover, albumId: nextTrack.album?.id || null, albumTitle: nextTrack.album?.title || null, duration: nextTrack.duration, explicit: !!nextTrack.explicit }).catch(() => {});
+    if (inRoom) return;
+    if (settings.autoplay === false) {
+      if (!inAutoRef.current) autoSeedKeyRef.current = null;
+      return;
     }
-  }, [authUser, settings.historyEnabled]);
+    const seed = autoSeedTrack;
+    const key = autoplaySeedKey(seed);
+    if (!key || autoSeedKeyRef.current === key) return;
+    autoSeedKeyRef.current = key;
+    const seq = ++autoSeqRef.current;
 
-  const continueWithRadio = useCallback(() => {
-    const rq = suggestedQueueRef.current;
-    if (!rq.length) return false;
-    const [nextTrack, ...rest] = rq;
-    applyRadioContinuation(nextTrack, rest);
-    return true;
-  }, [applyRadioContinuation]);
+    const apply = (items) => {
+      if (seq !== autoSeqRef.current) return;
+      if (autoCursorRef.current >= 0 || inAutoRef.current) return;
+      setAutoList(items);
+      setAutoCursor(-1);
+    };
 
-  const fetchRadioContinuationNow = useCallback(async (seedTrack) => {
-    if (!seedTrack) return false;
-    try {
-      const similarArgs = seedTrack.source === "deezer"
-        ? { trackId: seedTrack.id }
-        : { title: seedTrack.title, artist: seedTrack.artist?.name || "" };
-      const res = await Api.similar(similarArgs);
-      const knownIds = new Set(queueListRef.current.map((t) => String(t.id)));
-      const items = (res?.items || [])
-        .map(normalizeTrack)
-        .filter(Boolean)
-        .filter((t) => t.id !== seedTrack.id && !knownIds.has(String(t.id)));
-      if (!items.length) return false;
-      applyRadioContinuation(items[0], items.slice(1, 5));
-      return true;
-    } catch {
-      return false;
-    }
-  }, [applyRadioContinuation]);
+    const cached = loadAutoplayCache(key);
+    if (cached) { apply(cached); return; }
+    if (!inAutoRef.current) setAutoList([]);
+
+    loadAutoTracks(seed).then((items) => {
+      if (seq !== autoSeqRef.current || autoSeedKeyRef.current !== key) return;
+      const known = new Set(queueListRef.current.map((t) => String(t.id)));
+      known.add(String(seed.id));
+      const list = items.filter((t) => !known.has(String(t.id)));
+      if (!list.length) return;
+      saveAutoplayCache(key, list);
+      apply(list);
+    });
+  }, [inRoom, autoSeedTrack, settings.autoplay, loadAutoTracks]);
+
+  // Yang ditampilkan ke UI = lagu AutoPlay setelah lagu AutoPlay yang sedang
+  // diputar (kalau belum masuk AutoPlay: seluruh daftar).
+  const suggestedQueue = useMemo(() => {
+    if (inRoom || !autoList.length) return [];
+    return autoList.slice(autoCursor + 1);
+  }, [inRoom, autoList, autoCursor]);
 
   const promoteSuggestion = useCallback((track) => {
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
+    if (!track) return;
+    removeFromAuto(track.id);
     addToQueueEndRef.current?.(track);
-  }, []);
+  }, [removeFromAuto]);
 
   // Hapus satu saran AutoPlay dari daftar (tombol ✕ di antrean now playing mobile).
   const dismissSuggestion = useCallback((track) => {
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
-  }, []);
+    if (track) removeFromAuto(track.id);
+  }, [removeFromAuto]);
 
-  // Putar saran AutoPlay sekarang juga: sisipkan tepat setelah lagu yang sedang diputar lalu pindah ke sana.
+  // Putar saran AutoPlay sekarang juga: lompat di dalam daftar AutoPlay,
+  // antrean user tidak disentuh sama sekali.
   const playSuggestion = useCallback((rawTrack) => {
     const track = normalizeTrack(rawTrack);
     if (!track || inRoom) return;
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
-    setQueueList((list) => {
-      const newList = [...list, track];
-      const idx = newList.length - 1;
-      setOrder((ord) => { const c = [...ord]; c.splice(posInOrder + 1, 0, idx); return c; });
-      return newList;
-    });
-    setPosInOrder(posInOrder + 1);
+    const idx = autoListRef.current.findIndex((t) => String(t.id) === String(track.id));
+    if (idx < 0) return;
+    setAutoCursor(idx);
+    setInAuto(true);
     setIsPlaying(true);
-  }, [inRoom, posInOrder]);
+    recordHistory(track);
+  }, [inRoom, recordHistory]);
 
   const togglePlay = useCallback(() => {
     if (!currentTrack) return;
@@ -1659,22 +1800,33 @@ export function PlayerProvider({ children }) {
   const next = useCallback((auto = false) => {
     if (mixRef.current.active) { finalizeMixRef.current?.(); return; }
     if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "next" }); return; }
-    const isLast = posInOrder >= order.length - 1;
-    if (isLast) {
-      if (repeat === "all" && order.length) { setPosInOrder(0); return; }
-      if (repeat !== "one" && settings.autoplay !== false) {
-        if (continueWithRadio()) return;
-        fetchRadioContinuationNow(currentTrack).then((ok) => {
-          if (!ok && auto) setIsPlaying(false);
-        });
-        return;
-      }
-      if (!auto) return;
-      setIsPlaying(false);
+
+    const hasQueueNext = posInOrder + 1 < order.length;
+
+    // Masuk / lanjut AutoPlay. Kalau daftar belum siap, ambil dulu lalu maju.
+    const startAuto = () => {
+      if (advanceAuto()) return true;
+      extendAuto().then((nextList) => {
+        if (!nextList) { if (auto) setIsPlaying(false); return; }
+        advanceAutoFrom(nextList, autoCursorRef.current + 1);
+      });
+      return true;
+    };
+
+    // Sedang memutar AutoPlay. Lagu yang user tambahkan ke antrean tetap
+    // didahulukan; setelah antrean habis, AutoPlay lanjut dari posisi terakhir.
+    if (inAutoRef.current) {
+      if (hasQueueNext) { setInAuto(false); setPosInOrder(posInOrder + 1); return; }
+      startAuto();
       return;
     }
-    setPosInOrder((p) => p + 1);
-  }, [inRoom, room, order.length, posInOrder, repeat, settings.autoplay, continueWithRadio, fetchRadioContinuationNow, currentTrack]);
+
+    if (hasQueueNext) { setPosInOrder((p) => p + 1); return; }
+    if (repeat === "all" && order.length) { setPosInOrder(0); return; }
+    if (repeat !== "one" && settings.autoplay !== false) { startAuto(); return; }
+    if (!auto) return;
+    setIsPlaying(false);
+  }, [inRoom, room, order.length, posInOrder, repeat, settings.autoplay, advanceAuto, advanceAutoFrom, extendAuto]);
   const nextRef = useRef(next);
   useEffect(() => { nextRef.current = next; }, [next]);
 
@@ -1682,6 +1834,13 @@ export function PlayerProvider({ children }) {
     if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "prev" }); return; }
     const audio = audioRef.current;
     if (audio && audio.currentTime > 3) { audio.currentTime = 0; return; }
+    // Di dalam AutoPlay: mundur satu lagu; dari lagu AutoPlay pertama kembali
+    // ke lagu terakhir antrean.
+    if (inAutoRef.current) {
+      if (autoCursorRef.current > 0) { setAutoCursor(autoCursorRef.current - 1); return; }
+      setInAuto(false);
+      return;
+    }
     setPosInOrder((p) => (p <= 0 ? (repeat === "all" ? Math.max(order.length - 1, 0) : 0) : p - 1));
   }, [inRoom, room, order.length, repeat]);
 
@@ -1818,7 +1977,7 @@ export function PlayerProvider({ children }) {
   const addToQueueEnd = useCallback((rawTrack) => {
     const track = normalizeTrack(rawTrack);
     if (!track) return;
-    setSuggestedQueue((rq) => rq.filter((t) => t.id !== track.id));
+    removeFromAuto(track.id);
     if (inRoom) { socketRef.current?.emit("queue-add", { roomId: room.id, song: track }); pushToast(`${t("toastAddedRoomQueue")} — ${track.title}`); return; }
     setQueueList((list) => {
       const newList = [...list, track];
@@ -1903,6 +2062,7 @@ export function PlayerProvider({ children }) {
       socketRef.current?.emit("playback-control", { roomId: room.id, action: "select", payload: { index: absolutePosition } });
       return;
     }
+    setInAuto(false);
     setPosInOrder(clamp(absolutePosition, 0, Math.max(order.length - 1, 0)));
     setIsPlaying(true);
   }, [inRoom, room, order.length]);
@@ -2101,6 +2261,8 @@ export function PlayerProvider({ children }) {
     setRoom(null);
     roomSyncRef.current = null;
     setQueueList([]); setOrder([]); setPosInOrder(0); setIsPlaying(false);
+    setAutoSeedPin(null);
+    setAutoList([]); setAutoCursor(-1); setInAuto(false); autoSeedKeyRef.current = null;
     setChatMessages([]);
   }, []);
 
