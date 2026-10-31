@@ -1112,6 +1112,10 @@ export function PlayerProvider({ children }) {
   // ===================== MIX: lagu menyatu ke lagu berikutnya tanpa jeda =====================
   const mixOn = !!settings.mixEnabled && !inRoom;
   const mixSeconds = clamp(Number(settings.mixSeconds) || 8, 2, 20);
+  // Lead pra-muat lagu mix berikutnya SEBELUM zona mix. Opus cukup pendek;
+  // FLAC butuh jauh lebih panjang (header + byte pertama datang lebih lambat),
+  // kalau tidak `alt.play()` di zona mix masih dingin -> timeout -> mix gagal.
+  const mixPreloadLead = getPreferredAudioFormat() === "flac" ? 30 : 8;
   const mixNextPos = posInOrder + 1 < order.length ? posInOrder + 1 : (repeat === "all" && order.length > 1 ? 0 : -1);
   const autoNextTrack = autoList[autoCursor + 1] || null;
   const mixNextTrack = mixNextPos >= 0 ? (queueList[order[mixNextPos]] || null) : autoNextTrack;
@@ -1146,7 +1150,12 @@ export function PlayerProvider({ children }) {
   };
 
   const preloadMixTarget = () => {
-    if (getPreferredAudioFormat() === "flac") return; // FLAC besar: jangan rebut bandwidth lagu yang sedang jalan
+    // FLAC juga dipra-muat. Dulu baris ini langsung `return` untuk FLAC supaya
+    // tidak merebut bandwidth — akibatnya saat zona mix tiba, `alt.play()` masih
+    // menunggu byte pertama FLAC dingin, lewat timeout, mix gagal, dan lagu
+    // berikutnya tidak pernah jalan. Pra-muat sekarang dimulai lebih awal
+    // (lead FLAC di mixTick) saat lagu aktif tinggal sedikit, jadi bagian yang
+    // belum diputar tidak kehilangan bandwidth.
     const alt = altAudioRef.current;
     const cached = nextResolvedRef.current;
     if (!alt || !mixNextTrack || !cached || cached.id !== mixNextTrack.id || mixRef.current.active) return;
@@ -1186,7 +1195,9 @@ export function PlayerProvider({ children }) {
       try { alt.currentTime = 0; } catch {}
       alt.volume = audio.volume;
       resumeAudioCtx();
-      await Promise.race([alt.play(), new Promise((_, rej) => setTimeout(() => rej(new Error("mix-timeout")), 6000))]);
+      // FLAC dingin bisa perlu beberapa detik sebelum canplay. Timeout lama 6 dtk
+      // terlalu ketat setelah pra-muat; naikkan supaya alt.play() tidak dibatalkan.
+      await Promise.race([alt.play(), new Promise((_, rej) => setTimeout(() => rej(new Error("mix-timeout")), 12000))]);
       if (stale()) throw new Error("mix-stale");
       // Hitung ulang sisa waktu setelah lagu berikutnya benar-benar jalan, supaya fade pas dengan akhir lagu.
       const remaining = audio.duration - audio.currentTime;
@@ -1265,7 +1276,7 @@ export function PlayerProvider({ children }) {
       if (remaining > mixSeconds + 1.5) mixBlockedKeyRef.current = null; // user mundur sebelum zona mix -> boleh mix lagi
       return;
     }
-    if (remaining <= mixSeconds + 8 && remaining > 0) preloadMixTarget();
+    if (remaining <= mixSeconds + mixPreloadLead && remaining > 0) preloadMixTarget();
     if (remaining <= mixSeconds && remaining > 1.2) startMix(audio);
   };
 
