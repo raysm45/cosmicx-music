@@ -687,6 +687,10 @@ export function SettingsPage() {
       <SettingSection title={tt("Pemutaran", "Playback")}>
         <ToggleRow label={tt("Putar otomatis", "Autoplay")} hint={tt("Lanjut ke lagu berikutnya otomatis", "Automatically continue to the next song")} checked={settings.autoplay !== false} onChange={set("autoplay")} />
         <SliderRow label={tt("Crossfade", "Crossfade")} hint={tt("Detik transisi antar lagu", "Transition seconds between songs")} value={Number(settings.crossfadeSeconds) || 0} min={0} max={12} step={1} onChange={set("crossfadeSeconds")} format={(v) => `${v}s`} />
+        <ToggleRow label={tt("Mix lagu", "Song mix")} hint={tt("Lagu menyatu ke lagu berikutnya tanpa jeda. Penanda di bar durasi menunjukkan di mana mix mulai (menggantikan crossfade).", "Songs blend into the next one with no gap. A marker on the progress bar shows where the mix starts (replaces crossfade).")} checked={!!settings.mixEnabled} onChange={set("mixEnabled")} />
+        {settings.mixEnabled && (
+          <SliderRow label={tt("Durasi mix", "Mix length")} hint={tt("Berapa detik akhir lagu yang tumpang tindih dengan lagu berikutnya", "How many seconds at the end of a song overlap with the next one")} value={Number(settings.mixSeconds) || 8} min={2} max={15} step={1} onChange={set("mixSeconds")} format={(v) => `${v}s`} />
+        )}
         <ToggleRow label={tt("Ratakan volume (ReplayGain)", "ReplayGain Normalize")} hint={tt("Samain kerasnya volume antar lagu", "Even out loudness between songs")} checked={!!settings.normalizeVolume} onChange={set("normalizeVolume")} />
         <SliderRow label={tt("Volume awal", "Starting volume")} value={Number(settings.volumeDefault ?? 0.7)} min={0} max={1} step={0.05} onChange={set("volumeDefault")} format={(v) => `${Math.round(v * 100)}%`} />
         <ToggleRow label={tt("Konten eksplisit", "Explicit content")} hint={tt("Tampilkan lagu dengan label eksplisit", "Show songs labeled as explicit")} checked={settings.explicitContent !== false} onChange={set("explicitContent")} />

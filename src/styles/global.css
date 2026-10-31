@@ -398,6 +398,35 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-waveform.wave-fg span{ background: var(--sheet-ink, var(--accent-strong)); }
 .aivy-scrubber .fill .aivy-waveform.wave-fg{ position: absolute; left: 0; top: 0; bottom: 0; }
 
+/* ---- Mix: penanda titik mulai mix + animasi saat mix berjalan ---- */
+.aivy-scrubber.has-mix .track::before{
+  content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: var(--mix-zone, 0%);
+  border-radius: 0 999px 999px 0; pointer-events: none;
+  background: color-mix(in srgb, var(--accent-strong, var(--ink)) 38%, transparent);
+}
+.aivy-scrubber .mix-marker{
+  position: absolute; top: 50%; width: 3px; height: 12px; margin-left: -1.5px; border-radius: 2px;
+  transform: translateY(-50%); pointer-events: none; z-index: 1;
+  background: var(--accent-strong, var(--ink));
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bg, #000) 60%, transparent);
+  transition: height .16s cubic-bezier(.22,.9,.32,1);
+}
+.aivy-scrubber:hover .mix-marker, .aivy-scrubber.dragging .mix-marker{ height: 17px; }
+/* Fase 1: shining (2x sapuan cahaya). Fase 2: berkedip terus sampai mix selesai (kelas is-mixing dilepas). */
+.aivy-scrubber.is-mixing .track{ overflow: hidden; animation: aivy-mix-blink .9s ease-in-out 2.2s infinite; }
+.aivy-scrubber.is-mixing .track::after{
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%); pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 60%, transparent), transparent);
+  animation: aivy-mix-shine 1.1s ease-in-out 2 both;
+}
+@keyframes aivy-mix-shine{ 0%{ transform: translateX(-100%); } 100%{ transform: translateX(100%); } }
+@keyframes aivy-mix-blink{ 0%, 100%{ opacity: 1; } 50%{ opacity: .3; } }
+@media (prefers-reduced-motion: reduce){
+  .aivy-scrubber.is-mixing .track::after{ animation: none; display: none; }
+  .aivy-scrubber.is-mixing .track{ animation-duration: 1.8s; }
+}
+:root[data-reduced-motion="true"] .aivy-scrubber.is-mixing .track::after{ animation: none; display: none; }
+
 @keyframes aivy-shine{ 0%{ transform: translateX(-100%); } 100%{ transform: translateX(100%); } }
 .skeleton-shine{ position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg-elev-3); }
 .skeleton-shine::after{ content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 22%, transparent), transparent); animation: aivy-shine 1.35s ease-in-out infinite; }

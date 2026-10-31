@@ -236,6 +236,9 @@ function WaveformBars({ seed, className }) {
 export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, className = "", loading = false, waveformSeed = null }) {
   const trackRef = useRef(null);
   const [dragging, setDragging] = useState(false);
+  // Mix: penanda di bar = titik mulai mix; saat mix berjalan bar "shining" lalu berkedip sampai selesai.
+  const { mixMarkerRatio, isMixing } = usePlayer();
+  const hasMix = mixMarkerRatio != null;
   const ratioFromEvent = (e) => {
     const rect = trackRef.current.getBoundingClientRect();
     return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -249,7 +252,8 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
   }
   return (
     <div
-      ref={trackRef} className={`aivy-scrubber ${dragging ? "dragging" : ""} ${waveformSeed ? "has-waveform" : ""} ${className}`}
+      ref={trackRef} className={`aivy-scrubber ${dragging ? "dragging" : ""} ${waveformSeed ? "has-waveform" : ""} ${hasMix ? "has-mix" : ""} ${hasMix && isMixing ? "is-mixing" : ""} ${className}`}
+      style={hasMix ? { "--mix-zone": `${((1 - mixMarkerRatio) * 100).toFixed(3)}%` } : undefined}
       onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragging(true); onSeekRatio(ratioFromEvent(e)); }}
       onPointerMove={(e) => { if (dragging) onSeekRatio(ratioFromEvent(e)); }}
       onPointerUp={(e) => { setDragging(false); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {} }}
@@ -262,6 +266,7 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
           {waveformSeed && <WaveformBars seed={waveformSeed} className="wave-fg" />}
         </div>
       </div>
+      {hasMix && <div className="mix-marker" style={{ left: `${(mixMarkerRatio * 100).toFixed(3)}%` }} aria-hidden="true" />}
       <div className="thumb" ref={registerThumb} />
     </div>
   );

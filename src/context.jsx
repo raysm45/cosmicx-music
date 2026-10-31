@@ -125,6 +125,18 @@ function defaultThemeForSeason() {
 }
 
 const OUTPUT_DEVICE_KEY = "aivy_output_device";
+
+// ---- MIX: kurva equal-power untuk overlap lagu aktif -> lagu berikutnya ----
+const MIX_CURVE_LEN = 64;
+const MIX_CURVE_OUT = new Float32Array(MIX_CURVE_LEN);
+const MIX_CURVE_IN = new Float32Array(MIX_CURVE_LEN);
+for (let i = 0; i < MIX_CURVE_LEN; i++) {
+  const p = i / (MIX_CURVE_LEN - 1);
+  MIX_CURVE_OUT[i] = Math.cos(p * Math.PI / 2);
+  MIX_CURVE_IN[i] = Math.sin(p * Math.PI / 2);
+}
+// WAV senyap kecil: dipakai "membuka kunci" elemen audio kedua lewat gestur pengguna (iOS/Safari).
+const SILENT_WAV = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 function readSavedOutputDevice() {
   try {
     const raw = localStorage.getItem(OUTPUT_DEVICE_KEY);
@@ -138,6 +150,8 @@ const DEFAULT_SETTINGS = {
   audioFormat: "flac",
   autoplay: true,
   crossfadeSeconds: 0,
+  mixEnabled: false,
+  mixSeconds: 8,
   volumeDefault: 0.7,
   normalizeVolume: true,
   explicitContent: true,
@@ -609,6 +623,24 @@ export function PlayerProvider({ children }) {
     a.muted = true;
     return a;
   })());
+  // Elemen audio kedua untuk fitur Mix: lagu berikutnya diputar di sini, tumpang tindih dengan
+  // ekor lagu aktif, lalu peran kedua elemen ditukar (audioRef <-> altAudioRef) tanpa jeda.
+  const altAudioRef = useRef((() => {
+    if (typeof Audio === "undefined") return null;
+    const a = new Audio();
+    a.crossOrigin = "anonymous";
+    a.preload = "auto";
+    return a;
+  })());
+  const mixRef = useRef({ active: false, starting: false, token: 0, targetId: null, nextPos: -1, resolved: null });
+  const mixBlockedKeyRef = useRef(null);
+  const nextResolvedRef = useRef(null);
+  const skipLoadKeyRef = useRef(null);
+  const handoffRef = useRef(null);
+  const mixTickRef = useRef(null);
+  const abortMixRef = useRef(null);
+  const finalizeMixRef = useRef(null);
+  const [isMixing, setIsMixing] = useState(false);
   const promptCast = useCallback(async () => {
     const audio = audioRef.current;
     if (!audio) return { ok: false, reason: "unsupported" };
@@ -689,7 +721,6 @@ export function PlayerProvider({ children }) {
       const ctx = new Ctx();
       const savedOut = readSavedOutputDevice();
       if (savedOut && typeof ctx.setSinkId === "function") ctx.setSinkId(savedOut.id).catch(() => {});
-      const source = ctx.createMediaElementSource(audio);
       const preamp = ctx.createGain();
       const bands = EQ_BANDS_HZ.map((freq) => {
         const f = ctx.createBiquadFilter();
@@ -711,7 +742,17 @@ export function PlayerProvider({ children }) {
       analyser.fftSize = 512;
       analyser.smoothingTimeConstant = 0.75;
 
-      source.connect(preamp);
+      const inputs = new Map();
+      [audio, altAudioRef.current].forEach((el) => {
+        if (!el) return;
+        const src = ctx.createMediaElementSource(el);
+        const gain = ctx.createGain();
+        gain.gain.value = 1;
+        src.connect(gain);
+        gain.connect(preamp);
+        inputs.set(el, { source: src, gain });
+      });
+      const source = inputs.get(audio).source;
       let node = preamp;
       bands.forEach((b) => { node.connect(b); node = b; });
       node.connect(compressor);
@@ -719,7 +760,7 @@ export function PlayerProvider({ children }) {
       fadeGain.connect(ctx.destination);
       fadeGain.connect(analyser);
 
-      const graph = { ctx, source, preamp, bands, compressor, fadeGain, analyser };
+      const graph = { ctx, source, inputs, preamp, bands, compressor, fadeGain, analyser };
       audioGraphRef.current = graph;
       ctx.addEventListener("statechange", () => {
         if (ctx.state !== "running" && isPlayingRef.current) ctx.resume().catch(() => {});
@@ -903,7 +944,17 @@ export function PlayerProvider({ children }) {
   }, [ensureAudioGraph]);
 
   useEffect(() => {
-    const unlock = () => resumeAudioCtx();
+    const unlock = () => {
+      resumeAudioCtx();
+      const alt = altAudioRef.current;
+      if (alt && !alt.getAttribute("src")) {
+        try {
+          alt.src = SILENT_WAV;
+          alt.play().then(() => { alt.pause(); alt.removeAttribute("src"); try { alt.load(); } catch {} })
+            .catch(() => { alt.removeAttribute("src"); });
+        } catch {}
+      }
+    };
     window.addEventListener("pointerdown", unlock, { once: true, passive: true });
     window.addEventListener("keydown", unlock, { once: true });
     return () => {
@@ -912,13 +963,173 @@ export function PlayerProvider({ children }) {
     };
   }, [resumeAudioCtx]);
 
+  // ===================== MIX: lagu menyatu ke lagu berikutnya tanpa jeda =====================
+  const mixOn = !!settings.mixEnabled && !inRoom;
+  const mixSeconds = clamp(Number(settings.mixSeconds) || 8, 2, 20);
+  const mixNextPos = posInOrder + 1 < order.length ? posInOrder + 1 : (repeat === "all" && order.length > 1 ? 0 : -1);
+  const mixNextTrack = mixNextPos >= 0 ? (queueList[order[mixNextPos]] || null) : null;
+  const mixPlanned = mixOn && repeat !== "one" && settings.autoplay !== false && !!currentTrack
+    && !!mixNextTrack && mixNextTrack.id !== currentTrack.id && clipDuration > mixSeconds * 2 + 2;
+  // Posisi penanda di bar durasi = titik di mana mix mulai berjalan.
+  const mixMarkerRatio = mixPlanned ? clamp((clipDuration - mixSeconds) / clipDuration, 0, 1) : null;
+
+  const abortMix = () => {
+    const m = mixRef.current;
+    m.token += 1;
+    m.starting = false;
+    m.active = false;
+    m.targetId = null; m.nextPos = -1; m.resolved = null;
+    const graph = audioGraphRef.current;
+    const main = audioRef.current;
+    const alt = altAudioRef.current;
+    if (graph?.inputs) {
+      const now = graph.ctx.currentTime;
+      graph.inputs.forEach((inp, el) => {
+        inp.gain.gain.cancelScheduledValues(now);
+        inp.gain.gain.setValueAtTime(el === main ? 1 : 0, now);
+      });
+    }
+    if (alt) {
+      try { alt.pause(); } catch {}
+      if (alt.getAttribute("src")) { alt.removeAttribute("src"); try { alt.load(); } catch {} }
+      delete alt.dataset.mixFor;
+    }
+    setIsMixing(false);
+  };
+
+  const preloadMixTarget = () => {
+    if (getPreferredAudioFormat() === "flac") return; // FLAC besar: jangan rebut bandwidth lagu yang sedang jalan
+    const alt = altAudioRef.current;
+    const cached = nextResolvedRef.current;
+    if (!alt || !mixNextTrack || !cached || cached.id !== mixNextTrack.id || mixRef.current.active) return;
+    if (alt.dataset.mixFor === String(mixNextTrack.id)) return;
+    alt.dataset.mixFor = String(mixNextTrack.id);
+    alt.src = cached.resolved.src;
+    try { alt.load(); } catch {}
+  };
+
+  const startMix = async (audio) => {
+    const m = mixRef.current;
+    if (m.active || m.starting) return;
+    const tr = mixNextTrack;
+    const nextPos = mixNextPos;
+    const alt = altAudioRef.current;
+    const graph = ensureAudioGraph();
+    if (!tr || !alt || !graph?.inputs?.has(alt) || !graph.inputs.has(audio)) return;
+    m.starting = true;
+    const token = ++m.token;
+    const keyAtStart = currentKey;
+    const stale = () => token !== m.token || audioRef.current !== audio;
+    try {
+      let resolved = nextResolvedRef.current?.id === tr.id ? nextResolvedRef.current.resolved : null;
+      if (!resolved) resolved = await resolveAudioSrc(tr);
+      if (!resolved || stale()) throw new Error("mix-unavailable");
+      const inA = graph.inputs.get(audio);
+      const inB = graph.inputs.get(alt);
+      const t0 = graph.ctx.currentTime;
+      inB.gain.gain.cancelScheduledValues(t0);
+      inB.gain.gain.setValueAtTime(0, t0);
+      if (alt.dataset.mixFor !== String(tr.id) || !alt.getAttribute("src")) {
+        alt.src = resolved.src;
+        alt.dataset.mixFor = String(tr.id);
+      }
+      try { alt.currentTime = 0; } catch {}
+      alt.volume = audio.volume;
+      resumeAudioCtx();
+      await Promise.race([alt.play(), new Promise((_, rej) => setTimeout(() => rej(new Error("mix-timeout")), 6000))]);
+      if (stale()) throw new Error("mix-stale");
+      // Hitung ulang sisa waktu setelah lagu berikutnya benar-benar jalan, supaya fade pas dengan akhir lagu.
+      const remaining = audio.duration - audio.currentTime;
+      if (!isFinite(remaining) || remaining < 1) throw new Error("mix-late");
+      const now = graph.ctx.currentTime;
+      inA.gain.gain.cancelScheduledValues(now);
+      inA.gain.gain.setValueAtTime(1, now);
+      inA.gain.gain.setValueCurveAtTime(MIX_CURVE_OUT, now, remaining);
+      inB.gain.gain.cancelScheduledValues(now);
+      inB.gain.gain.setValueAtTime(0, now);
+      inB.gain.gain.setValueCurveAtTime(MIX_CURVE_IN, now, remaining);
+      m.active = true;
+      m.starting = false;
+      m.targetId = tr.id;
+      m.nextPos = nextPos;
+      m.resolved = resolved;
+      setIsMixing(true);
+    } catch {
+      // Gagal menyiapkan mix -> kembali ke transisi biasa (lagu berikutnya jalan setelah lagu ini selesai).
+      if (token === m.token) { abortMix(); mixBlockedKeyRef.current = keyAtStart; }
+    }
+  };
+
+  const finalizeMix = () => {
+    const m = mixRef.current;
+    if (!m.active) return;
+    const A = audioRef.current;
+    const B = altAudioRef.current;
+    const graph = audioGraphRef.current;
+    const { targetId, nextPos, resolved } = m;
+    m.token += 1;
+    m.active = false; m.starting = false;
+    m.targetId = null; m.nextPos = -1; m.resolved = null;
+    // Tukar peran: elemen yang sudah memutar lagu berikutnya jadi elemen utama.
+    audioRef.current = B;
+    altAudioRef.current = A;
+    skipLoadKeyRef.current = targetId;
+    handoffRef.current = resolved;
+    if (graph?.inputs) {
+      const now = graph.ctx.currentTime;
+      const inA = graph.inputs.get(A);
+      const inB = graph.inputs.get(B);
+      inB.gain.gain.cancelScheduledValues(now); inB.gain.gain.setValueAtTime(1, now);
+      inA.gain.gain.cancelScheduledValues(now); inA.gain.gain.setValueAtTime(0, now);
+    }
+    try { A.pause(); } catch {}
+    A.removeAttribute("src");
+    try { A.load(); } catch {}
+    delete A.dataset.mixFor;
+    B.volume = muted ? 0 : volume;
+    const d = B.duration;
+    setCurrentTime(B.currentTime);
+    if (isFinite(d) && d > 0) { setClipDuration(d); writeProgress(B.currentTime, d); }
+    setLoadingAudio(false);
+    setIsMixing(false);
+    setPosInOrder(nextPos);
+  };
+
+  const mixTick = (audio) => {
+    if (!mixOn) return;
+    const m = mixRef.current;
+    const dur = audio.duration;
+    if (!isFinite(dur) || dur <= 0) return;
+    const remaining = dur - audio.currentTime;
+    if (m.active) { if (remaining <= 0.12) finalizeMix(); return; }
+    if (m.starting || !mixPlanned || audio.paused) return;
+    if (mixBlockedKeyRef.current === currentKey) {
+      if (remaining > mixSeconds + 1.5) mixBlockedKeyRef.current = null; // user mundur sebelum zona mix -> boleh mix lagi
+      return;
+    }
+    if (remaining <= mixSeconds + 8 && remaining > 0) preloadMixTarget();
+    if (remaining <= mixSeconds && remaining > 1.2) startMix(audio);
+  };
+
+  useEffect(() => {
+    mixTickRef.current = mixTick;
+    abortMixRef.current = abortMix;
+    finalizeMixRef.current = finalizeMix;
+  });
+  useEffect(() => { if (!mixOn) abortMixRef.current?.(); }, [mixOn]);
+  // ===========================================================================================
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (!currentTrack) { audio.pause(); audio.removeAttribute("src"); setAudioFormat(null); return; }
+    if (!currentTrack) { abortMixRef.current?.(); audio.pause(); audio.removeAttribute("src"); setAudioFormat(null); return; }
     let cancelled = false;
-    setLoadingAudio(true);
-    resolveAudioSrc(currentTrack).then((resolved) => {
+    // Perpindahan hasil Mix: lagu berikutnya sudah jalan di elemen audio lain -> jangan muat ulang / mulai dari nol.
+    const handoff = skipLoadKeyRef.current != null && skipLoadKeyRef.current === currentTrack.id ? handoffRef.current : null;
+    skipLoadKeyRef.current = null;
+    handoffRef.current = null;
+    if (!handoff) { abortMixRef.current?.(); setLoadingAudio(true); }
+    (handoff ? Promise.resolve(handoff) : resolveAudioSrc(currentTrack)).then((resolved) => {
       if (cancelled) return;
       if (!resolved) {
         setLoadingAudio(false);
@@ -926,7 +1137,7 @@ export function PlayerProvider({ children }) {
         return;
       }
       setIsPreviewClip(resolved.preview);
-      const isNewSrc = audio.src !== resolved.src;
+      const isNewSrc = !handoff && audio.src !== resolved.src;
       if (isNewSrc) audio.src = resolved.src;
       if (pendingResumeTimeRef.current > 0) {
         audio.currentTime = pendingResumeTimeRef.current;
@@ -956,7 +1167,7 @@ export function PlayerProvider({ children }) {
       audio.volume = muted ? 0 : volume;
       wasFadedOutRef.current = false;
       const graph = ensureAudioGraph();
-      if (graph && settings.crossfadeSeconds > 0 && !inRoom) {
+      if (graph && settings.crossfadeSeconds > 0 && !inRoom && !mixOn && !handoff) {
         graph.fadeGain.gain.cancelScheduledValues(graph.ctx.currentTime);
         graph.fadeGain.gain.setValueAtTime(0, graph.ctx.currentTime);
         graph.fadeGain.gain.linearRampToValueAtTime(1, graph.ctx.currentTime + settings.crossfadeSeconds);
@@ -991,12 +1202,17 @@ export function PlayerProvider({ children }) {
     const audio = audioRef.current;
     if (!audio || !currentTrack) return;
     if (isPlaying) { resumeAudioCtx(); audio.play().catch(() => {}); }
-    else audio.pause();
+    else {
+      if (mixRef.current.active || mixRef.current.starting) abortMixRef.current?.();
+      audio.pause();
+    }
   }, [isPlaying]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) audio.volume = muted ? 0 : volume;
+    const alt = altAudioRef.current;
+    if (alt) alt.volume = muted ? 0 : volume;
   }, [volume, muted]);
 
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -1016,7 +1232,9 @@ export function PlayerProvider({ children }) {
     // turun ke ~1,4 Mbps → audio putus-putus).
     const skipBody = getPreferredAudioFormat() === "flac";
     resolveAudioSrc(nextTrack, { prefetch: true }).then((resolved) => {
-      if (cancelled || !resolved || skipBody) return;
+      if (cancelled || !resolved) return;
+      nextResolvedRef.current = { id: nextTrack.id, resolved };
+      if (skipBody) return;
       const pre = preloadAudioRef.current;
       if (pre && pre.src !== resolved.src) {
         pre.src = resolved.src;
@@ -1036,7 +1254,7 @@ export function PlayerProvider({ children }) {
     const onTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
       writeProgress(audio.currentTime, audio.duration || clipDuration);
-      const cf = settings.crossfadeSeconds || 0;
+      const cf = mixOn ? 0 : (settings.crossfadeSeconds || 0);
       if (cf > 0 && !inRoom && repeat !== "one" && !wasFadedOutRef.current) {
         const dur = audio.duration || clipDuration;
         if (isFinite(dur) && dur > 0 && dur - audio.currentTime <= cf) {
@@ -1049,9 +1267,16 @@ export function PlayerProvider({ children }) {
           }
         }
       }
+      mixTickRef.current?.(audio);
+    };
+    const onSeeking = () => {
+      const m = mixRef.current;
+      if (m.active || m.starting) { abortMixRef.current?.(); mixBlockedKeyRef.current = currentKey; }
     };
     const onEnded = () => {
       if (inRoom) { roomTrackEndedRef.current?.(); return; }
+      if (mixRef.current.active) { finalizeMixRef.current?.(); return; }
+      if (mixRef.current.starting) abortMixRef.current?.();
       if (repeat === "one") { audio.currentTime = 0; audio.play().catch(() => {}); return; }
       if (settings.autoplay === false) { setIsPlaying(false); pushToast(t("toastAutoplayOff")); return; }
       nextRef.current(true);
@@ -1099,6 +1324,7 @@ export function PlayerProvider({ children }) {
     audio.addEventListener("durationchange", syncDuration);
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("ended", onEnded);
+    audio.addEventListener("seeking", onSeeking);
     audio.addEventListener("error", onError);
     audio.addEventListener("stalled", onStalled);
     audio.addEventListener("canplay", onCanPlay);
@@ -1110,13 +1336,14 @@ export function PlayerProvider({ children }) {
       audio.removeEventListener("durationchange", syncDuration);
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("seeking", onSeeking);
       audio.removeEventListener("error", onError);
       audio.removeEventListener("stalled", onStalled);
       audio.removeEventListener("canplay", onCanPlay);
       audio.removeEventListener("playing", onPlaying);
       audio.removeEventListener("waiting", onWaiting);
     };
-  }, [repeat, inRoom, writeProgress, settings.crossfadeSeconds, settings.autoplay, pushToast, t, clipDuration, currentTrack, resolveAudioSrc, resumeAudioCtx]);
+  }, [repeat, inRoom, mixOn, writeProgress, settings.crossfadeSeconds, settings.autoplay, pushToast, t, clipDuration, currentTrack, resolveAudioSrc, resumeAudioCtx]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -1133,10 +1360,10 @@ export function PlayerProvider({ children }) {
   }, [writeProgress, clipDuration, resumeAudioCtx]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return undefined;
+    if (!audioRef.current) return undefined;
     const nudge = () => {
-      if (!isPlayingRef.current) return;
+      const audio = audioRef.current;
+      if (!audio || !isPlayingRef.current) return;
       const graph = audioGraphRef.current;
       if (graph?.ctx && graph.ctx.state !== "running") graph.ctx.resume().catch(() => {});
       if (audio.paused) audio.play().catch(() => {});
@@ -1426,6 +1653,7 @@ export function PlayerProvider({ children }) {
   }, [currentTrack, inRoom, room, isPlaying, resumeAudioCtx]);
 
   const next = useCallback((auto = false) => {
+    if (mixRef.current.active) { finalizeMixRef.current?.(); return; }
     if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "next" }); return; }
     const isLast = posInOrder >= order.length - 1;
     if (isLast) {
@@ -1967,6 +2195,7 @@ export function PlayerProvider({ children }) {
     queueList, order, posInOrder, currentTrack, upNext, history,
     currentTrackHasLyrics, playSource,
     isPlaying, duration: clipDuration, isPreviewClip, audioFormat, loadingAudio,
+    isMixing, mixMarkerRatio, mixSeconds,
     volume, muted, shuffle, repeat, liked, playlists,
     followedArtists, followedArtistIds, toggleFollowArtist, savedAlbums, savedAlbumIds, toggleSaveAlbum,
     playList, togglePlay, next, prev, seekRatio, seekTo, toggleShuffle, cycleRepeat,
