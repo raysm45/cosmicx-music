@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Heart, MoreHorizontal,
   ChevronRight, Infinity as InfinityIcon,
-  AudioLines, Plus, Trash2, Globe, Languages,
+  AudioLines, Trash2, Globe, Languages,
 } from "lucide-react";
 import { usePlayer, usePlayerTime, useUI } from "./context.jsx";
 import { useRouter } from "./router.jsx";
@@ -940,7 +940,7 @@ function LyricsPanel({ track, active, leaving, tx, onOpenProviders }) {
 }
 
 function QueuePanel({ track, tx, leaving }) {
-  const { upNext, suggestedQueue, promoteSuggestion, clearUpNext, room } = usePlayer();
+  const { upNext, suggestedQueue, clearUpNext, room } = usePlayer();
   const { settings, t } = useUI();
   const autoplayOn = settings.autoplay !== false;
 
@@ -980,11 +980,6 @@ function QueuePanel({ track, tx, leaving }) {
             {autoplayOn && suggestedQueue.map((tr, i) => (
               <div key={`${tr.id}-${i}`} className="aivy-queue-row is-suggested">
                 <QueueTrackMeta track={tr} />
-                <div className="aivy-queue-row-actions">
-                  <button type="button" className="aivy-icon-btn sm" onClick={() => promoteSuggestion(tr)} aria-label={t("menuAddQueue")} title={t("menuAddQueue")}>
-                    <Plus size={15} />
-                  </button>
-                </div>
               </div>
             ))}
           </>

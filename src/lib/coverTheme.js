@@ -56,8 +56,9 @@ function apply() {
     FULL.forEach((k) => root.style.removeProperty(k));
     root.removeAttribute(ATTR_FULL);
   }
-  const s = buildSet(accent, { surfaces, light: base.light });
-  const d = buildSet(accent, { surfaces: ISLAND_SURFACES, island: true });
+  const neutral = mode === "full";   // Warna dinamis: latar ikut cover, tapi aksen (tombol/scrubber) tetap hitam/putih
+  const s = buildSet(accent, { surfaces, light: base.light, neutral });
+  const d = buildSet(accent, { surfaces: ISLAND_SURFACES, island: true, neutral });
   SURFACE.forEach((k, i) => root.style.setProperty(k, s.strings[i]));
   ISLAND.forEach((k, i) => root.style.setProperty(k, d.strings[i]));
   root.setAttribute(ATTR, "");

@@ -84,9 +84,10 @@ function pickInk(acc, strong, h, C, light) {
 }
 
 // -> { strings: [accent, strong, ink, soft] (CSS), ok, rgb: {acc, strong, ink} }
-export function buildSet({ h, C }, { surfaces, light = false, island = false }) {
+// neutral: true -> paksa chroma 0 (aksen hitam/putih saja), dipakai saat Warna dinamis aktif.
+export function buildSet({ h, C }, { surfaces, light = false, island = false, neutral = false }) {
   const p = PROFILES[island ? "island" : light ? "light" : "dark"];
-  const c = island ? Math.min(Math.max(C, 0.1), p.cap) : Math.min(C, p.cap);   // island: chroma minimal supaya tidak tampak putih
+  const c = neutral ? 0 : (island ? Math.min(Math.max(C, 0.1), p.cap) : Math.min(C, p.cap));   // island: chroma minimal supaya tidak tampak putih
   let sL = p.sL, aL = p.aL, res = null;
   for (let k = 0; k < 24; k++) {
     const strong = fit(sL, c, h), acc = fit(aL, c, h);
