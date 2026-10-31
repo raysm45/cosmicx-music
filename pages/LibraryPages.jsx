@@ -1036,7 +1036,7 @@ export function ImportPage() {
                 <li>Tempel link-nya di kotak di atas.</li>
               </ol>
               <div className="sub" style={{ fontSize: 12.5, marginTop: 8, color: "var(--ink-faint)" }}>
-                Yang terbaca maksimal sekitar 100 lagu pertama. Tiap lagu dicocokkan ke YouTube Music, jadi proses ini bisa makan waktu setengah menit. Playlist buatan Spotify (Daily Mix, dll) belum didukung.
+                Yang terbaca maksimal sekitar 100 lagu pertama
               </div>
             </div>
           )}

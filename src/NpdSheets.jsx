@@ -231,7 +231,7 @@ export function AudioPipelineCard({ track, tx, onClose }) {
   const xfade = Number(settings.crossfadeSeconds) || 0;
   const latency = ctx ? Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000) : null;
 
-  const sourceName = track?.source === "local" ? tx("File lokal", "Local file") : "YouTube Music";
+  const sourceName = track?.source === "local" ? tx("File lokal", "Local file") : "Tidal Hi-Fi";
 
   let resampler = DASH;
   if (srcRate && outRate) resampler = srcRate === outRate ? tx("Tanpa konversi", "No conversion") : `${khz(srcRate)} \u2192 ${khz(outRate)}`;
