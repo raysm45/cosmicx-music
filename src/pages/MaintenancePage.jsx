@@ -850,7 +850,7 @@ const CSS = `
   width:100vw; height:100dvh;
   background: var(--pm-bg, #000000);
   color: var(--pm-ink, #F2F2F2);
-  font-family: var(--pm-font, "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif);
+  font-family: var(--pm-font, var(--font-body, "Inter"), -apple-system, BlinkMacSystemFont, sans-serif);
   margin:0; padding:0;
   overflow:hidden;
 }

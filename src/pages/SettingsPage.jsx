@@ -28,7 +28,7 @@ const THEME_SWATCHES = {
 };
 
 const FONT_OPTIONS = [
-  { value: "default", label: "Plus Jakarta (Default)" },
+  { value: "default", label: "Outfit + Inter (Default)" },
   { value: "inter", label: "Inter" },
   { value: "applemusic", label: "Apple Music" },
   { value: "roboto", label: "Roboto" },

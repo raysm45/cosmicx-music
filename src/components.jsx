@@ -5079,11 +5079,11 @@ export function LyricsOverlay() {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#F2F2F2";
-    ctx.font = "600 42px Georgia, serif";
+    ctx.font = '700 42px -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Helvetica Neue", Arial, sans-serif';
     ctx.textAlign = "center";
     wrapCanvasText(ctx, line, canvas.width / 2, 380, 680, 54);
     ctx.fillStyle = "#8A8A8A";
-    ctx.font = "500 22px sans-serif";
+    ctx.font = '500 22px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Helvetica Neue", Arial, sans-serif';
     ctx.fillText(`${currentTrack.artist?.name || ""} \u00b7 ${currentTrack.title || ""}`, canvas.width / 2, canvas.height - 80);
     canvas.toBlob((blob) => {
       if (!blob) return;

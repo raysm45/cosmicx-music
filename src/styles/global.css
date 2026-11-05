@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:opsz,wght@14..32,400..800&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root{
   --bg: #000000;
@@ -34,9 +34,12 @@
   --tabbar-h: 60px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
-  --font-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: var(--font-body);
+  /* Judul/heading: Outfit. Teks isi: Inter. Angka & label teknis: JetBrains Mono. */
+  --font-display: "Outfit", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Lirik: SF Pro Display (font asli Apple Music) di perangkat Apple, fallback Inter (optical size display) di platform lain. */
+  --font-lyrics: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   color-scheme: dark;
 }
 *, *::before, *::after{ box-sizing: border-box; }
@@ -1972,16 +1975,19 @@ body.aivy-artist-immersive .aivy-player{
   position: relative; z-index: 1; flex: 1; min-height: 0; display: block; width: 100%; height: 100%;
   --hover-background-color: var(--lyr-elev-2); --lyrics-scroll-padding-top: 34%;
   color: var(--lyr-ink-faint);
+  font-family: var(--font-lyrics); font-weight: 700; font-optical-sizing: auto;
+  font-synthesis: none; text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
 }
 .aivy-lyrics-body{ position: relative; z-index: 1; flex: 1; min-height: 0; overflow-y: auto; scroll-behavior: smooth; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .aivy-lyrics-line{
-  padding: 11px 24px; font-family: var(--font-body); font-size: var(--lyrics-fs, clamp(19px, 3.6vw, 26px)); font-weight: 700; letter-spacing: -.01em; line-height: 1.28;
+  padding: 11px 24px; font-family: var(--font-lyrics); font-size: var(--lyrics-fs, clamp(19px, 3.6vw, 26px)); font-weight: 700; letter-spacing: -.01em; line-height: 1.28;
   color: var(--lyr-ink-faint); opacity: .55; transform: scale(1); transform-origin: center center;
   transition: opacity .4s cubic-bezier(.22,.9,.32,1), color .4s cubic-bezier(.22,.9,.32,1), transform .4s cubic-bezier(.22,.9,.32,1);
   cursor: pointer; max-width: 780px; text-align: center; margin: 0 auto;
 }
 .aivy-lyrics-line:hover{ opacity: .8; }
-.aivy-lyrics-line.active{ color: var(--lyr-ink); font-weight: 800; opacity: 1; transform: scale(1); }
+.aivy-lyrics-line.active{ color: var(--lyr-ink); font-weight: 700; opacity: 1; transform: scale(1); }
 
 .aivy-lyric-word{ position: relative; display: inline-block; white-space: pre; }
 .aivy-lyric-word .base{ color: rgba(245,245,245,.38); }
@@ -1989,7 +1995,7 @@ body.aivy-artist-immersive .aivy-player{
   position: absolute; inset: 0; color: #fff; text-shadow: none;
   clip-path: inset(0 100% 0 0); transition: clip-path .15s linear; white-space: pre;
 }
-.aivy-lyrics-plain{ position: relative; z-index: 1; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 24px 30vh; font-size: var(--lyrics-fs, 16px); font-weight: 700; line-height: 1.9; color: var(--lyr-ink-dim); white-space: pre-line; max-width: 780px; margin: 0 auto; text-align: center; }
+.aivy-lyrics-plain{ position: relative; z-index: 1; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 24px 30vh; font-family: var(--font-lyrics); font-size: var(--lyrics-fs, 16px); font-weight: 700; line-height: 1.9; color: var(--lyr-ink-dim); white-space: pre-line; max-width: 780px; margin: 0 auto; text-align: center; }
 @media (max-width: 640px){ .aivy-lyrics-line{ padding: 9px 20px; } .aivy-lyrics-plain{ padding: 12px 20px 30vh; } }
 
 @media (min-width: 860px){
@@ -3481,7 +3487,7 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   --accent:#FF7A18; --accent-strong:#FF9A3D; --accent-ink:#1A0A00;
   --accent-soft: rgba(255,122,24,.16);
   --berry:#9B5DE5; --berry-strong:#C18BFF; --gold:#FFC857;
-  --font-creepy: "Creepster", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-creepy: "Creepster", "Outfit", system-ui, sans-serif;
   --card-veil: linear-gradient(180deg, rgba(13,7,20,.25), rgba(13,7,20,.78));
   color-scheme: dark;
 }

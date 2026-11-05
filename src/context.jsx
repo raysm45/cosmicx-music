@@ -26,7 +26,7 @@ const DEFAULT_EQ = { enabled: false, preset: "flat", preamp: 0, bands: [...EQ_PR
 export const FONT_STACKS = {
   default: null,
   inter: "'Inter', -apple-system, sans-serif",
-  applemusic: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  applemusic: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif",
   roboto: "'Roboto', -apple-system, sans-serif",
   opensans: "'Open Sans', -apple-system, sans-serif",
   lato: "'Lato', -apple-system, sans-serif",
