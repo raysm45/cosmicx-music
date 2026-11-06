@@ -2,8 +2,8 @@ import React, { memo, useEffect, useMemo, useState } from "react";
 
 /*
  * Legacy mesh gradient untuk Now Playing mobile.
- * Bukan thumbnail blur: 5 blob radial-gradient dengan warna yang diambil dari cover,
- * bergeser pelan (drifting) memakai transform saja supaya ringan di GPU.
+ * Bukan thumbnail blur: gradasi radial lebar dengan warna dari cover, tanpa blob dan tanpa grain.
+ * Diam saat dipakai; hanya saat dibuka warnanya "drift" sekali (transform saja, ringan di GPU) lalu mengendap.
  */
 
 const DEFAULT_PALETTE = [
@@ -136,12 +136,9 @@ export const MeshGradient = memo(function MeshGradient({ palette, active = true,
   const style = { "--m1": p[0], "--m2": p[1], "--m3": p[2], "--m4": p[3], "--m5": p[4] };
   return (
     <div className={`npx-mesh${active ? " is-active" : ""}${still ? " is-still" : ""}`} style={style} aria-hidden="true">
-      <i className="b b1" />
-      <i className="b b2" />
-      <i className="b b3" />
-      <i className="b b4" />
-      <i className="b b5" />
-      <i className="npx-mesh-grain" />
+      <i className="f f1" />
+      <i className="f f2" />
+      <i className="f f3" />
     </div>
   );
 });
