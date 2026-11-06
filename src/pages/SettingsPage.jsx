@@ -338,7 +338,13 @@ export function SettingsPage() {
   const localFont = useLocalFont();
   const player = usePlayer();
   const cookieConsent = useCookieConsent();
-  const [tab, setTab] = useState("appearance");
+  const [tab, setTab] = useState(() => {
+    try {
+      const want = window.sessionStorage.getItem("aivy.settingsTab");
+      if (want) { window.sessionStorage.removeItem("aivy.settingsTab"); return want; }
+    } catch { /* abaikan */ }
+    return "appearance";
+  });
   const fileInputRef = useRef(null);
   const importModeRef = useRef("backup");
 

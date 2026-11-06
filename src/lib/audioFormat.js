@@ -181,7 +181,7 @@ export function describeQuality(format, fallbackLabel) {
   const bits = format && format.bitsPerSample ? `${format.bitsPerSample}-bit` : null;
 
   if ((format && format.lossless) || key === "flac" || key === "alac") {
-    const hires = ((format && format.sampleRateHz) || 0) > 48000 || ((format && format.bitsPerSample) || 0) > 16;
+    const hires = ((format && format.sampleRateHz) || 0) > 48000;
     return {
       main: hires ? "Hi-Res Lossless" : "Lossless",
       detail: [name, khz, bits].filter(Boolean).join(" \u00b7 "),
@@ -191,6 +191,26 @@ export function describeQuality(format, fallbackLabel) {
   }
   const kbps = format && format.bitrateKbps ? `${Math.round(format.bitrateKbps)} kbps` : null;
   return { main: name, detail: kbps || "", lossless: false, hires: false };
+}
+
+/** Isi dialog info kualitas (gaya Apple Music): judul "Lossless" + baris "24 bit/44,1 kHz ALAC". */
+export function qualityDialogInfo(format, fallbackLabel, lang = "id") {
+  const q = describeQuality(format, fallbackLabel);
+  if (!q) return null;
+  const raw = String((format && format.codec) || fallbackLabel || "").trim().toLowerCase();
+  const codec = CODEC_NAMES[raw] || (raw ? raw.toUpperCase() : "FLAC");
+  const decimal = (n) => { const s = String(Number(n.toFixed(1))); return lang === "en" ? s : s.replace(".", ","); };
+  const parts = [];
+  if (q.lossless) {
+    if (format && format.bitsPerSample) parts.push(`${format.bitsPerSample} bit`);
+    if (format && format.sampleRateHz) parts.push(`${decimal(format.sampleRateHz / 1000)} kHz`);
+    const head = parts.join("/");
+    // Aturan Apple Music: "Hi-Res Lossless" hanya bila sample rate di atas 48 kHz (24 bit/44,1 kHz tetap "Lossless").
+    const hires = ((format && format.sampleRateHz) || 0) > 48000;
+    return { title: hires ? "Hi-Res Lossless" : "Lossless", line: [head, codec].filter(Boolean).join(" "), lossless: true, hires };
+  }
+  const kbps = resolveBitrateKbps(format);
+  return { title: q.main, line: kbps ? `${kbps} kbps` : "", lossless: false, hires: false };
 }
 
 export function resolveBitrateKbps(format) {

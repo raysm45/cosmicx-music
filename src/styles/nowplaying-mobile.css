@@ -466,3 +466,72 @@
   display: inline-block; width: calc(var(--u) * 20); height: calc(var(--u) * 20); margin-left: calc(var(--u) * 10);
   vertical-align: calc(var(--u) * -4); color: rgba(255,255,255,.53); -webkit-text-fill-color: currentColor;
 }
+/* ---------- Dialog kualitas (gaya Apple Music) & sheet provider lirik: dirender lewat portal ke <body> ---------- */
+.npx-dlg-layer{ position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.npx-dlg-layer.shown{ pointer-events: auto; }
+.npx-dlg-backdrop{ position: absolute; inset: 0; background: rgba(0,0,0,.52); opacity: 0; transition: opacity .22s ease; -webkit-tap-highlight-color: transparent; }
+.npx-dlg-layer.shown .npx-dlg-backdrop{ opacity: 1; }
+
+.npx-dlg{
+  position: relative; width: min(74vw, 340px); border-radius: 22px; overflow: hidden;
+  background: #1f1f21; color: #fff; text-align: center;
+  box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  opacity: 0; transform: scale(1.08); transition: opacity .2s ease, transform .26s cubic-bezier(.2,.9,.3,1);
+}
+.npx-dlg-layer.shown .npx-dlg{ opacity: 1; transform: scale(1); }
+.npx-dlg-body{ padding: 34px 22px 22px; display: flex; flex-direction: column; align-items: center; }
+.npx-dlg-ico{ width: 66px; height: auto; color: #fff; margin-bottom: 20px; }
+.npx-dlg-ico.is-plain{ width: 44px; height: 44px; margin-bottom: 18px; }
+.npx-dlg-title{ margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.012em; line-height: 1.2; color: #fff; }
+.npx-dlg-line{ margin: 6px 0 0; font-size: 16px; font-weight: 500; line-height: 1.3; color: rgba(255,255,255,.62); font-variant-numeric: tabular-nums; }
+.npx-dlg-actions{ display: flex; justify-content: flex-end; align-items: center; gap: 30px; padding: 0 28px; height: 80px; background: #444446; }
+.npx-dlg-btn{
+  padding: 10px 0; border: 0; background: none; cursor: pointer; font: inherit; font-size: 19px; font-weight: 500;
+  color: #0a84ff; -webkit-tap-highlight-color: transparent; transition: opacity .15s ease;
+}
+.npx-dlg-btn.is-strong{ font-weight: 700; }
+.npx-dlg-btn:active{ opacity: .55; }
+
+/* sheet provider lirik */
+.npx-dlg-layer.is-sheet{ align-items: flex-end; }
+.npx-psheet{
+  position: relative; width: 100%; max-height: 70dvh; display: flex; flex-direction: column;
+  padding: 8px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: #1c1c1e; color: #fff; border-radius: 22px 22px 0 0;
+  transform: translateY(100%); transition: transform .3s cubic-bezier(.2,.9,.3,1);
+}
+.npx-dlg-layer.is-sheet.shown .npx-psheet{ transform: translateY(0); }
+.npx-psheet-grip{ display: block; width: 38px; height: 5px; margin: 4px auto 14px; padding: 0; border: 0; border-radius: 3px; background: rgba(255,255,255,.4); cursor: pointer; }
+.npx-psheet-title{ margin: 0 4px 10px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.npx-psheet-body{ flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
+.npx-psheet-note{ padding: 10px 6px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.55); }
+.npx-prow{
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 0; border-radius: 14px; text-align: left;
+  background: rgba(255,255,255,.07); color: #fff; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background .15s ease, transform .15s ease;
+}
+.npx-prow:active{ transform: scale(.985); background: rgba(255,255,255,.12); }
+.npx-prow.is-on{ background: rgba(255,255,255,.16); }
+.npx-prow.is-missing{ opacity: .5; }
+.npx-prow:disabled{ opacity: .45; }
+.npx-prow-ico{ flex: 0 0 auto; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.1); }
+.npx-prow-txt{ display: flex; flex-direction: column; min-width: 0; }
+.npx-prow-txt .t{ font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.npx-prow-txt .s{ font-size: 12.5px; color: rgba(255,255,255,.55); }
+@media (prefers-reduced-motion: reduce){
+  .npx-dlg, .npx-psheet, .npx-dlg-backdrop{ transition: opacity .15s ease; transform: none !important; }
+}
+
+/* badge kualitas jadi tombol (ketuk -> dialog info) */
+.aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality{ border: 0; font-family: inherit; cursor: pointer; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: transform .15s ease, background .2s ease; }
+.aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality:active{ transform: scale(.95); background: rgba(255,255,255,.28); }
+.aivy-quality .q-ico{ flex: 0 0 auto; width: 1.55em; height: auto; margin-right: -2px; color: rgba(255,255,255,.88); }
+
+/* tombol provider lirik: di tengah, sejajar tombol romanisasi/terjemahan */
+.aivy-sheet.npx-v2 .npx-lyr-btn.is-center{
+  left: 0; right: 0; margin-inline: auto; width: fit-content; max-width: calc(100% - var(--u) * 240);
+  padding: 0 calc(var(--u) * 18); border-radius: 999px; gap: calc(var(--u) * 8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--u) * 17); font-weight: 600; letter-spacing: 0; white-space: nowrap; color: rgba(255,255,255,.85);
+}
+.aivy-sheet.npx-v2 .npx-lyr-btn.is-center span{ overflow: hidden; text-overflow: ellipsis; }

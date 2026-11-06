@@ -25,7 +25,8 @@ import { Api } from "./lib/api.js";
 import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
 import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
-import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled } from "./lib/audioFormat.js";
+import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled, qualityDialogInfo } from "./lib/audioFormat.js";
+import { QualityDialog, LyricsProviderMobileSheet, LosslessGlyph } from "./NpxDialogs.jsx";
 import { openDownload } from "./DownloadSheet.jsx";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
 import { MeshGradient, useCoverPalette } from "./lib/MeshGradient.jsx";
@@ -2553,7 +2554,17 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const techInfo = useTrackAudioInfo(currentTrack);
   const techFormat = unifyAudioInfoFields(techInfo);
   const formatBadge = formatLabel ? formatBadgeText(formatLabel, techFormat) : null;
+  const tx = (idText, enText) => (settings.language === "en" ? enText : idText);
+  const qualityInfo = qualityDialogInfo(techFormat, formatLabel, settings.language === "en" ? "en" : "id");
+  const openAudioSettings = () => {
+    setQualityOpen(false);
+    try { window.sessionStorage.setItem("aivy.settingsTab", "audio"); } catch { /* abaikan */ }
+    onClose();
+    navigate("settings");
+  };
   const [moreOpen, setMoreOpen] = useState(false);
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [providersOpen, setProvidersOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [aodOpen, setAodOpen] = useState(false);
   const [uiHidden, setUiHidden] = useState(false);
@@ -2882,6 +2893,11 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               <>
                 <button type="button" className={`npx-lyr-btn is-left ${lyricsInfo.roman ? "on" : ""}`} onClick={() => toggleLyricsLayer("roman")} aria-label={t("npRomanize")} aria-pressed={lyricsInfo.roman}><Globe aria-hidden="true" /></button>
                 <button type="button" className={`npx-lyr-btn is-right ${lyricsInfo.trans ? "on" : ""}`} onClick={() => toggleLyricsLayer("trans")} aria-label={t("npTranslate")} aria-pressed={lyricsInfo.trans}><Languages aria-hidden="true" /></button>
+                {lyricsInfo.source && (
+                  <button type="button" className="npx-lyr-btn is-center" onClick={() => setProvidersOpen(true)} aria-label={tx("Pilih provider lirik", "Choose lyrics provider")} aria-haspopup="dialog">
+                    <span>{lyricsInfo.source}</span>
+                  </button>
+                )}
               </>
             )}
 
@@ -2905,7 +2921,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                   waveformSeed={settings.waveformSeekbar && currentTrack ? String(currentTrack.id || currentTrack.title || "") : null}
                 />
                 <span className="aivy-time right">{loadingAudio ? "\u2013\u2013" : `-${formatTime(remaining)}`}</span>
-                {!isPreviewClip && <QualityPill track={currentTrack} fallbackLabel={formatLabel} />}
+                {!isPreviewClip && <QualityPill track={currentTrack} fallbackLabel={formatLabel} onClick={() => setQualityOpen(true)} />}
               </div>
               <NpxTransport />
               <VolumeControl showEndIcon coneAtZero />
@@ -2915,6 +2931,15 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
           </div>
         )}
       </div>
+
+      <QualityDialog
+        open={qualityOpen}
+        info={qualityInfo}
+        tx={tx}
+        onClose={() => setQualityOpen(false)}
+        onSettings={openAudioSettings}
+      />
+      <LyricsProviderMobileSheet open={providersOpen} tx={tx} onClose={() => setProvidersOpen(false)} />
 
       <TrackOptionsSheet
         open={moreOpen}
@@ -3224,7 +3249,7 @@ export function useTrackAudioInfo(track) {
   return info;
 }
 
-export function QualityPill({ track, fallbackLabel = null, className = "" }) {
+export function QualityPill({ track, fallbackLabel = null, className = "", onClick = null }) {
   const { audioFormat } = usePlayer();
   const info = useTrackAudioInfo(track);
   const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
@@ -3232,12 +3257,18 @@ export function QualityPill({ track, fallbackLabel = null, className = "" }) {
   const q = describeQuality(format, label);
   if (!q) return null;
   const kind = q.hires ? "is-hires" : q.lossless ? "is-lossless" : "";
-  return (
-    <span className={`aivy-quality ${kind} ${className}`} title={[q.main, q.detail].filter(Boolean).join(" \u00b7 ")}>
+  const title = [q.main, q.detail].filter(Boolean).join(" \u00b7 ");
+  const inner = (
+    <>
+      {q.lossless ? <LosslessGlyph className="q-ico" /> : null}
       <span className="m">{q.main}</span>
       {q.detail && !q.lossless ? <span className="d">{q.detail}</span> : null}
-    </span>
+    </>
   );
+  if (onClick) {
+    return <button type="button" className={`aivy-quality ${kind} ${className}`} title={title} aria-label={title} aria-haspopup="dialog" onClick={onClick}>{inner}</button>;
+  }
+  return <span className={`aivy-quality ${kind} ${className}`} title={title}>{inner}</span>;
 }
 
 function TrackDetailTechnicalTab({ track, isPreviewClip }) {
