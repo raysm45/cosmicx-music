@@ -2348,19 +2348,14 @@ function NpxNoteIcon({ className }) {
     </svg>
   );
 }
-function NpxSnippetRow({ mode, info, hintKey, lyricsDisabled, onOpenLyrics }) {
+function NpxSnippetRow({ mode, info, hintKey, lyricsDisabled, onOpenLyrics, onOpenProviders }) {
   const { t } = useUI();
   const hint = useMemo(() => (Math.random() < 0.5 ? t("npHintIntro") : t("npHintChorus")), [hintKey, t]); // eslint-disable-line react-hooks/exhaustive-deps
   if (mode === "lyrics") {
     if (!info.source) return <div className="npx-snip is-credit" />;
-    const isDomain = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(info.source);
     return (
       <div className="npx-snip is-credit">
-        {isDomain ? (
-          <a className="npx-credit" href={`https://${info.source}`} target="_blank" rel="noopener noreferrer">{t("npLyricsBy")} {info.source}</a>
-        ) : (
-          <span className="npx-credit">{t("npLyricsBy")} {info.source}</span>
-        )}
+        <button type="button" className="npx-credit" onClick={onOpenProviders} aria-haspopup="dialog">{t("npLyricsBy")} {info.source}</button>
       </div>
     );
   }
@@ -2893,11 +2888,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               <>
                 <button type="button" className={`npx-lyr-btn is-left ${lyricsInfo.roman ? "on" : ""}`} onClick={() => toggleLyricsLayer("roman")} aria-label={t("npRomanize")} aria-pressed={lyricsInfo.roman}><Globe aria-hidden="true" /></button>
                 <button type="button" className={`npx-lyr-btn is-right ${lyricsInfo.trans ? "on" : ""}`} onClick={() => toggleLyricsLayer("trans")} aria-label={t("npTranslate")} aria-pressed={lyricsInfo.trans}><Languages aria-hidden="true" /></button>
-                {lyricsInfo.source && (
-                  <button type="button" className="npx-lyr-btn is-center" onClick={() => setProvidersOpen(true)} aria-label={tx("Pilih provider lirik", "Choose lyrics provider")} aria-haspopup="dialog">
-                    <span>{lyricsInfo.source}</span>
-                  </button>
-                )}
               </>
             )}
 
@@ -2912,7 +2902,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                 <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open && !opening} onOpen={handleLyricsToggle} trackKey={trackKey} />
               </SoftBoundary>
               {mode !== "player" && (
-                <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} />
+                <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} onOpenProviders={() => setProvidersOpen(true)} />
               )}
               <div className="aivy-scrubber-row">
                 <span className="aivy-time">{loadingAudio ? "\u2013\u2013" : formatTime(currentTime)}</span>

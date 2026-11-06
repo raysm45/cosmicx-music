@@ -272,6 +272,8 @@
 .aivy-sheet.npx-v2 .npx-snip .chev{ flex: none; width: calc(var(--u) * 21); height: calc(var(--u) * 21); margin-left: calc(var(--u) * 1); color: rgba(255,255,255,.53); }
 .aivy-sheet.npx-v2 .npx-snip.is-credit{ pointer-events: auto; }
 .aivy-sheet.npx-v2 .npx-credit{ font-size: calc(var(--u) * 19); font-weight: 500; color: rgba(255,255,255,.55); text-decoration: underline; text-underline-offset: calc(var(--u) * 3); }
+.aivy-sheet.npx-v2 button.npx-credit{ padding: 0; border: 0; background: none; font-family: inherit; cursor: pointer; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: color .15s ease; }
+.aivy-sheet.npx-v2 button.npx-credit:active{ color: rgba(255,255,255,.9); }
 
 .aivy-sheet.npx-v2 .aivy-scrubber-row{
   position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 43); top: calc(var(--u) * 44.5); width: auto; margin: 0;
@@ -526,12 +528,3 @@
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality{ border: 0; font-family: inherit; cursor: pointer; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: transform .15s ease, background .2s ease; }
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality:active{ transform: scale(.95); background: rgba(255,255,255,.28); }
 .aivy-quality .q-ico{ flex: 0 0 auto; width: 1.55em; height: auto; margin-right: -2px; color: rgba(255,255,255,.88); }
-
-/* tombol provider lirik: di tengah, sejajar tombol romanisasi/terjemahan */
-.aivy-sheet.npx-v2 .npx-lyr-btn.is-center{
-  left: 0; right: 0; margin-inline: auto; width: fit-content; max-width: calc(100% - var(--u) * 240);
-  padding: 0 calc(var(--u) * 18); border-radius: 999px; gap: calc(var(--u) * 8);
-  display: flex; align-items: center; justify-content: center;
-  font-size: calc(var(--u) * 17); font-weight: 600; letter-spacing: 0; white-space: nowrap; color: rgba(255,255,255,.85);
-}
-.aivy-sheet.npx-v2 .npx-lyr-btn.is-center span{ overflow: hidden; text-overflow: ellipsis; }
