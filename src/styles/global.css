@@ -357,11 +357,10 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
   border: 0;
   box-shadow: 0 1px 14px rgba(0, 0, 0, .20), 0 1px 4px rgba(0, 0, 0, .11);
 }
-:root[data-glass="blur"] .aivy-player{ --lg-blur: 6px; }
 :root .aivy-player.lg-ready .lg-warp{
-  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
-  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
-  filter: url(#lg-player);
+  backdrop-filter: url(#lg-player);
+  -webkit-backdrop-filter: url(#lg-player);
+  filter: none;
 }
 :root .aivy-player.lg-ready > .lg-rim{ display: none; }
 .aivy-player .now{ display: flex; align-items: center; gap: 12px; min-width: 0; width: min(28%, 300px); }

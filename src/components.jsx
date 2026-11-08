@@ -1494,7 +1494,7 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onSize) : null;
     if (ro) ro.observe(el); else onSize();
     return () => { clearTimeout(tm); if (ro) ro.disconnect(); };
-  }, [refract]);
+  }, [refract, settings.liquidGlass]);
 
   return (
     <div ref={barRef} className={`aivy-player ${isPlaying ? "is-playing" : ""} ${lg === "ready" ? "lg-ready" : ""}`}>

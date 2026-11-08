@@ -94,8 +94,36 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
    4. PLAYER PC — Regular Glass (data-glass="full", blurAmount: 0) & Frosted Glass (data-glass="blur", blurAmount: 0.5)
       persis seperti @ybouane/liquidglass (https://liquid-glass.ybouane.com/)
    ===================================================================================================================== */
-:root[data-glass="full"] :is(.aivy-player, .npd){ --lg-blur: 0px; --lg-sat: 100%; --lg-tint: transparent; }
-:root[data-glass="blur"] :is(.aivy-player, .npd){ --lg-blur: 6px; --lg-sat: 100%; --lg-tint: transparent; }
+:root[data-glass="full"] :is(.aivy-player, .npd),
+:root[data-glass="blur"] :is(.aivy-player, .npd){
+  --lg-blur: 0px;
+  --lg-sat: 100%;
+  --lg-tint: transparent;
+}
+:root[data-glass="full"] .aivy-player.lg-ready > .lg-warp,
+:root[data-glass="blur"] .aivy-player.lg-ready > .lg-warp{
+  backdrop-filter: url(#lg-player);
+  -webkit-backdrop-filter: url(#lg-player);
+  filter: none;
+}
+:root[data-glass="full"] .npd.lg-ready .npd-round > .lg-warp,
+:root[data-glass="blur"] .npd.lg-ready .npd-round > .lg-warp{
+  backdrop-filter: url(#npd-lg-round);
+  -webkit-backdrop-filter: url(#npd-lg-round);
+  filter: none;
+}
+:root[data-glass="full"] .npd.lg-ready .npd-seg > .lg-warp,
+:root[data-glass="blur"] .npd.lg-ready .npd-seg > .lg-warp{
+  backdrop-filter: url(#npd-lg-seg);
+  -webkit-backdrop-filter: url(#npd-lg-seg);
+  filter: none;
+}
+:root[data-glass="full"] .npd.lg-ready :is(.npd-chip, .npd-mini) > .lg-warp,
+:root[data-glass="blur"] .npd.lg-ready :is(.npd-chip, .npd-mini) > .lg-warp{
+  backdrop-filter: url(#npd-lg-chip);
+  -webkit-backdrop-filter: url(#npd-lg-chip);
+  filter: none;
+}
 
 /* =====================================================================================================================
    5. WARNA DINAMIS (mode penuh)
@@ -142,6 +170,5 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
    ===================================================================================================================== */
 @media (prefers-reduced-transparency: reduce){
   :root, :root[data-cover-dyn]{ --glass-fill: var(--bg-elev); --glass-fill-2: var(--bg-elev-2); --glass-edge: var(--line); --glass-hi: transparent; }
-  .aivy-player, .lg-warp{ -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 }
 :root[data-contrast="high"]{ --glass-edge: var(--ink-faint); --glass-hi: transparent; }

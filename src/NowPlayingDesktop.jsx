@@ -345,7 +345,7 @@ const NpdGlassDefs = React.memo(function NpdGlassDefs() {
   );
 });
 
-function useNpdGlass(rootRef, enabled, hasTrack, queueMode) {
+function useNpdGlass(rootRef, enabled, hasTrack, queueMode, liquidGlass) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const root = rootRef.current;
@@ -376,7 +376,7 @@ function useNpdGlass(rootRef, enabled, hasTrack, queueMode) {
       if (ro) ro.disconnect();
       window.removeEventListener("resize", schedule);
     };
-  }, [rootRef, enabled, hasTrack, queueMode]);
+  }, [rootRef, enabled, hasTrack, queueMode, liquidGlass]);
   return ready;
 }
 
@@ -426,7 +426,7 @@ function FullPlayer({ shown, onClose }) {
   const swipeLocked = !!(room && room.hostOnlyControl && authUser && room.hostId !== authUser.id);
   const swipe = useCoverSwipe({ onNext: () => next(false), onPrev: prev, disabled: swipeLocked });
   const refract = supportsRefraction();
-  const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view === "queue");
+  const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view === "queue", settings.liquidGlass);
 
   // cover + warna latar diganti bersamaan, setelah keduanya siap (lihat lib/coverSync.js)
   const coverTrack = useSyncedCoverTrack(currentTrack, COVER_PX);

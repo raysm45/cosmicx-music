@@ -67,4 +67,8 @@ export function applyLiquidGlass(enabled) {
   const root = document.documentElement;
   root.dataset.glass = on ? "full" : "blur";
   root.dataset.glassFx = on && supportsRefraction() ? "1" : "0";
+  const blurStd = on ? "0" : "5";
+  document.querySelectorAll('filter [data-lq="blur"]').forEach((el) => {
+    el.setAttribute("stdDeviation", blurStd);
+  });
 }

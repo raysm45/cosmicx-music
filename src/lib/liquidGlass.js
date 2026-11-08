@@ -41,16 +41,16 @@ function bevelHeight(d, zR) {
   return Math.sqrt(d * (2 * zR - d));
 }
 
-export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
+export function makeGlassMaps(w, h, radius = 0) {
   const W = Math.max(8, Math.round(w));
   const H = Math.max(8, Math.round(h));
   const halfX = W * 0.5;
   const halfY = H * 0.5;
   const maxD = Math.min(halfX, halfY);
   const r = radius > 0 ? Math.min(radius, maxD) : maxD;
-  const s = Math.min(1, maxD / LQ.zRadius);
-  const zR = Math.min(zRadius > 0 ? zRadius : LQ.zRadius, maxD);
-  const key = `yb1:${W}x${H}:r${Math.round(r)}:z${Math.round(zR)}`;
+  const zR = Math.min(16, Math.max(6.5, maxD * 0.4));
+  const s = zR / LQ.zRadius;
+  const key = `yb2:${W}x${H}:r${Math.round(r)}:z${Math.round(zR * 10)}`;
   if (mapCache.has(key)) return mapCache.get(key);
 
   let dispUrl = "";
@@ -75,7 +75,7 @@ export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
     const dxBuf = new Float32Array(W * H);
     const dyBuf = new Float32Array(W * H);
 
-    const e = Math.max(1, 2 * s);
+    const e = 2.0 * s;
     const ior = 1.5;
     const refrPow = 1 - 1 / ior; // 1/3
     const borderWidth = 1.5;
@@ -106,11 +106,20 @@ export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
         const hU = bevelHeight(dU, zR);
         const hD = bevelHeight(dD, zR);
 
-        const hGradX = (hR - hL) / (2 * e);
-        const hGradY = (hU - hD) / (2 * e);
+        let hGradX = (hR - hL) / (2 * e);
+        let hGradY = (hU - hD) / (2 * e);
         const invN = 1 / Math.hypot(-hGradX, -hGradY, 1);
         const Ny = -hGradY * invN;
         const Nz = invN;
+
+        // Cegah lonjakan turunan 1/sqrt(d) di piksel batas anti-alias paling luar (d < 1.5px)
+        const gLen = Math.hypot(hGradX, hGradY);
+        const maxGrad = 1.35;
+        if (gLen > maxGrad) {
+          const gScale = maxGrad / gLen;
+          hGradX *= gScale;
+          hGradY *= gScale;
+        }
 
         const depth = smoothstep(0, zR, inside);
 
@@ -121,16 +130,8 @@ export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
         const centerDirX = -px / Math.max(halfX, 1);
         const centerDirY = -py / Math.max(halfY, 1);
 
-        let rx = hGradX * refrMult + centerDirX * LQ.refraction * 4 * s * depth;
-        let ry = hGradY * refrMult + centerDirY * LQ.refraction * 4 * s * depth;
-
-        // Jaga titik sampel tetap di dalam rounded-rect agar sudut kaca tidak menarik piksel transparan luar
-        const testSdf = rrSDF(px + rx * 1.1, py + ry * 1.1, halfX, halfY, r);
-        if (testSdf > -1.5) {
-          const pull = Math.max(0, Math.min(1, (-sdf - 1) / Math.max(-sdf - testSdf, 1e-4)));
-          rx *= pull;
-          ry *= pull;
-        }
+        const rx = hGradX * refrMult + centerDirX * LQ.refraction * 4 * s * depth;
+        const ry = hGradY * refrMult + centerDirY * LQ.refraction * 4 * s * depth;
 
         dxBuf[idx] = rx;
         dyBuf[idx] = ry;
@@ -139,7 +140,7 @@ export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
         if (ax > maxAbs) maxAbs = ax;
         if (ay > maxAbs) maxAbs = ay;
 
-        // Pencahayaan permukaan persis FS_GLASS (Fresnel + innerStroke + rim + innerGlow + envRefl + depth)
+        // Pencahayaan permukaan persis FS_GLASS (Fresnel + innerStroke + rim + innerGlow + envRefl)
         const fres = Math.pow(1 - Math.abs(Nz), 4) * LQ.fresnel;
         const innerStrokeBase =
           smoothstep(-borderWidth - 1, -borderWidth, sdf) *
@@ -152,7 +153,7 @@ export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
         const envRefl = (Ny * 0.5 + 0.5) * fres * 0.08;
 
         const addWhite = rim + innerGlow + innerStroke * LQ.edgeHighlight * 0.55 + envRefl;
-        const alpha = Math.min(1, Math.max(0, addWhite * (1 - 0.2 * fres) + 0.2 * fres + 0.025 * depth)) * mask;
+        const alpha = Math.min(1, Math.max(0, addWhite * (1 - 0.2 * fres) + 0.2 * fres)) * mask;
 
         const k = idx * 4;
         shineImg.data[k] = 255;
@@ -164,7 +165,7 @@ export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
 
     scaleG = 2 * maxAbs;
     const caPx = LQ.chromAberration * 36 * s; // FS_GLASS: u_chroma * 18.0 * 2.0
-    const caRatio = Math.min(0.16, caPx / Math.max(maxAbs * 0.55, 1));
+    const caRatio = caPx / Math.max(maxAbs, 1);
     scaleR = scaleG * (1 - caRatio);
     scaleB = scaleG * (1 + caRatio);
 
@@ -195,23 +196,46 @@ export function makeGlassMaps(w, h, radius = 0, zRadius = LQ.zRadius) {
 }
 
 export function makeDisplacementMap(w, h, bezel, radius) {
-  return makeGlassMaps(w, h, radius, bezel || LQ.zRadius).dispUrl;
+  return makeGlassMaps(w, h, radius).dispUrl;
 }
 
 export function applyLiquidFilter(filter, w, h, radius = 0) {
   if (!filter || !w || !h) return;
-  const maps = makeGlassMaps(w, h, radius, LQ.zRadius);
+  const maps = makeGlassMaps(w, h, radius);
   if (!maps.dispUrl) return;
+
+  const W = String(maps.w);
+  const H = String(maps.h);
+  filter.setAttribute("x", "0");
+  filter.setAttribute("y", "0");
+  filter.setAttribute("width", W);
+  filter.setAttribute("height", H);
+  filter.setAttribute("filterUnits", "userSpaceOnUse");
+  filter.setAttribute("primitiveUnits", "userSpaceOnUse");
 
   const mapEl = filter.querySelector('[data-lq="map"]');
   if (mapEl) {
+    mapEl.setAttribute("x", "0");
+    mapEl.setAttribute("y", "0");
+    mapEl.setAttribute("width", W);
+    mapEl.setAttribute("height", H);
     mapEl.setAttribute("href", maps.dispUrl);
     mapEl.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", maps.dispUrl);
   }
   const shineEl = filter.querySelector('[data-lq="shine"]');
   if (shineEl) {
+    shineEl.setAttribute("x", "0");
+    shineEl.setAttribute("y", "0");
+    shineEl.setAttribute("width", W);
+    shineEl.setAttribute("height", H);
     shineEl.setAttribute("href", maps.shineUrl);
     shineEl.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", maps.shineUrl);
+  }
+
+  const blurEl = filter.querySelector('[data-lq="blur"]');
+  if (blurEl) {
+    const isFrosted = typeof document !== "undefined" && document.documentElement.dataset.glass === "blur";
+    blurEl.setAttribute("stdDeviation", isFrosted ? "5" : "0");
   }
 
   const dR = filter.querySelector('[data-lq="dR"]');
