@@ -57,9 +57,9 @@ export function makeGlassMaps(w, h, radius = 0) {
   const halfY = H * 0.5;
   const maxD = Math.min(halfX, halfY);
   const r = radius > 0 ? Math.min(radius, maxD) : Math.min(LQ.cornerRadius, maxD);
-  const zR = Math.min(LQ.zRadius, maxD);
-  const s = zR / LQ.zRadius;
-  const key = `yb3:${W}x${H}:r${Math.round(r)}:z${Math.round(zR * 10)}`;
+  const zR = LQ.zRadius;
+  const s = Math.min(1, maxD / LQ.zRadius);
+  const key = `yb4:${W}x${H}:r${Math.round(r)}:z${Math.round(zR)}`;
   if (mapCache.has(key)) return mapCache.get(key);
 
   let dispUrlR = "";
@@ -89,10 +89,9 @@ export function makeGlassMaps(w, h, radius = 0) {
     const rxBufB = new Float32Array(W * H);
     const ryBufB = new Float32Array(W * H);
 
-    const e = 2.0 * s;
+    const e = 1.6;
     const ior = 1.5;
     const refrPow = 1 - 1 / ior; // 1/3
-    const borderWidth = 1.5;
     let maxAbs = 1;
 
     const bx = Math.max(0, halfX - r);
@@ -107,37 +106,33 @@ export function makeGlassMaps(w, h, radius = 0) {
 
         if (sdf > 2.5) continue;
 
-        let qx = px;
-        let qy = py;
-        if (sdf > -0.5) {
-          const cx = Math.max(-bx, Math.min(bx, px));
-          const cy = Math.max(-by, Math.min(by, py));
-          const vx = px - cx;
-          const vy = py - cy;
-          const vLen = Math.hypot(vx, vy) || 1;
-          const targetR = Math.max(0, r - 0.5);
-          qx = cx + (vx / vLen) * targetR;
-          qy = cy + (vy / vLen) * targetR;
+        const cx = Math.max(-bx, Math.min(bx, px));
+        const cy = Math.max(-by, Math.min(by, py));
+        const vx = px - cx;
+        const vy = py - cy;
+        const vLen = Math.hypot(vx, vy);
+        let ux = 0;
+        let uy = 0;
+        if (vLen > 1e-4) {
+          ux = vx / vLen;
+          uy = vy / vLen;
+        } else if (halfX - Math.abs(px) < halfY - Math.abs(py)) {
+          ux = px < 0 ? -1 : 1;
+        } else {
+          uy = py < 0 ? -1 : 1;
         }
 
         const qSdf = Math.min(sdf, -0.5);
         const inside = Math.max(0, -qSdf);
         const edge = smoothstep(maxD * 0.35, 0, inside);
 
-        // Surface normal via bevel height field (FS_GLASS)
-        const dC = inside;
-        const dR = -rrSDF(qx + e, qy, halfX, halfY, r);
-        const dL = -rrSDF(qx - e, qy, halfX, halfY, r);
-        const dU = -rrSDF(qx, qy + e, halfX, halfY, r);
-        const dD = -rrSDF(qx, qy - e, halfX, halfY, r);
-        const hC = bevelHeight(dC, zR);
-        const hR = bevelHeight(dR, zR);
-        const hL = bevelHeight(dL, zR);
-        const hU = bevelHeight(dU, zR);
-        const hD = bevelHeight(dD, zR);
-
-        const hGradX = (hR - hL) / (2 * e);
-        const hGradY = (hU - hD) / (2 * e);
+        // Surface normal via bevel height field sepanjang arah radial normal (FS_GLASS)
+        const hC = bevelHeight(inside, zR);
+        const hPlus = bevelHeight(inside + e, zR);
+        const hMinus = bevelHeight(inside - e, zR);
+        const dhd = (hPlus - hMinus) / (2 * e);
+        const hGradX = -ux * dhd;
+        const hGradY = -uy * dhd;
         const invN = 1 / Math.hypot(-hGradX, -hGradY, 1);
         const Nx = -hGradX * invN;
         const Ny = -hGradY * invN;
@@ -149,8 +144,8 @@ export function makeGlassMaps(w, h, radius = 0) {
         const thickness = hC * 2;
         const thickNorm = thickness / Math.max(zR * 2, 1);
         const refrMult = refrPow * (2 + 0.5 * thickNorm) * LQ.refraction * 30 * s;
-        const centerDirX = -qx / Math.max(halfX, 1);
-        const centerDirY = -qy / Math.max(halfY, 1);
+        const centerDirX = -px / Math.max(halfX, 1);
+        const centerDirY = -py / Math.max(halfY, 1);
 
         const rx = hGradX * refrMult + centerDirX * LQ.refraction * 4 * s * depth;
         const ry = hGradY * refrMult + centerDirY * LQ.refraction * 4 * s * depth;
@@ -162,18 +157,18 @@ export function makeGlassMaps(w, h, radius = 0) {
         const caY = Ny * caS;
 
         const clampInside = (dx, dy) => {
-          const margin = 2.0;
+          const margin = 1.5;
           const maxR = Math.max(1, r - margin);
           let sx = Math.max(-(halfX - margin), Math.min(halfX - margin, px + dx));
           let sy = Math.max(-(halfY - margin), Math.min(halfY - margin, py + dy));
-          const cx = Math.max(-bx, Math.min(bx, sx));
-          const cy = Math.max(-by, Math.min(by, sy));
-          const vx = sx - cx;
-          const vy = sy - cy;
-          const vLen = Math.hypot(vx, vy);
-          if (vLen > maxR) {
-            sx = cx + (vx / vLen) * maxR;
-            sy = cy + (vy / vLen) * maxR;
+          const scx = Math.max(-bx, Math.min(bx, sx));
+          const scy = Math.max(-by, Math.min(by, sy));
+          const svx = sx - scx;
+          const svy = sy - scy;
+          const svLen = Math.hypot(svx, svy);
+          if (svLen > maxR) {
+            sx = scx + (svx / svLen) * maxR;
+            sy = scy + (svy / svLen) * maxR;
           }
           return [sx - px, sy - py];
         };
@@ -195,13 +190,13 @@ export function makeGlassMaps(w, h, radius = 0) {
 
         // Pencahayaan permukaan persis FS_GLASS (Fresnel + innerStroke + rim + innerGlow + envRefl)
         if (sdf <= 0.5) {
-          const mask = 1 - smoothstep(-1.5, 0.5, sdf);
+          const mask = 1 - smoothstep(-0.5, 0.5, sdf);
           const sInside = Math.max(0, -sdf);
           const sEdge = smoothstep(maxD * 0.35, 0, sInside);
           const fres = Math.pow(1 - Math.abs(Nz), 4) * LQ.fresnel;
           const innerStrokeBase =
-            smoothstep(-borderWidth - 1, -borderWidth, sdf) *
-            (1 - smoothstep(-1, 0, sdf));
+            smoothstep(-2.2, -1.2, sdf) *
+            (1 - smoothstep(-0.5, 0.2, sdf));
           const topBias = 0.5 + 0.5 * (-py / Math.max(halfY, 1));
           const innerStroke = innerStrokeBase * (0.4 + 0.6 * topBias);
 

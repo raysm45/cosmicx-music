@@ -124,6 +124,24 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
   -webkit-backdrop-filter: url(#npd-lg-chip);
   filter: none;
 }
+:root[data-glass="full"] .npd.lg-ready .npd-clear > .lg-warp,
+:root[data-glass="blur"] .npd.lg-ready .npd-clear > .lg-warp{
+  backdrop-filter: url(#npd-lg-clear);
+  -webkit-backdrop-filter: url(#npd-lg-clear);
+  filter: none;
+}
+:root[data-glass="full"] .npd.lg-ready .npd-sync > .lg-warp,
+:root[data-glass="blur"] .npd.lg-ready .npd-sync > .lg-warp{
+  backdrop-filter: url(#npd-lg-sync);
+  -webkit-backdrop-filter: url(#npd-lg-sync);
+  filter: none;
+}
+:root[data-glass="full"] .npd.lg-ready .npd-lang-wrap > .lg-warp,
+:root[data-glass="blur"] .npd.lg-ready .npd-lang-wrap > .lg-warp{
+  backdrop-filter: url(#npd-lg-lang);
+  -webkit-backdrop-filter: url(#npd-lg-lang);
+  filter: none;
+}
 
 /* =====================================================================================================================
    5. WARNA DINAMIS (mode penuh)

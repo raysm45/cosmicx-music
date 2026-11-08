@@ -124,12 +124,12 @@
   --npd-glass-shadow: 0 1px 14px rgba(0, 0, 0, .20), 0 1px 4px rgba(0, 0, 0, .11);
 }
 :root[data-glass="blur"] .npd{ --lg-blur: 6px; --lg-tint: transparent; }
-.npd-round, .npd-seg, .npd-chip, .npd-mini{
+.npd-round, .npd-seg, .npd-chip, .npd-mini, .npd-clear, .npd-sync, .npd-lang-wrap{
   position: relative; isolation: isolate; overflow: hidden;
   background: var(--lg-tint); border: 0; text-shadow: none;
   box-shadow: var(--npd-glass-shadow);
 }
-.npd.lg-ready :is(.npd-round, .npd-seg, .npd-chip, .npd-mini) > .lg-rim{ display: none; }
+.npd.lg-ready :is(.npd-round, .npd-seg, .npd-chip, .npd-mini, .npd-clear, .npd-sync, .npd-lang-wrap) > .lg-rim{ display: none; }
 .npd.lg-ready .npd-round .lg-warp{
   backdrop-filter: url(#npd-lg-round);
   -webkit-backdrop-filter: url(#npd-lg-round);
@@ -146,15 +146,31 @@
   -webkit-backdrop-filter: url(#npd-lg-chip);
   filter: none;
 }
+.npd.lg-ready .npd-clear .lg-warp{
+  backdrop-filter: url(#npd-lg-clear);
+  -webkit-backdrop-filter: url(#npd-lg-clear);
+  filter: none;
+}
+.npd.lg-ready .npd-sync .lg-warp{
+  backdrop-filter: url(#npd-lg-sync);
+  -webkit-backdrop-filter: url(#npd-lg-sync);
+  filter: none;
+}
+.npd.lg-ready .npd-lang-wrap .lg-warp{
+  backdrop-filter: url(#npd-lg-lang);
+  -webkit-backdrop-filter: url(#npd-lg-lang);
+  filter: none;
+}
 
 .npd-round::after, .npd-chip::after, .npd-mini::after{
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: var(--lg-lens); box-shadow: inset 0 0 0 1px var(--lg-lens-ring);
+  background: var(--lg-lens); box-shadow: none;
   opacity: 0; transition: opacity .25s ease;
 }
-.npd-round > svg, .npd-chip > svg, .npd-mini > svg{ position: relative; z-index: 1; }
-.npd-round:hover::after, .npd-chip:hover::after, .npd-mini:hover::after{ opacity: .45; }
-.npd-round.active::after, .npd-chip.active::after, .npd-mini.active::after{ opacity: 1; }
+.npd-round > svg, .npd-chip > svg, .npd-mini > svg,
+.npd-clear > svg, .npd-clear > span, .npd-sync > span{ position: relative; z-index: 1; }
+.npd-round:hover::after, .npd-chip:hover::after, .npd-mini:hover::after{ opacity: .22; }
+.npd-round.active::after, .npd-chip.active::after, .npd-mini.active::after{ opacity: .65; }
 
 .npd-round{
   width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -193,8 +209,8 @@
 .npd-pane-anim{ z-index: 1; }
 @keyframes npd-pane-in{
   from{ opacity: 0; transform: translate3d(calc(var(--dir) * 34px), 0, 0) scale(.985); filter: blur(8px); }
-  60%{ filter: blur(0); }
-  to{ opacity: 1; transform: none; filter: blur(0); }
+  60%{ filter: none; }
+  to{ opacity: 1; transform: none; filter: none; }
 }
 @keyframes npd-pane-out{
   from{ opacity: 1; transform: none; filter: blur(0); }
@@ -248,7 +264,7 @@
   transition: transform .35s cubic-bezier(.34,1.3,.64,1);
 }
 .npd-chip:active{ transform: scale(.9); transition-duration: .14s; }
-.npd-chip.active::after{ background: rgba(255,255,255,.3); }
+.npd-chip.active::after{ background: rgba(255,255,255,.18); }
 .npd-album{
   align-self: flex-start; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; margin-top: 28px; padding: 0;
   background: none; border: none; color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; text-align: left;
@@ -314,8 +330,8 @@
 .npd-sync{
   position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 4;
   padding: 8px 16px; border-radius: 999px; border: none; cursor: pointer;
-  background: rgba(255,255,255,.9); color: #111; font-size: 13px; font-weight: 700;
-  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  background: var(--lg-tint); color: #fff; font-size: 13px; font-weight: 700;
+  box-shadow: var(--npd-glass-shadow);
 }
 .npd-lyrics-foot{
   flex: 0 0 auto; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
@@ -328,7 +344,7 @@
 }
 .npd-mini:hover, .npd-mini.active{ color: #fff; }
 .npd-mini:active{ transform: scale(.9); transition-duration: .14s; }
-.npd-mini.active::after{ background: rgba(255,255,255,.3); }
+.npd-mini.active::after{ background: rgba(255,255,255,.18); }
 .npd-mini:disabled{ opacity: .4; cursor: default; }
 .npd-mini:disabled::after{ opacity: 0; }
 .npd-source-info{ justify-self: center; min-width: 0; text-align: center; }
@@ -339,9 +355,13 @@
 .npd-source-btn{ cursor: pointer; }
 .npd-source-btn:hover{ color: #fff; }
 .npd-foot-right{ display: flex; align-items: center; gap: 8px; }
+.npd-lang-wrap{
+  height: 34px; border-radius: 999px; display: inline-flex; align-items: center;
+}
 .npd-lang{
+  position: relative; z-index: 1;
   height: 34px; padding: 0 12px; border-radius: 999px; border: none; cursor: pointer;
-  background: rgba(255,255,255,.18); color: #fff; font-size: 12.5px; font-weight: 600; font-family: inherit;
+  background: transparent; color: #fff; font-size: 12.5px; font-weight: 600; font-family: inherit;
 }
 .npd-lang option{ color: #111; background: #fff; }
 
@@ -354,10 +374,12 @@
 }
 .npd-sec{ display: flex; align-items: center; justify-content: space-between; margin: 16px 0 8px; font-size: 15px; font-weight: 700; color: rgba(255,255,255,.55); }
 .npd-clear{
-  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; border: none; cursor: pointer;
-  background: rgba(255,255,255,.12); color: rgba(255,255,255,.75); font-size: 12px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 11px; border-radius: 999px; border: none; cursor: pointer;
+  background: var(--lg-tint); color: rgba(255,255,255,.82); font-size: 12px; font-weight: 600;
+  transition: color .2s ease, transform .25s ease;
 }
-.npd-clear:hover{ background: rgba(255,255,255,.2); color: #fff; }
+.npd-clear:hover{ color: #fff; }
+.npd-clear:active{ transform: scale(.94); }
 .npd-eq{ width: 34px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.7); flex-shrink: 0; }
 .npd-auto{ display: flex; align-items: center; gap: 12px; padding: 22px 0 12px; color: rgba(255,255,255,.7); }
 .npd-auto svg{ flex-shrink: 0; width: 26px; }

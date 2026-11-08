@@ -333,6 +333,9 @@ const NPD_LG_SURFACES = [
   [".npd-round", "npd-lg-round", 44, 44],
   [".npd-seg", "npd-lg-seg", 130, 44],
   [".npd-chip", "npd-lg-chip", 34, 34],
+  [".npd-clear", "npd-lg-clear", 92, 26],
+  [".npd-sync", "npd-lg-sync", 112, 34],
+  [".npd-lang-wrap", "npd-lg-lang", 104, 34],
 ];
 
 const NpdGlassDefs = React.memo(function NpdGlassDefs() {
@@ -345,7 +348,7 @@ const NpdGlassDefs = React.memo(function NpdGlassDefs() {
   );
 });
 
-function useNpdGlass(rootRef, enabled, hasTrack, queueMode, liquidGlass) {
+function useNpdGlass(rootRef, enabled, hasTrack, view, liquidGlass) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const root = rootRef.current;
@@ -370,13 +373,16 @@ function useNpdGlass(rootRef, enabled, hasTrack, queueMode, liquidGlass) {
     const seg = root.querySelector(".npd-seg");
     const ro = typeof ResizeObserver !== "undefined" && seg ? new ResizeObserver(schedule) : null;
     if (ro) ro.observe(seg);
+    const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(schedule) : null;
+    if (mo) mo.observe(root, { childList: true, subtree: true });
     window.addEventListener("resize", schedule);
     return () => {
       if (raf) cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
+      if (mo) mo.disconnect();
       window.removeEventListener("resize", schedule);
     };
-  }, [rootRef, enabled, hasTrack, queueMode, liquidGlass]);
+  }, [rootRef, enabled, hasTrack, view, liquidGlass]);
   return ready;
 }
 
@@ -426,7 +432,7 @@ function FullPlayer({ shown, onClose }) {
   const swipeLocked = !!(room && room.hostOnlyControl && authUser && room.hostId !== authUser.id);
   const swipe = useCoverSwipe({ onNext: () => next(false), onPrev: prev, disabled: swipeLocked });
   const refract = supportsRefraction();
-  const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view === "queue", settings.liquidGlass);
+  const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view, settings.liquidGlass);
 
   // cover + warna latar diganti bersamaan, setelah keduanya siap (lihat lib/coverSync.js)
   const coverTrack = useSyncedCoverTrack(currentTrack, COVER_PX);
@@ -899,7 +905,10 @@ function LyricsPanel({ track, active, leaving, tx, onOpenProviders }) {
           fontSize={fontSize}
         />
         {ui.unsynced && (
-          <button type="button" className="npd-sync" onClick={resumeSync}>{t("syncLyrics")}</button>
+          <button type="button" className="npd-sync" onClick={resumeSync}>
+            <GlassLayers />
+            <span>{t("syncLyrics")}</span>
+          </button>
         )}
       </div>
 
@@ -922,9 +931,12 @@ function LyricsPanel({ track, active, leaving, tx, onOpenProviders }) {
 
         <div className="npd-foot-right">
           {ui.tr && (
-            <select className="npd-lang" value={ui.lang} onChange={changeLang} aria-label={tx("Bahasa terjemahan", "Translation language")}>
-              {langs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
-            </select>
+            <div className="npd-lang-wrap">
+              <GlassLayers />
+              <select className="npd-lang" value={ui.lang} onChange={changeLang} aria-label={tx("Bahasa terjemahan", "Translation language")}>
+                {langs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+              </select>
+            </div>
           )}
           <button
             type="button" className={`npd-mini ${ui.tr ? "active" : ""}`} onClick={toggleTranslation} disabled={!ui.ready}
@@ -962,7 +974,11 @@ function QueuePanel({ track, tx, leaving }) {
           <>
             <div className="npd-sec npd-sec-split">
               <span>{t("upNextLabel")}</span>
-              <button type="button" className="npd-clear" onClick={clearUpNext}><Trash2 size={13} /> {t("clearQueue")}</button>
+              <button type="button" className="npd-clear" onClick={clearUpNext}>
+                <GlassLayers />
+                <Trash2 size={13} />
+                <span>{t("clearQueue")}</span>
+              </button>
             </div>
             <QueueUpNextList items={upNext} />
           </>
