@@ -22,6 +22,14 @@
 @property --ink-faint    { syntax: "<color>"; inherits: true; initial-value: #6B6B6B; }
 @property --dyn-a        { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --dyn-b        { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --dyn-c        { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --dyn-d        { syntax: "<color>"; inherits: true; initial-value: transparent; }
+/* kaca (dipakai refine.css); di mode penuh nilainya diisi coverTheme.js */
+@property --glass-fill   { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.07); }
+@property --glass-fill-2 { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.12); }
+@property --glass-edge   { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.14); }
+@property --glass-hi     { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.22); }
+@property --pop-bg       { syntax: "<color>"; inherits: true; initial-value: #151515; }
 
 :root{
   --cv-dur: var(--cv-dur-ms, 1700ms);
@@ -35,7 +43,11 @@
     --bg-elev-2 var(--cv-dur) var(--cv-ease), --bg-elev-3 var(--cv-dur) var(--cv-ease),
     --line var(--cv-dur) var(--cv-ease), --line-soft var(--cv-dur) var(--cv-ease),
     --ink var(--cv-dur) var(--cv-ease), --ink-dim var(--cv-dur) var(--cv-ease), --ink-faint var(--cv-dur) var(--cv-ease),
-    --dyn-a var(--cv-dur) var(--cv-ease), --dyn-b var(--cv-dur) var(--cv-ease);
+    --dyn-a var(--cv-dur) var(--cv-ease), --dyn-b var(--cv-dur) var(--cv-ease),
+    --dyn-c var(--cv-dur) var(--cv-ease), --dyn-d var(--cv-dur) var(--cv-ease),
+    --glass-fill var(--cv-dur) var(--cv-ease), --glass-fill-2 var(--cv-dur) var(--cv-ease),
+    --glass-edge var(--cv-dur) var(--cv-ease), --glass-hi var(--cv-dur) var(--cv-ease),
+    --pop-bg var(--cv-dur) var(--cv-ease);
 }
 :root[data-reduced-motion="true"]{ --cv-dur: 0ms; }
 @media (prefers-reduced-motion: reduce){ :root{ --cv-dur: 0ms; } }
@@ -73,26 +85,18 @@
 :root[data-cover-theme] .aivy-am-lyrics{ --am-lyrics-highlight-color: var(--accent-strong); }
 
 /* ====================================================================================================
-   MODE PENUH (Warna dinamis): latar gradien dari warna cover + panel sidebar/kanan jadi kaca (seperti halaman artist)
-   Dipagari :root[data-cover-dyn]; --bg/--ink/dst sudah diganti variabel di atas, jadi kartu & teks ikut otomatis.
+   MODE PENUH (Warna dinamis): SATU latar mesh dari 4 warna cover. Kartu/panel/baris memakai token kaca transparan
+   (lihat refine.css), jadi semuanya menyatu dengan latar seperti Apple Music. Dipagari :root[data-cover-dyn].
+   Posisi blob dibuat berselang-seling (kiri-atas, kanan-atas, kanan-bawah, kiri-bawah) + 1 blob pencampur di tengah
+   supaya tidak ada "pita" kosong di antara blob; semuanya memudar ke --bg sehingga tidak ada tepi keras.
    ==================================================================================================== */
 :root[data-cover-dyn] body:not(#_){
   background-color: var(--bg);
   background-image:
-    radial-gradient(90% 75% at 0% 0%, var(--dyn-a), transparent 72%),
-    radial-gradient(85% 75% at 100% 100%, var(--dyn-b), transparent 72%);
+    radial-gradient(75% 65% at 4% 0%,    var(--dyn-a), transparent 74%),
+    radial-gradient(65% 65% at 100% 6%,  var(--dyn-b), transparent 74%),
+    radial-gradient(75% 70% at 96% 100%, var(--dyn-c), transparent 76%),
+    radial-gradient(70% 70% at 0% 98%,   var(--dyn-d), transparent 76%),
+    radial-gradient(55% 55% at 50% 52%,  color-mix(in srgb, var(--dyn-a) 45%, var(--dyn-c)), transparent 78%);
   background-attachment: fixed;
-}
-:root[data-cover-dyn] .sp-panel,
-:root[data-cover-dyn] .aivy-rightpanel,
-:root[data-cover-dyn] .aivy-rightpanel-rail{
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--ink) 7%, transparent) 0%, transparent 22%),
-    color-mix(in srgb, var(--bg) 26%, transparent);
-  -webkit-backdrop-filter: blur(30px) saturate(1.25); backdrop-filter: blur(30px) saturate(1.25);
-  border-color: color-mix(in srgb, var(--ink) 10%, transparent);
-}
-:root[data-cover-dyn] .aivy-rightpanel .aivy-panel-card{
-  background: color-mix(in srgb, var(--ink) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
 }

@@ -3,20 +3,21 @@ import { usePlayer, useUI } from "../context.jsx";
 import { useSyncedCoverTrack } from "./coverSync.js";
 import { extractFluidColors, getCachedFluidColors } from "./FluidBackground.jsx";
 import { BG_FADE_MS, EASE_CSS } from "./motion.js";
-import { pickAccent, buildSet, buildSurfaces, parseColor, luminance, ISLAND_SURFACES } from "./themeColor.js";
+import { pickAccent, buildSet, buildSurfaces, parseColor, luminance, ISLAND_SURFACES, FULL_VARS } from "./themeColor.js";
 import "../styles/cover-theme.css";
 
 // Warna dinamis. Nilai dipasang sebagai inline CSS variable di <html>; transisinya dikerjakan CSS
 // (@property <color> + durasi/easing dari motion.js, lihat styles/cover-theme.css).
 //   mode "accent" (setting coverTheme)    : hanya --accent*  (+ --cv-dk-* untuk layar Now Playing)
-//   mode "full"   (setting dynamicColors) : + seluruh permukaan (--bg*, --line*, --ink*) dan gradien latar (--dyn-a/b)
+//   mode "full"   (setting dynamicColors) : + latar mesh 4 warna (--dyn-a..d) dan permukaan kaca transparan (--bg-elev*, --glass-*, --ink*)
 const COVER_PX = 520;                 // harus sama dengan NowPlayingDesktop -> cache prepareCover terpakai bersama
 const ATTR = "data-cover-theme";      // ada selama aksen aktif
 const ATTR_FULL = "data-cover-dyn";   // ada selama mode penuh aktif (gerbang aturan latar gradien + sidebar kaca)
+const ATTR_LIGHT = "data-cover-tone";  // "light" | "dark": nada latar mode penuh (untuk bayangan/specular di refine.css)
 const SNAP = "data-cv-snap";          // sementara menonaktifkan transisi saat theme (gelap/terang) diganti
 const SURFACE = ["--accent", "--accent-strong", "--accent-ink", "--accent-soft"];
 const ISLAND = ["--cv-dk-accent", "--cv-dk-strong", "--cv-dk-ink", "--cv-dk-soft"];
-const FULL = ["--bg", "--bg-elev", "--bg-elev-2", "--bg-elev-3", "--line", "--line-soft", "--ink", "--ink-dim", "--ink-faint", "--dyn-a", "--dyn-b"];
+const FULL = FULL_VARS;
 
 let accent = null;   // { h, C, h2, C2 } atau null (= theme bawaan)
 let mode = "accent"; // "accent" | "full"
@@ -26,6 +27,7 @@ function clearAll(root) {
   [...SURFACE, ...ISLAND, ...FULL].forEach((k) => root.style.removeProperty(k));
   root.removeAttribute(ATTR);
   root.removeAttribute(ATTR_FULL);
+  root.removeAttribute(ATTR_LIGHT);
 }
 
 // Baca permukaan theme asli. Hanya dipanggil saat init & saat theme diganti (di bawah SNAP, jadi tanpa animasi);
@@ -50,11 +52,13 @@ function apply() {
   if (full) {
     const f = buildSurfaces(accent, base.light);
     surfaces = f.surfaces;
-    FULL.forEach((k, i) => root.style.setProperty(k, f.strings[i]));
+    FULL.forEach((k) => root.style.setProperty(k, f.vars[k]));
     root.setAttribute(ATTR_FULL, "");
+    root.setAttribute(ATTR_LIGHT, base.light ? "light" : "dark");
   } else {
     FULL.forEach((k) => root.style.removeProperty(k));
     root.removeAttribute(ATTR_FULL);
+    root.removeAttribute(ATTR_LIGHT);
   }
   const neutral = mode === "full";   // Warna dinamis: latar ikut cover, tapi aksen (tombol/scrubber) tetap hitam/putih
   const s = buildSet(accent, { surfaces, light: base.light, neutral });

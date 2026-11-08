@@ -4,6 +4,7 @@ import App from "./App.jsx";
 import "./styles/global.css";
 import "./styles/nowplaying-mobile.css";
 import "./styles/spotify-shell.css";
+import "./styles/refine.css";   // TERAKHIR: shell panel kaca + skala jarak/radius + Warna dinamis (menang atas css lain)
 import { applyLiquidGlass, readCachedLiquidGlass } from "./lib/perf.js";
 import { captureImpersonateToken } from "./lib/impersonate.js";
 

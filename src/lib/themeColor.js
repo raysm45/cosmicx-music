@@ -45,7 +45,8 @@ function fit(L, C, h) {
 const hueDist = (a, b) => { const d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? 2 * Math.PI - d : d; };
 const boost = (C) => Math.min(0.17, Math.max(0.07, C * 1.15));
 
-// -> { h, C, h2, C2 } : hue utama + hue kedua (untuk gradien latar; kalau cover satu warna, digeser ~46deg)
+// -> { h, C, h2, C2, mesh } : hue utama + hue kedua (untuk gradien latar; kalau cover satu warna, digeser ~46deg)
+//    mesh = sampai 4 { h, C } berbeda hue untuk latar gradien "mesh" ala Apple Music (selalu terisi 4).
 export function pickAccent(palette) {
   const cands = [];
   (palette || []).forEach((rgb, i) => {
@@ -59,7 +60,25 @@ export function pickAccent(palette) {
   cands.sort((x, y) => y.score - x.score);
   const first = cands[0];
   const sec = cands.find((x) => hueDist(x.h, first.h) > 0.5);
-  return { h: first.h, C: boost(first.C), h2: sec ? sec.h : first.h + 0.8, C2: boost(sec ? sec.C : first.C * 0.9) };
+  return { h: first.h, C: boost(first.C), h2: sec ? sec.h : first.h + 0.8, C2: boost(sec ? sec.C : first.C * 0.9), mesh: pickMesh(cands) };
+}
+
+// 4 hue untuk latar mesh. Hue yang terlalu dekat digabung (supaya tidak 4 blob warna sama), sisanya
+// diisi hue tetangga dari warna utama -> transisi antar blob tetap halus dan analogus, bukan pelangi.
+const MESH_FILL = [0.75, -0.65, 1.45];
+function pickMesh(cands) {
+  const out = [];
+  for (const c of cands) {
+    if (out.length >= 4) break;
+    if (out.every((o) => hueDist(o.h, c.h) > 0.42)) out.push({ h: c.h, C: boost(c.C) });
+  }
+  const base = out[0];
+  let i = 0;
+  while (out.length < 4) {
+    const k = MESH_FILL[i++ % MESH_FILL.length];
+    out.push({ h: base.h + k, C: boost(base.C * 0.85) });
+  }
+  return out;
 }
 
 /* ---------- bangun satu set warna yang lolos kontras ---------- */
@@ -103,27 +122,66 @@ export function buildSet({ h, C }, { surfaces, light = false, island = false, ne
   return { strings: [css(res.acc), css(res.strong), css(res.ink), soft], ok: res.ok, rgb: res };
 }
 
-/* ---------- mode penuh: seluruh permukaan aplikasi ikut warna cover ---------- */
-// Gelap: latar pekat bernuansa warna cover. Terang: pastel tipis. Teks dihitung ulang supaya tetap lolos AA.
-// -> { strings: [bg, elev, elev2, elev3, line, line-soft, ink, ink-dim, ink-faint, dyn-a, dyn-b], ok, surfaces }
-export function buildSurfaces({ h, C, h2, C2 }, light) {
-  const c = light ? Math.min(Math.max(C * 0.3, 0.018), 0.04) : Math.min(Math.max(C * 0.6, 0.04), 0.1);
-  const L = light
-    ? { bg: 0.955, elev: 0.985, e2: 0.93, e3: 0.9, line: 0.84, soft: 0.9 }
-    : { bg: 0.2, elev: 0.235, e2: 0.27, e3: 0.31, line: 0.37, soft: 0.29 };
-  const bg = fit(L.bg, c, h), elev = fit(L.elev, c, h), e2 = fit(L.e2, c, h), e3 = fit(L.e3, c, h);
-  const line = fit(L.line, c, h), soft = fit(L.soft, c, h);
-  const surfaces = [bg, e2, e3];
-  const step = light ? -0.015 : 0.015;
-  let iL = light ? 0.22 : 0.96, dL = light ? 0.42 : 0.78, fL = light ? 0.56 : 0.62;
-  let ink, dim, faint, ok = false;
-  for (let k = 0; k < 24 && !ok; k++) {
-    ink = fit(iL, 0.015, h); dim = fit(dL, 0.03, h); faint = fit(fL, 0.035, h);
-    ok = surfaces.every((s) => contrast(ink, s) >= 7 && contrast(dim, s) >= MIN_TEXT && contrast(faint, s) >= 3.1);
-    iL += step; dL += step; fL += step;
+/* ---------- mode penuh: seluruh aplikasi ikut warna cover (latar mesh + permukaan KACA) ---------- */
+// Prinsip (meniru Apple Music desktop): HANYA ada SATU bidang warna = latar mesh dari 4 hue cover. Semua kartu, panel,
+// baris, chip, dan input adalah lapisan putih/hitam TRANSPARAN di atasnya -> otomatis menyatu dengan latar (tidak ada
+// "blok warna lain"), dan perpindahan lagu cukup menganimasikan 4 warna latar saja.
+// Kontras dihitung terhadap kasus terburuk: blob paling terang + lapisan kaca paling tebal yang dipakai teks.
+export const FULL_VARS = [
+  "--bg", "--bg-elev", "--bg-elev-2", "--bg-elev-3", "--line", "--line-soft", "--ink", "--ink-dim", "--ink-faint",
+  "--dyn-a", "--dyn-b", "--dyn-c", "--dyn-d",
+  "--glass-fill", "--glass-fill-2", "--glass-edge", "--glass-hi", "--pop-bg",
+];
+
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);   // sRGB bergamma = sama persis dengan compositing CSS
+const WHITE = [1, 1, 1], BLACK = [0, 0, 0];
+const rgba = (c, a) => `rgb(${c.map((v) => Math.round(v * 255)).join(" ")} / ${a})`;
+
+const GLASS = {
+  dark:  { l1: 0.05, l2: 0.09, l3: 0.14, line: 0.16, soft: 0.09, fill: 0.07, fill2: 0.12, edge: 0.18, hi: 0.30 },
+  light: { l1: 0.55, l2: 0.75, l3: 0.07, line: 0.12, soft: 0.07, fill: 0.55, fill2: 0.75, edge: 0.85, hi: 1 },
+};
+
+// -> { vars: { "--bg": css, ... }, ok, surfaces }   (kunci = FULL_VARS)
+export function buildSurfaces({ h, C, mesh }, light) {
+  const m = mesh && mesh.length >= 4 ? mesh : [{ h, C }, { h: h + 0.75, C }, { h: h - 0.65, C }, { h: h + 1.45, C }];
+  const G = light ? GLASS.light : GLASS.dark;
+  const overlay = light ? WHITE : WHITE;
+  const L0 = light ? [0.9, 0.885, 0.87, 0.895] : [0.4, 0.37, 0.35, 0.335];
+  const cOf = (x) => (light ? Math.min(Math.max(x.C * 0.5, 0.03), 0.085) : Math.min(Math.max(x.C * 1.05, 0.07), 0.16));
+  const baseC = light ? Math.min(Math.max(C * 0.25, 0.012), 0.03) : Math.min(Math.max(C * 0.4, 0.03), 0.07);
+  const step = light ? 0.012 : -0.014;   // blob terlalu dekat dengan teks -> geser menjauh sampai kontras lolos
+
+  let blobs, bg, ink, dim, faint, surfaces, ok = false;
+  for (let k = 0; k < 8 && !ok; k++) {
+    blobs = m.map((x, i) => fit(Math.min(0.97, Math.max(0.1, L0[i] + k * step)), cOf(x), x.h));
+    bg = light ? fit(0.955, baseC, h) : fit(Math.max(0.1, 0.165 + k * step * 0.4), baseC, h);
+    // teks duduk di atas: (blob | bg) + lapisan kaca (hover = l2, chip/input = l3)
+    surfaces = [...blobs.map((b) => mix(b, overlay, G.l2)), mix(bg, overlay, G.l3)];
+    let iL = light ? 0.22 : 0.97, dL = light ? 0.42 : 0.8, fL = light ? 0.56 : 0.64;
+    const st = light ? -0.015 : 0.012;
+    for (let j = 0; j < 24; j++) {
+      ink = fit(Math.min(0.995, Math.max(0.02, iL)), 0.012, h);
+      dim = fit(Math.min(0.99, Math.max(0.02, dL)), 0.028, h);
+      faint = fit(Math.min(0.98, Math.max(0.02, fL)), 0.032, h);
+      if (surfaces.every((s) => contrast(ink, s) >= 7 && contrast(dim, s) >= MIN_TEXT && contrast(faint, s) >= 3.1)) { ok = true; break; }
+      iL += st; dL += st; fL += st;
+    }
   }
-  const c2 = Math.min(C2 == null ? C : C2, 0.14), cA = Math.min(C, 0.14);
-  const glowA = light ? fit(0.9, Math.min(cA, 0.08), h) : fit(0.34, cA, h);
-  const glowB = light ? fit(0.9, Math.min(c2, 0.08), h2) : fit(0.3, c2, h2);
-  return { strings: [bg, elev, e2, e3, line, soft, ink, dim, faint, glowA, glowB].map(css), ok, surfaces };
+
+  const pop = light ? fit(0.975, Math.min(baseC, 0.02), h) : fit(0.255, Math.min(baseC * 0.8, 0.05), h);
+  const vars = {
+    "--bg": css(bg),
+    "--bg-elev": light ? rgba(WHITE, G.l1) : rgba(WHITE, G.l1),
+    "--bg-elev-2": rgba(WHITE, G.l2),
+    "--bg-elev-3": light ? rgba(BLACK, G.l3) : rgba(WHITE, G.l3),
+    "--line": light ? rgba(BLACK, G.line) : rgba(WHITE, G.line),
+    "--line-soft": light ? rgba(BLACK, G.soft) : rgba(WHITE, G.soft),
+    "--ink": css(ink), "--ink-dim": css(dim), "--ink-faint": css(faint),
+    "--dyn-a": css(blobs[0]), "--dyn-b": css(blobs[1]), "--dyn-c": css(blobs[2]), "--dyn-d": css(blobs[3]),
+    "--glass-fill": rgba(WHITE, G.fill), "--glass-fill-2": rgba(WHITE, G.fill2),
+    "--glass-edge": rgba(WHITE, G.edge), "--glass-hi": rgba(WHITE, G.hi),
+    "--pop-bg": css(pop),
+  };
+  return { vars, ok, surfaces: [bg, ...surfaces] };
 }
