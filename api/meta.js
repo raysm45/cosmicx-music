@@ -4,11 +4,86 @@ const SITE = "https://music.cosmicx.fun";
 const API = "https://api.cosmicx.fun";
 const NAME = "cosmicx Music";
 const DEFAULT_IMAGE = `${SITE}/og-image.png`;
+const DONATION_IMAGE = `${SITE}/og-donation.png`;
 
 const esc = (s) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const clip = (s, n) => { s = String(s ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
 const nameOf = (a) => (typeof a === "string" ? a : a?.name || "");
+
+const STATIC_PAGES = {
+  beranda: {
+    path: "/beranda",
+    title: "Beranda | cosmicx Music",
+    desc: "Jelajahi lagu trending, rilisan terbaru, dan rekomendasi musik pilihan di cosmicx Music.",
+    heading: "Beranda cosmicx Music",
+    bodyText: "Temukan lagu-lagu yang sedang trending, rilisan terbaru, kurasi pilihan editor, dan album terbaik di cosmicx Music.",
+    image: DEFAULT_IMAGE,
+  },
+  terbaru: {
+    path: "/beranda/terbaru",
+    title: "Lagu Terbaru & Trending | cosmicx Music",
+    desc: "Dengarkan lagu-lagu terbaru dan yang sedang trending hari ini di cosmicx Music.",
+    heading: "Lagu Terbaru & Trending — cosmicx Music",
+    bodyText: "Daftar lagu rilis terbaru dan musik paling populer yang sedang banyak didengarkan pengguna cosmicx Music.",
+    image: DEFAULT_IMAGE,
+  },
+  kurasi: {
+    path: "/beranda/kurasi",
+    title: "Pilihan Editor | cosmicx Music",
+    desc: "Kurasi lagu dan album terbaik pilihan editor cosmicx Music untuk menemani harimu.",
+    heading: "Pilihan Editor — cosmicx Music",
+    bodyText: "Rekomendasi musik dan playlist pilihan editor cosmicx Music dari berbagai genre dan suasana.",
+    image: DEFAULT_IMAGE,
+  },
+  "album-terbaik": {
+    path: "/beranda/album-terbaik",
+    title: "Album Terbaik | cosmicx Music",
+    desc: "Daftar album terbaik sepanjang masa dan rilisan populer yang wajib kamu dengarkan di cosmicx Music.",
+    heading: "Album Terbaik — cosmicx Music",
+    bodyText: "Jelajahi koleksi album terbaik dari musisi lokal maupun internasional lengkap dengan lirik sinkron di cosmicx Music.",
+    image: DEFAULT_IMAGE,
+  },
+  donasi: {
+    path: "/donasi",
+    title: "Donasi | cosmicx Music",
+    desc: "Dukung cosmicx Music agar musiknya tetap hidup: kualitas audio lebih baik, server tetap jalan, dan fitur terus bertambah.",
+    heading: "Dukung cosmicx Music",
+    bodyText: "Bantu pengembangan cosmicx Music agar tetap gratis, bebas iklan mengganggu, dan terus menghadirkan pengalaman streaming musik terbaik.",
+    image: DONATION_IMAGE,
+  },
+};
+
+function buildPage(id) {
+  const p = STATIC_PAGES[id];
+  if (!p) return null;
+  const body =
+    `<article><h1>${esc(p.heading)}</h1><p>${esc(p.bodyText)}</p>` +
+    `<nav aria-label="Navigasi Utama"><ul>` +
+    `<li><a href="/">cosmicx Music</a></li>` +
+    `<li><a href="/beranda">Beranda</a></li>` +
+    `<li><a href="/beranda/terbaru">Lagu Terbaru &amp; Trending</a></li>` +
+    `<li><a href="/beranda/kurasi">Pilihan Editor</a></li>` +
+    `<li><a href="/beranda/album-terbaik">Album Terbaik</a></li>` +
+    `<li><a href="/donasi">Donasi</a></li>` +
+    `</ul></nav></article>`;
+  return {
+    path: p.path,
+    body,
+    image: p.image,
+    ogType: "website",
+    title: p.title,
+    desc: p.desc,
+    ld: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: p.title,
+      description: p.desc,
+      url: SITE + p.path,
+      isPartOf: { "@id": `${SITE}/#website` },
+    },
+  };
+}
 
 async function load(type, id) {
   const url =
@@ -100,7 +175,10 @@ export default async function handler(req) {
   const id = u.searchParams.get("id");
   let html = await (await fetch(new URL("/index.html", u.origin))).text();
 
-  if ((type === "artist" || type === "album") && id) {
+  if (type === "page" && id) {
+    const meta = buildPage(id);
+    if (meta) html = inject(html, meta);
+  } else if ((type === "artist" || type === "album") && id) {
     try {
       const meta = build(type, id, await load(type, id));
       if (meta) html = inject(html, meta);

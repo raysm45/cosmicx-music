@@ -1,5 +1,10 @@
 {
   "rewrites": [
+    { "source": "/beranda", "destination": "/api/meta?type=page&id=beranda" },
+    { "source": "/beranda/terbaru", "destination": "/api/meta?type=page&id=terbaru" },
+    { "source": "/beranda/kurasi", "destination": "/api/meta?type=page&id=kurasi" },
+    { "source": "/beranda/album-terbaik", "destination": "/api/meta?type=page&id=album-terbaik" },
+    { "source": "/donasi", "destination": "/api/meta?type=page&id=donasi" },
     { "source": "/artist/:id", "destination": "/api/meta?type=artist&id=:id" },
     { "source": "/album/:id", "destination": "/api/meta?type=album&id=:id" },
     { "source": "/(.*)", "destination": "/index.html" }

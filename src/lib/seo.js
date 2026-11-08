@@ -2,8 +2,8 @@ import { useEffect } from "react";
 
 export const SITE_URL = "https://music.cosmicx.fun";
 export const SITE_NAME = "cosmicx Music";
-export const DEFAULT_TITLE = "cosmicx Music - Web Player: Musik untuk semua orang";
-export const DEFAULT_DESC = "cosmicx Music adalah layanan musik digital yang memberi kamu akses ke lagu, album, dan playlist dari artis di seluruh dunia.";
+export const DEFAULT_TITLE = "cosmicx Music - Web Player: Streaming Musik & Lirik Sinkron";
+export const DEFAULT_DESC = "cosmicx Music adalah platform streaming musik digital untuk mendengarkan lagu, album, dan playlist favorit dengan lirik sinkron serta fitur dengerin bareng teman.";
 export const DEFAULT_IMAGE = SITE_URL + "/og-image.png";
 export const DONATION_IMAGE = SITE_URL + "/og-donation.png";
 
