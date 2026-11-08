@@ -143,21 +143,33 @@ const GLASS = {
 };
 
 // -> { vars: { "--bg": css, ... }, ok, surfaces }   (kunci = FULL_VARS)
+// Latar TENANG (bukan pelangi): SATU hue dominan di atas yang memudar vertikal menjadi abu-abu gelap netral
+// (seperti YouTube Music / Apple Music). Hue kedua hanya dipakai kalau masih bertetangga (<= ~17 derajat) supaya
+// ada sedikit variasi, bukan warna lain. Empat warna --dyn-a..d = atas -> bawah, bukan empat sudut.
 export function buildSurfaces({ h, C, mesh }, light) {
-  const m = mesh && mesh.length >= 4 ? mesh : [{ h, C }, { h: h + 0.75, C }, { h: h - 0.65, C }, { h: h + 1.45, C }];
   const G = light ? GLASS.light : GLASS.dark;
-  const overlay = light ? WHITE : WHITE;
-  const L0 = light ? [0.9, 0.885, 0.87, 0.895] : [0.4, 0.37, 0.35, 0.335];
-  const cOf = (x) => (light ? Math.min(Math.max(x.C * 0.5, 0.03), 0.085) : Math.min(Math.max(x.C * 1.05, 0.07), 0.16));
-  const baseC = light ? Math.min(Math.max(C * 0.25, 0.012), 0.03) : Math.min(Math.max(C * 0.4, 0.03), 0.07);
-  const step = light ? 0.012 : -0.014;   // blob terlalu dekat dengan teks -> geser menjauh sampai kontras lolos
+  const overlay = WHITE;
+  // hue kedua: geser sedikit ke arah hue ke-2 cover, maksimal +-0.3 rad
+  const h2 = mesh && mesh[1] ? mesh[1].h : h;
+  let dh = Math.atan2(Math.sin(h2 - h), Math.cos(h2 - h));
+  dh = Math.max(-0.3, Math.min(0.3, dh));
+  // chroma dibatasi: cukup terasa di atas, hampir netral di bawah
+  const cTop = light ? Math.min(Math.max(C * 0.45, 0.03), 0.075) : Math.min(Math.max(C * 0.85, 0.06), 0.125);
+  const step = light ? 0.012 : -0.014;
+  const LA = light ? [0.9, 0.915, 0.945, 0.965] : [0.42, 0.345, 0.27, 0.22];
 
-  let blobs, bg, ink, dim, faint, surfaces, ok = false;
+  let tops, bg, ink, dim, faint, surfaces, ok = false;
   for (let k = 0; k < 8 && !ok; k++) {
-    blobs = m.map((x, i) => fit(Math.min(0.97, Math.max(0.1, L0[i] + k * step)), cOf(x), x.h));
-    bg = light ? fit(0.955, baseC, h) : fit(Math.max(0.1, 0.165 + k * step * 0.4), baseC, h);
-    // teks duduk di atas: (blob | bg) + lapisan kaca (hover = l2, chip/input = l3)
-    surfaces = [...blobs.map((b) => mix(b, overlay, G.l2)), mix(bg, overlay, G.l3)];
+    const shift = k * step;
+    tops = [
+      fit(LA[0] + shift, cTop, h),
+      fit(LA[1] + shift * 0.8, cTop * 0.85, h + dh),
+      fit(LA[2] + shift * 0.5, cTop * 0.4, h + dh),
+      fit(LA[3], light ? 0.012 : 0.012 + cTop * 0.1, h),
+    ];
+    bg = light ? fit(0.965, 0.01, h) : fit(0.19, 0.012 + cTop * 0.08, h);
+    // teks duduk di atas: warna latar + lapisan kaca (hover = l2, chip/input = l3)
+    surfaces = [...tops.map((b) => mix(b, overlay, G.l2)), mix(bg, overlay, G.l3)];
     let iL = light ? 0.22 : 0.97, dL = light ? 0.42 : 0.8, fL = light ? 0.56 : 0.64;
     const st = light ? -0.015 : 0.012;
     for (let j = 0; j < 24; j++) {
@@ -169,16 +181,17 @@ export function buildSurfaces({ h, C, mesh }, light) {
     }
   }
 
-  const pop = light ? fit(0.975, Math.min(baseC, 0.02), h) : fit(0.255, Math.min(baseC * 0.8, 0.05), h);
+  const baseC = light ? 0.015 : 0.02;
+  const pop = light ? fit(0.975, baseC, h) : fit(0.25, baseC + cTop * 0.15, h);
   const vars = {
     "--bg": css(bg),
-    "--bg-elev": light ? rgba(WHITE, G.l1) : rgba(WHITE, G.l1),
+    "--bg-elev": rgba(WHITE, G.l1),
     "--bg-elev-2": rgba(WHITE, G.l2),
     "--bg-elev-3": light ? rgba(BLACK, G.l3) : rgba(WHITE, G.l3),
     "--line": light ? rgba(BLACK, G.line) : rgba(WHITE, G.line),
     "--line-soft": light ? rgba(BLACK, G.soft) : rgba(WHITE, G.soft),
     "--ink": css(ink), "--ink-dim": css(dim), "--ink-faint": css(faint),
-    "--dyn-a": css(blobs[0]), "--dyn-b": css(blobs[1]), "--dyn-c": css(blobs[2]), "--dyn-d": css(blobs[3]),
+    "--dyn-a": css(tops[0]), "--dyn-b": css(tops[1]), "--dyn-c": css(tops[2]), "--dyn-d": css(tops[3]),
     "--glass-fill": rgba(WHITE, G.fill), "--glass-fill-2": rgba(WHITE, G.fill2),
     "--glass-edge": rgba(WHITE, G.edge), "--glass-hi": rgba(WHITE, G.hi),
     "--pop-bg": css(pop),

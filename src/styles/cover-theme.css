@@ -85,18 +85,15 @@
 :root[data-cover-theme] .aivy-am-lyrics{ --am-lyrics-highlight-color: var(--accent-strong); }
 
 /* ====================================================================================================
-   MODE PENUH (Warna dinamis): SATU latar mesh dari 4 warna cover. Kartu/panel/baris memakai token kaca transparan
-   (lihat refine.css), jadi semuanya menyatu dengan latar seperti Apple Music. Dipagari :root[data-cover-dyn].
-   Posisi blob dibuat berselang-seling (kiri-atas, kanan-atas, kanan-bawah, kiri-bawah) + 1 blob pencampur di tengah
-   supaya tidak ada "pita" kosong di antara blob; semuanya memudar ke --bg sehingga tidak ada tepi keras.
+   MODE PENUH (Warna dinamis): latar TENANG ala Apple/YouTube Music. Satu hue dominan di atas yang memudar secara
+   vertikal menjadi abu-abu gelap netral di bawah (bukan mesh pelangi). Kartu/panel/baris memakai token kaca
+   transparan (lihat refine.css) jadi semuanya menyatu dengan latar. Dipagari :root[data-cover-dyn].
+   --dyn-a..d = atas -> bawah (diisi coverTheme.js); satu sorotan lembut di kanan-atas memberi sedikit kedalaman.
    ==================================================================================================== */
 :root[data-cover-dyn] body:not(#_){
   background-color: var(--bg);
   background-image:
-    radial-gradient(75% 65% at 4% 0%,    var(--dyn-a), transparent 74%),
-    radial-gradient(65% 65% at 100% 6%,  var(--dyn-b), transparent 74%),
-    radial-gradient(75% 70% at 96% 100%, var(--dyn-c), transparent 76%),
-    radial-gradient(70% 70% at 0% 98%,   var(--dyn-d), transparent 76%),
-    radial-gradient(55% 55% at 50% 52%,  color-mix(in srgb, var(--dyn-a) 45%, var(--dyn-c)), transparent 78%);
+    radial-gradient(70% 38% at 88% 0%, var(--dyn-b), transparent 78%),
+    linear-gradient(180deg, var(--dyn-a) 0%, var(--dyn-b) 20%, var(--dyn-c) 52%, var(--dyn-d) 100%);
   background-attachment: fixed;
 }

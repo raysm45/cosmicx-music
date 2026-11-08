@@ -180,7 +180,13 @@
    menjadi containing block untuk position:fixed, sehingga modal/menu di dalam halaman akan terkurung di dalam panel.
    Di atas latar mesh yang halus, blur memang tidak menambah apa-apa; efek kaca datang dari transparansi + tepi + highlight. */
 /* player: tint dari --bg (ikut warna lagu), bukan abu-abu netral */
-:root[data-cover-dyn][data-glass="blur"]{ --lg-tint: color-mix(in srgb, var(--bg) 66%, transparent); }
+:root[data-cover-dyn][data-glass]{ --lg-tint: color-mix(in srgb, var(--bg) 62%, transparent); }
+/* mode kaca "refraksi" (blur 0) membuat isi halaman di belakang player terbaca jelas -> beri blur minimum saat Warna dinamis */
+:root[data-cover-dyn][data-glass-fx="1"]{ --lg-blur: 16px; }
+
+/* gambar cover blur milik halaman Home menambah warna LAIN di atas latar dan membuat garis pemisah di bawah topbar.
+   Saat Warna dinamis aktif latarnya sudah satu bidang, jadi gambar itu disembunyikan. */
+:root[data-cover-dyn] .aivy-home-bg{ display: none; }
 
 /* popover/menu/modal/sheet: tetap SOLID (kalau transparan, teks di belakangnya tembus) */
 :root[data-cover-dyn] :is(.aivy-ctxmenu, .aivy-trackmenu, .aivy-modal, .aivy-cselect-menu, .aivy-emoji-pop, .aivy-ai-panel,
