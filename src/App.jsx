@@ -17,6 +17,8 @@ import {
 import { CookieConsent } from "./CookieConsent.jsx";
 import { NowPlayingDesktop } from "./NowPlayingDesktop.jsx";
 import { useCoverTheme } from "./lib/coverTheme.js";
+import { FluidBackground } from "./lib/FluidBackground.jsx";
+import { useSyncedCoverTrack } from "./lib/coverSync.js";
 import { DownloadSheetHost } from "./DownloadSheet.jsx";
 import { ImpersonateBanner } from "./ImpersonateBanner.jsx";
 import { LandingPage, LoginPage } from "./pages/AuthPages.jsx";
@@ -61,6 +63,22 @@ function useIsMobile(breakpoint = 860) {
 }
 
 const FULL_BLEED_ROUTES = new Set(["home", "newTrending", "editorsPicks", "bestAlbums"]);
+
+// Warna dinamis (desktop): latar fluid WebGL ala Now Playing desktop di belakang seluruh shell.
+// Cover disinkronkan dengan useCoverTheme (520px) agar latar, aksen, dan teks berganti bersamaan.
+function AppFluidBackdrop({ track, paused }) {
+  const { settings } = useUI();
+  const { isPlaying } = usePlayer();
+  const snap = useSyncedCoverTrack(track, 520);
+  if (!snap.cover) return null;
+  const reduce = !!settings.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches || isLowEndDevice();
+  return (
+    <div className="aivy-app-fluid" aria-hidden="true">
+      <FluidBackground src={snap.cover} active={!paused} playing={isPlaying} still={reduce} />
+      <div className="aivy-app-fluid-scrim" />
+    </div>
+  );
+}
 
 const PAGE_BY_ROUTE = {
   home: HomePage,
@@ -142,6 +160,7 @@ function AppInner() {
 
   const Page = PAGE_BY_ROUTE[name] || HomePage;
   const isImmersiveShorts = isMobile && name === "shorts";
+  const showAppFluid = !isMobile && settings.dynamicColors === true && !settings.highContrast;
 
   const shellStyle = {
     "--sidebar-w": sidebarCollapsed ? `${SIDEBAR_COLLAPSED_W}px` : `${sidebarWidth}px`,
@@ -153,7 +172,8 @@ function AppInner() {
   }
 
   return (
-    <div className={`aivy-shell ${isMobile ? "is-mobile" : ""} ${rightPanelCollapsed && rightPanelPeek ? "is-rightpanel-peeking" : ""}`} style={shellStyle}>
+    <div className={`aivy-shell ${isMobile ? "is-mobile" : ""} ${rightPanelCollapsed && rightPanelPeek ? "is-rightpanel-peeking" : ""} ${showAppFluid ? "has-app-fluid" : ""}`} style={shellStyle}>
+      {showAppFluid && <AppFluidBackdrop track={currentTrack} paused={fullPlayerOpen} />}
       {!isMobile && <Sidebar />}
       <main className="aivy-main">
         {!isImmersiveShorts && name !== "search" && <TopBar isMobile={isMobile} />}

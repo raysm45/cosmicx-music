@@ -5017,7 +5017,7 @@ function useIsMobile(breakpoint = 860) {
 export function LyricsOverlay() {
   const { lyricsOpen, closeLyrics, pushToast, t, openMobileQueue, openContextMenu, settings, updateSettings } = useUI();
   const {
-    currentTrack, seekTo, isPreviewClip, liked, toggleLike, upNext, duration,
+    currentTrack, seekTo, isPreviewClip, liked, toggleLike, upNext, duration, loadingAudio,
   } = usePlayer();
   const currentTime = usePlayerTime();
   const reduceMotion = !!settings.reducedMotion || (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -5208,10 +5208,11 @@ export function LyricsOverlay() {
                   <Mic size={14} />
                   <span>{t("singLabel", "Sing")}</span>
                 </button>
+                {/* waktu & scrubber ikut status loadingAudio */}
                 <div className="aivy-lyrics-scrubber-row">
-                  <span className="aivy-time font-mono">{formatTime(scrubTime)}</span>
-                  <Scrubber getRatio={getRatio} onSeekRatio={onSeekRatio} registerFill={registerFill} registerThumb={registerThumb} />
-                  <span className="aivy-time right font-mono">{formatTime(scrubDuration)}</span>
+                  <span className="aivy-time font-mono">{loadingAudio ? "\u2013\u2013" : formatTime(scrubTime)}</span>
+                  <Scrubber getRatio={getRatio} onSeekRatio={onSeekRatio} registerFill={registerFill} registerThumb={registerThumb} loading={loadingAudio} />
+                  <span className="aivy-time right font-mono">{loadingAudio ? "\u2013\u2013" : formatTime(scrubDuration)}</span>
                 </div>
               </div>
 

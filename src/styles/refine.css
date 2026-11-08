@@ -38,6 +38,20 @@
 .aivy-shell:not(.is-mobile) .sp-nav-panel{ border-bottom: 1px solid var(--line-soft); padding-bottom: 8px; }
 .aivy-shell:not(.is-mobile) .sp-side-foot{ border-top: 1px solid var(--line-soft); }
 
+/* panel kanan menyatu dengan area tengah (tanpa latar sendiri); kiri & kanan dipisah garis pembatas yang sama */
+:root{ --shell-divider: var(--line); }
+.aivy-shell:not(.is-mobile) .aivy-sidebar.sp-side{ border-right: 1px solid var(--shell-divider); }
+.aivy-shell:not(.is-mobile) .aivy-rightpanel{
+  background: transparent;
+  border-left: 1px solid var(--shell-divider);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail{ background: transparent; border-left: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:hover,
+.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:focus-visible{ background: var(--bg-elev); }
+/* halaman artis imersif: garis tetap tipis putih seperti sebelumnya (di atas hero gelap) */
+body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-mix(in srgb, #fff 8%, transparent); }
+
 /* =====================================================================================================================
    2. TOPBAR + GUTTER HALAMAN — semua kiri-kanan sama (--page-x)
    ===================================================================================================================== */
@@ -90,6 +104,24 @@
 
 /* gambar cover blur milik halaman Home menambah warna LAIN di atas latar dan membuat garis pemisah di bawah topbar. */
 :root[data-cover-dyn] .aivy-home-bg{ display: none; }
+
+/* latar fluid ala Now Playing desktop di belakang seluruh shell (App.jsx -> AppFluidBackdrop).
+   Hanya untuk nada gelap: warna fluid selalu gelap-sedang, jadi di theme terang teks gelap tidak terbaca. */
+.aivy-shell.has-app-fluid{ isolation: isolate; }
+.aivy-app-fluid{ position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: var(--bg); }
+.aivy-app-fluid .npd-fluid{ animation-duration: 1.2s; }
+.aivy-app-fluid-scrim{
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 40%, rgba(0,0,0,.18) 0%, rgba(0,0,0,.34) 70%, rgba(0,0,0,.5) 100%),
+    linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.3));
+}
+:root:not([data-cover-dyn][data-cover-tone="dark"]) .aivy-app-fluid{ display: none; }
+/* bar pencarian sticky memakai latar solid --bg -> jadikan kaca supaya tidak jadi blok di atas fluid */
+:root[data-cover-dyn][data-cover-tone="dark"] .has-app-fluid .sp-search-head{
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2); backdrop-filter: blur(24px) saturate(1.2);
+}
 
 /* popover/menu/modal/sheet: tetap SOLID (kalau transparan, teks di belakangnya tembus) */
 :root[data-cover-dyn] :is(.aivy-ctxmenu, .aivy-trackmenu, .aivy-modal, .aivy-cselect-menu, .aivy-emoji-pop, .aivy-ai-panel,

@@ -451,6 +451,19 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-scrubber.is-loading .fill, .aivy-scrubber.is-loading .aivy-waveform, .aivy-scrubber.is-loading .mix-marker{ visibility: hidden; }
 .aivy-scrubber.is-loading .thumb{ opacity: 0 !important; }
 .aivy-scrubber.is-loading.has-waveform .track{ background: var(--bg-elev-3); }
+/* Kilau loading khusus scrubber: selektor lebih spesifik dari aturan global .skeleton-shine::after,
+   warnanya ikut aksen sehingga menyatu dengan warna dinamis cover. */
+.aivy-scrubber{ --scrub-shine: color-mix(in srgb, var(--accent-strong, var(--ink)) 80%, transparent); }
+.aivy-scrubber .track > .scrub-skel{ overflow: hidden; background: color-mix(in srgb, var(--accent-strong, var(--ink)) 8%, transparent); }
+.aivy-scrubber .track > .scrub-skel::after{
+  content: ""; display: block; position: absolute; top: 0; bottom: 0; left: 0; width: 40%;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--scrub-shine), transparent);
+  animation: aivy-scrub-shine 1.3s cubic-bezier(.45,.05,.55,.95) infinite;
+}
+@keyframes aivy-scrub-shine{ 0%{ transform: translateX(-100%); } 100%{ transform: translateX(250%); } }
+:root[data-reduced-motion="true"] .aivy-scrubber .track > .scrub-skel::after{ animation: none; display: none; }
+@media (prefers-reduced-motion: reduce){ .aivy-scrubber .track > .scrub-skel::after{ animation: none; display: none; } }
 
 @keyframes aivy-shine{ 0%{ transform: translateX(-100%); } 100%{ transform: translateX(100%); } }
 .skeleton-shine{ position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg-elev-3); }
