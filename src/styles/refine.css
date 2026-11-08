@@ -1,108 +1,48 @@
 /* =====================================================================================================================
    refine.css  —  dimuat TERAKHIR (lihat main.jsx), jadi menang atas global.css / spotify-shell.css / cover-theme.css.
 
-   Tujuan
-   1. Shell yang tertata: sidebar, area utama, dan panel kanan sekarang SAMA-SAMA panel kaca (radius, jarak, tepi,
-      dan bayangan sama) dengan jarak seragam --gap dari tepi jendela dan antar panel. Sebelumnya hanya sidebar yang
-      berupa panel; area utama & panel kanan datar, player punya radius & jarak sendiri.
-   2. Skala jarak/radius tunggal: --gap, --page-x, --r-panel, --r-card, --r-art. Semua halaman ikut gutter yang sama.
-   3. Glassmorphism ala Apple Music: permukaan = lapisan transparan (token --glass-*) di atas SATU latar. Di mode
-      "Warna dinamis" latar itu mesh dari warna cover (cover-theme.css), jadi kartu/panel/baris otomatis menyatu.
-
-   Aturan main
-   - Semua aturan shell dipagari .aivy-shell:not(.is-mobile) -> mobile tidak berubah.
-   - Aturan khusus Warna dinamis dipagari :root[data-cover-dyn] -> kalau fitur mati, tampilan = tema biasa.
-   - Hanya warna lewat token (--ink, --bg, --glass-*) -> ikut tema apa pun (gelap/terang/kontras tinggi).
+   1. Shell MENYATU & DATAR: sidebar dan area tengah berada di satu permukaan yang sama (tanpa panel kotak, tanpa
+      border/radius/blur kaca). Panel kanan dan player tetap seperti aslinya.
+   2. Skala jarak tunggal (--page-x, --r-card, --r-art, --r-ctl): semua halaman memakai gutter dan radius yang sama.
+   3. Warna dinamis (mode penuh): latar tenang dari cover (lihat cover-theme.css). Kartu/baris memakai token
+      --bg-elev* yang transparan, jadi warnanya menyatu dengan latar.
+   Aturan khusus Warna dinamis dipagari :root[data-cover-dyn]; aturan shell dipagari :not(.is-mobile).
+   (Versi bergaya kaca sebelumnya disimpan terpisah: refine.glass.css.)
    ===================================================================================================================== */
 
 :root{
-  /* ---- skala jarak & radius ---- */
-  --gap: 8px;            /* jarak panel <-> tepi jendela <-> panel lain */
   --page-x: 28px;        /* gutter kiri/kanan semua halaman (topbar, konten, hero) */
-  --r-panel: 16px;       /* sidebar, area utama, panel kanan, player */
-  --r-card: 14px;        /* kartu album/artis, kartu di panel kanan */
+  --r-card: 14px;        /* kartu album/artis */
   --r-art: 10px;         /* sampul di dalam kartu */
   --r-ctl: 10px;         /* baris, tombol kotak, input */
 
-  /* ---- material kaca (default = turunan --ink supaya ikut tema apa pun; mode penuh menimpa lewat coverTheme.js) ---- */
+  /* token kaca: tetap didefinisikan karena coverTheme.js mengisinya & popover memakai --pop-bg */
   --glass-fill:   color-mix(in srgb, var(--ink) 6%, transparent);
   --glass-fill-2: color-mix(in srgb, var(--ink) 11%, transparent);
   --glass-edge:   color-mix(in srgb, var(--ink) 11%, transparent);
   --glass-hi:     color-mix(in srgb, var(--ink) 16%, transparent);
   --pop-bg:       var(--bg-elev-2);
-  --glass-shadow: 0 10px 30px -14px rgba(0,0,0,.55);
-}
-:root[data-cover-tone="light"], :root[data-theme="white"], :root[data-theme="latte"], :root[data-theme="salmon"], :root[data-theme="premium"]{
-  --glass-shadow: 0 8px 24px -14px rgba(20,20,40,.28);
 }
 
 /* =====================================================================================================================
-   1. SHELL DESKTOP — tiga panel kaca yang sejajar
+   1. SIDEBAR + AREA TENGAH MENYATU
    ===================================================================================================================== */
-.aivy-shell:not(.is-mobile) :is(.sp-panel, .aivy-main, .aivy-rightpanel){
-  background: var(--glass-fill);
-  border: 1px solid var(--glass-edge);
-  border-radius: var(--r-panel);
-  box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
+.aivy-shell:not(.is-mobile) .sp-panel{
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-/* sidebar sudah punya padding & gap 8px sendiri (spotify-shell.css) -> panel lain mengikuti angka yang sama */
-.aivy-shell:not(.is-mobile) .aivy-main{
-  margin: var(--gap) var(--gap) var(--gap) 0;
-  overflow: hidden;                     /* konten ikut membulat di sudut panel */
-}
-.aivy-shell:not(.is-mobile) .aivy-rightpanel{
-  margin: var(--gap) var(--gap) var(--gap) 0;
-}
-/* panel kanan yang dilipat: panelnya tetap satu bentuk, rail di dalamnya tidak lagi punya garis/warna sendiri */
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail{
-  background: transparent; border: 0; border-radius: inherit;
-}
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:hover,
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:focus-visible{ background: var(--glass-fill-2); }
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail-arrow,
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:hover .aivy-rightpanel-rail-arrow{ background: var(--glass-fill-2); border-radius: 50%; }
-
-/* header panel kanan: garis pemisah halus, tinggi sejajar dengan topbar area utama */
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-tabs{ min-height: 52px; align-items: center; border-bottom: 1px solid var(--glass-edge); }
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-tabs .aivy-rightpanel-title,
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-tabs .aivy-rightpanel-source{ padding-top: 0; padding-bottom: 0; }
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-tabs .aivy-rightpanel-source{ padding-left: 14px; }
-.aivy-shell:not(.is-mobile) .aivy-rightpanel-body{ padding: 14px 14px 18px; }
-
-/* kartu di dalam panel kanan: satu radius, satu bahan */
-.aivy-shell:not(.is-mobile) .aivy-nowplaying-about:not(.is-glass),
-.aivy-shell:not(.is-mobile) .aivy-credits-card:not(.is-glass){
-  border-radius: var(--r-card);
-  background: var(--glass-fill);
-  border: 1px solid var(--glass-edge);
-  box-shadow: inset 0 1px 0 var(--glass-hi);
-}
-.aivy-nowplaying-pane{ gap: 0; }
-.aivy-nowplaying-pane .t{ margin-top: 18px; }
-
-/* ---- sidebar: panelnya memakai bahan yang sama ---- */
-.aivy-shell .sp-panel{
-  -webkit-backdrop-filter: blur(24px) saturate(1.25); backdrop-filter: blur(24px) saturate(1.25);
-}
-.aivy-shell .sp-side-foot{ border-top-color: var(--glass-edge); }
-.aivy-shell .sp-nav-item:hover{ background: var(--glass-fill); }
-.aivy-shell .sp-nav-item.active, .aivy-shell .sp-lib-row.active{ background: var(--glass-fill-2); }
-.aivy-shell .sp-lib-row:hover{ background: var(--glass-fill); }
-.aivy-shell .sp-lib-search{ background: var(--glass-fill); border: 1px solid var(--glass-edge); }
+/* satu garis tipis memisahkan menu atas dan koleksi (bukan kotak terpisah) */
+.aivy-shell:not(.is-mobile) .sp-nav-panel{ border-bottom: 1px solid var(--line-soft); padding-bottom: 8px; }
+.aivy-shell:not(.is-mobile) .sp-side-foot{ border-top: 1px solid var(--line-soft); }
 
 /* =====================================================================================================================
    2. TOPBAR + GUTTER HALAMAN — semua kiri-kanan sama (--page-x)
    ===================================================================================================================== */
-.aivy-shell:not(.is-mobile) .aivy-topbar{
-  padding: 14px var(--page-x) 6px;
-  background: transparent;
-}
-.aivy-shell:not(.is-mobile) .aivy-topbar.scrolled{
-  background: transparent;
-  border-bottom-color: var(--glass-edge);
-}
-.aivy-navbtn{ background: var(--glass-fill); border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi); color: var(--ink-dim); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
-.aivy-navbtn:hover{ background: var(--glass-fill-2); color: var(--ink); }
+.aivy-shell:not(.is-mobile) .aivy-topbar{ padding: 14px var(--page-x) 6px; }
+.aivy-shell:not(.is-mobile) .aivy-topbar.scrolled{ background: transparent; border-bottom-color: var(--line-soft); }
 
 .aivy-content{ padding: 6px var(--page-x) 40px; }
 .aivy-content.home-full{ padding: 0 0 40px; }
@@ -117,7 +57,7 @@
 /* h2 bawaan browser punya margin ~.83em: itu penyebab jarak judul<->isi terlalu lebar dan chip/tombol di sebelah judul tampak naik */
 .aivy-section-title{ margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -.01em; }
 .aivy-home-head-left{ gap: 12px; }
-.aivy-home-tabs{ margin-bottom: 6px; border-bottom-color: var(--glass-edge); }
+.aivy-home-tabs{ margin-bottom: 6px; }
 /* HomePage memberi section pertama marginTop:0 lewat style inline -> perlu !important supaya tidak menempel ke tab */
 .aivy-home-tabs + .aivy-section, .aivy-home-tabs + .aivy-home-welcome + .aivy-section{ margin-top: 24px !important; }
 .aivy-home-welcome{ padding: 8px 2px 4px; }
@@ -125,67 +65,30 @@
 .aivy-songlist-grid{ gap: 6px 20px; }
 
 /* =====================================================================================================================
-   3. KARTU, BARIS, CHIP — satu radius, satu bahan
+   3. KARTU & BARIS — datar, satu radius (tanpa border/highlight kaca)
    ===================================================================================================================== */
-.aivy-card{
-  padding: 10px 10px 12px;
-  border-radius: var(--r-card);
-  background: var(--glass-fill);
-  border: 1px solid color-mix(in srgb, var(--glass-edge) 55%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--glass-hi) 70%, transparent);
-}
-.aivy-card:hover{ background: var(--glass-fill-2); border-color: var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow); }
+.aivy-card{ padding: 10px 10px 12px; border-radius: var(--r-card); background: var(--bg-elev); border: 0; box-shadow: none; }
+.aivy-card:hover{ background: var(--bg-elev-2); box-shadow: none; }
 .aivy-card .art-wrap{ border-radius: var(--r-art); margin-bottom: 10px; }
 .aivy-card .art-wrap.round{ border-radius: 50%; }
 .aivy-card .title{ margin-bottom: 2px; }
 .aivy-card.is-compact{ padding: 8px; }
-
 .aivy-songlist-row, .aivy-row{ border-radius: var(--r-ctl); }
-.aivy-songlist-row:hover, .aivy-songlist-row.current, .aivy-row:hover{ background: var(--glass-fill-2); }
-.aivy-songlist-row .cover{ background: var(--glass-fill); border-radius: 8px; }
-
-.aivy-chip{ background: var(--glass-fill); border-color: var(--glass-edge); }
-.aivy-chip:hover{ background: var(--glass-fill-2); border-color: var(--glass-edge); color: var(--ink); }
-.aivy-chip.active{ border-color: transparent; }
-.sp-chip{ background: var(--glass-fill-2); }
-.sp-chip.active{ border-color: transparent; }
-
-.aivy-btn-ghost{ background: var(--glass-fill); border-color: var(--glass-edge); }
-.aivy-btn-ghost:hover{ background: var(--glass-fill-2); border-color: var(--glass-edge); }
-.aivy-parties-cta{ border-radius: var(--r-card); background: var(--glass-fill); border-color: var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi); padding: 20px; }
+.aivy-parties-cta{ border-radius: var(--r-card); padding: 20px; }
 
 /* =====================================================================================================================
-   4. PLAYER — kaca sungguhan: blur kuat supaya konten di belakangnya tidak "tembus" dan menimpa teks
+   4. PLAYER — hanya agar tetap terbaca (isi halaman di belakangnya tidak menimpa teks)
    ===================================================================================================================== */
-.aivy-shell:not(.is-mobile) .aivy-player{
-  left: calc(var(--sidebar-w) + 12px);
-  right: calc(var(--rightpanel-w) + var(--gap) + 12px);
-  bottom: calc(var(--gap) + 12px);
-  border-radius: var(--r-panel);
-}
 :root[data-glass="blur"]{ --lg-blur: 32px; }
-:root[data-glass="blur"] .lg-warp{
-  backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
-  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.2);
-}
-/* tepi kaca halus + highlight atas (menggantikan cincin abu-abu tebal) */
-:root[data-glass="blur"] .aivy-player{ box-shadow: inset 0 0 0 1px var(--glass-edge), inset 0 1px 0 var(--glass-hi), var(--glass-shadow); }
-:root[data-glass="blur"] .aivy-player .lg-rim{ opacity: .16; }
 
 /* =====================================================================================================================
    5. WARNA DINAMIS (mode penuh)
-   Semua permukaan sudah transparan lewat token (--bg-elev*, --glass-*); yang perlu dijaga hanya yang HARUS solid.
    ===================================================================================================================== */
-/* CATATAN: sengaja TIDAK memberi backdrop-filter pada .aivy-main / .aivy-rightpanel. backdrop-filter membuat elemen itu
-   menjadi containing block untuk position:fixed, sehingga modal/menu di dalam halaman akan terkurung di dalam panel.
-   Di atas latar mesh yang halus, blur memang tidak menambah apa-apa; efek kaca datang dari transparansi + tepi + highlight. */
-/* player: tint dari --bg (ikut warna lagu), bukan abu-abu netral */
+/* tint player ikut warna latar (bukan abu-abu netral) + blur minimum di mode refraksi */
 :root[data-cover-dyn][data-glass]{ --lg-tint: color-mix(in srgb, var(--bg) 62%, transparent); }
-/* mode kaca "refraksi" (blur 0) membuat isi halaman di belakang player terbaca jelas -> beri blur minimum saat Warna dinamis */
 :root[data-cover-dyn][data-glass-fx="1"]{ --lg-blur: 16px; }
 
-/* gambar cover blur milik halaman Home menambah warna LAIN di atas latar dan membuat garis pemisah di bawah topbar.
-   Saat Warna dinamis aktif latarnya sudah satu bidang, jadi gambar itu disembunyikan. */
+/* gambar cover blur milik halaman Home menambah warna LAIN di atas latar dan membuat garis pemisah di bawah topbar. */
 :root[data-cover-dyn] .aivy-home-bg{ display: none; }
 
 /* popover/menu/modal/sheet: tetap SOLID (kalau transparan, teks di belakangnya tembus) */
@@ -206,10 +109,8 @@
 /* =====================================================================================================================
    6. AKSESIBILITAS
    ===================================================================================================================== */
-/* sistem minta transparansi dikurangi -> permukaan jadi solid (token dasar tema), tanpa blur */
 @media (prefers-reduced-transparency: reduce){
   :root, :root[data-cover-dyn]{ --glass-fill: var(--bg-elev); --glass-fill-2: var(--bg-elev-2); --glass-edge: var(--line); --glass-hi: transparent; }
-  .aivy-shell .sp-panel, .aivy-main, .aivy-rightpanel, .aivy-player, .lg-warp{ -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .aivy-player, .lg-warp{ -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 }
-/* kontras tinggi: garis tegas, tanpa bayangan kaca */
-:root[data-contrast="high"]{ --glass-edge: var(--ink-faint); --glass-hi: transparent; --glass-shadow: 0 0 0 0 transparent; }
+:root[data-contrast="high"]{ --glass-edge: var(--ink-faint); --glass-hi: transparent; }
