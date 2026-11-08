@@ -91,16 +91,15 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
 .aivy-parties-cta{ border-radius: var(--r-card); padding: 20px; }
 
 /* =====================================================================================================================
-   4. PLAYER — hanya agar tetap terbaca (isi halaman di belakangnya tidak menimpa teks)
+   4. PLAYER PC — Regular Glass (data-glass="full", blurAmount: 0) & Frosted Glass (data-glass="blur", blurAmount: 0.5)
+      persis seperti @ybouane/liquidglass (https://liquid-glass.ybouane.com/)
    ===================================================================================================================== */
-:root[data-glass="blur"]{ --lg-blur: 32px; }
+:root[data-glass="full"] :is(.aivy-player, .npd){ --lg-blur: 0px; --lg-sat: 100%; --lg-tint: transparent; }
+:root[data-glass="blur"] :is(.aivy-player, .npd){ --lg-blur: 6px; --lg-sat: 100%; --lg-tint: transparent; }
 
 /* =====================================================================================================================
    5. WARNA DINAMIS (mode penuh)
    ===================================================================================================================== */
-/* tint player ikut warna latar (bukan abu-abu netral) + blur minimum di mode refraksi */
-:root[data-cover-dyn][data-glass]{ --lg-tint: color-mix(in srgb, var(--bg) 62%, transparent); }
-:root[data-cover-dyn][data-glass-fx="1"]{ --lg-blur: 16px; }
 
 /* gambar cover blur milik halaman Home menambah warna LAIN di atas latar dan membuat garis pemisah di bawah topbar. */
 :root[data-cover-dyn] .aivy-home-bg{ display: none; }

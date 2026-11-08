@@ -1471,7 +1471,7 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
 
-  const refract = settings?.liquidGlass === true && supportsRefraction();
+  const refract = supportsRefraction();
   const barRef = useRef(null);
   const [lg, setLg] = useState("off");
   useEffect(() => {
@@ -1482,13 +1482,14 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
       const flt = el.querySelector("#lg-player");
       const w = el.offsetWidth, h = el.offsetHeight;
       if (!flt || w < 8 || h < 8) return;
-      applyLiquidFilter(flt, w, h);
+      const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 20;
+      applyLiquidFilter(flt, w, h, r);
       setLg("ready");
     };
+    regen();
     const onSize = () => {
-      setLg((v) => (v === "ready" ? "busy" : v));
       clearTimeout(tm);
-      tm = setTimeout(regen, 180);
+      tm = setTimeout(regen, 120);
     };
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onSize) : null;
     if (ro) ro.observe(el); else onSize();

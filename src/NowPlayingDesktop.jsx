@@ -425,7 +425,7 @@ function FullPlayer({ shown, onClose }) {
   const drag = useDragToClose(rootRef, onClose);
   const swipeLocked = !!(room && room.hostOnlyControl && authUser && room.hostId !== authUser.id);
   const swipe = useCoverSwipe({ onNext: () => next(false), onPrev: prev, disabled: swipeLocked });
-  const refract = settings.liquidGlass === true && supportsRefraction();
+  const refract = supportsRefraction();
   const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view === "queue");
 
   // cover + warna latar diganti bersamaan, setelah keduanya siap (lihat lib/coverSync.js)
