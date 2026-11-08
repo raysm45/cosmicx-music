@@ -11,12 +11,21 @@ export function supportsRefraction() {
 // Frosted Glass (#glass-fp2): blurAmount = 0.5
 // Keduanya memakai shader FS_GLASS yang sama persis:
 export const LQ = {
+  floating: true,
+  blurAmount: 0,
   refraction: 0.69,
   chromAberration: 0.05,
   edgeHighlight: 0.05,
   specular: 0,
   fresnel: 1.0,
+  distortion: 0,
+  cornerRadius: 40,
   zRadius: 40,
+  opacity: 1,
+  saturation: 0,
+  brightness: 0,
+  shadowOpacity: 0.3,
+  shadowSpread: 10,
   bevelMode: 0,
 };
 
@@ -47,39 +56,47 @@ export function makeGlassMaps(w, h, radius = 0) {
   const halfX = W * 0.5;
   const halfY = H * 0.5;
   const maxD = Math.min(halfX, halfY);
-  const r = radius > 0 ? Math.min(radius, maxD) : maxD;
-  const zR = Math.min(16, Math.max(6.5, maxD * 0.4));
+  const r = radius > 0 ? Math.min(radius, maxD) : Math.min(LQ.cornerRadius, maxD);
+  const zR = Math.min(LQ.zRadius, maxD);
   const s = zR / LQ.zRadius;
-  const key = `yb2:${W}x${H}:r${Math.round(r)}:z${Math.round(zR * 10)}`;
+  const key = `yb3:${W}x${H}:r${Math.round(r)}:z${Math.round(zR * 10)}`;
   if (mapCache.has(key)) return mapCache.get(key);
 
-  let dispUrl = "";
+  let dispUrlR = "";
+  let dispUrlG = "";
+  let dispUrlB = "";
   let shineUrl = "";
-  let scaleG = 0;
-  let scaleR = 0;
-  let scaleB = 0;
+  let scale = 0;
 
   try {
-    const dispCanvas = document.createElement("canvas");
-    dispCanvas.width = W;
-    dispCanvas.height = H;
-    const dispCtx = dispCanvas.getContext("2d");
-    const dispImg = dispCtx.createImageData(W, H);
+    const makeCanvas = () => {
+      const c = document.createElement("canvas");
+      c.width = W;
+      c.height = H;
+      const ctx = c.getContext("2d");
+      return [c, ctx, ctx.createImageData(W, H)];
+    };
 
-    const shineCanvas = document.createElement("canvas");
-    shineCanvas.width = W;
-    shineCanvas.height = H;
-    const shineCtx = shineCanvas.getContext("2d");
-    const shineImg = shineCtx.createImageData(W, H);
+    const [cR, ctxR, imgR] = makeCanvas();
+    const [cG, ctxG, imgG] = makeCanvas();
+    const [cB, ctxB, imgB] = makeCanvas();
+    const [cS, ctxS, imgS] = makeCanvas();
 
-    const dxBuf = new Float32Array(W * H);
-    const dyBuf = new Float32Array(W * H);
+    const rxBufR = new Float32Array(W * H);
+    const ryBufR = new Float32Array(W * H);
+    const rxBufG = new Float32Array(W * H);
+    const ryBufG = new Float32Array(W * H);
+    const rxBufB = new Float32Array(W * H);
+    const ryBufB = new Float32Array(W * H);
 
     const e = 2.0 * s;
     const ior = 1.5;
     const refrPow = 1 - 1 / ior; // 1/3
     const borderWidth = 1.5;
     let maxAbs = 1;
+
+    const bx = Math.max(0, halfX - r);
+    const by = Math.max(0, halfY - r);
 
     for (let j = 0; j < H; j++) {
       const py = j + 0.5 - halfY;
@@ -88,38 +105,43 @@ export function makeGlassMaps(w, h, radius = 0) {
         const idx = j * W + i;
         const sdf = rrSDF(px, py, halfX, halfY, r);
 
-        if (sdf > 0.5) continue;
+        if (sdf > 2.5) continue;
 
-        const mask = 1 - smoothstep(-1.5, 0.5, sdf);
-        const inside = Math.max(0, -sdf);
+        let qx = px;
+        let qy = py;
+        if (sdf > -0.5) {
+          const cx = Math.max(-bx, Math.min(bx, px));
+          const cy = Math.max(-by, Math.min(by, py));
+          const vx = px - cx;
+          const vy = py - cy;
+          const vLen = Math.hypot(vx, vy) || 1;
+          const targetR = Math.max(0, r - 0.5);
+          qx = cx + (vx / vLen) * targetR;
+          qy = cy + (vy / vLen) * targetR;
+        }
+
+        const qSdf = Math.min(sdf, -0.5);
+        const inside = Math.max(0, -qSdf);
         const edge = smoothstep(maxD * 0.35, 0, inside);
 
         // Surface normal via bevel height field (FS_GLASS)
         const dC = inside;
-        const dR = -rrSDF(px + e, py, halfX, halfY, r);
-        const dL = -rrSDF(px - e, py, halfX, halfY, r);
-        const dU = -rrSDF(px, py + e, halfX, halfY, r);
-        const dD = -rrSDF(px, py - e, halfX, halfY, r);
+        const dR = -rrSDF(qx + e, qy, halfX, halfY, r);
+        const dL = -rrSDF(qx - e, qy, halfX, halfY, r);
+        const dU = -rrSDF(qx, qy + e, halfX, halfY, r);
+        const dD = -rrSDF(qx, qy - e, halfX, halfY, r);
         const hC = bevelHeight(dC, zR);
         const hR = bevelHeight(dR, zR);
         const hL = bevelHeight(dL, zR);
         const hU = bevelHeight(dU, zR);
         const hD = bevelHeight(dD, zR);
 
-        let hGradX = (hR - hL) / (2 * e);
-        let hGradY = (hU - hD) / (2 * e);
+        const hGradX = (hR - hL) / (2 * e);
+        const hGradY = (hU - hD) / (2 * e);
         const invN = 1 / Math.hypot(-hGradX, -hGradY, 1);
+        const Nx = -hGradX * invN;
         const Ny = -hGradY * invN;
         const Nz = invN;
-
-        // Cegah lonjakan turunan 1/sqrt(d) di piksel batas anti-alias paling luar (d < 1.5px)
-        const gLen = Math.hypot(hGradX, hGradY);
-        const maxGrad = 1.35;
-        if (gLen > maxGrad) {
-          const gScale = maxGrad / gLen;
-          hGradX *= gScale;
-          hGradY *= gScale;
-        }
 
         const depth = smoothstep(0, zR, inside);
 
@@ -127,69 +149,119 @@ export function makeGlassMaps(w, h, radius = 0) {
         const thickness = hC * 2;
         const thickNorm = thickness / Math.max(zR * 2, 1);
         const refrMult = refrPow * (2 + 0.5 * thickNorm) * LQ.refraction * 30 * s;
-        const centerDirX = -px / Math.max(halfX, 1);
-        const centerDirY = -py / Math.max(halfY, 1);
+        const centerDirX = -qx / Math.max(halfX, 1);
+        const centerDirY = -qy / Math.max(halfY, 1);
 
         const rx = hGradX * refrMult + centerDirX * LQ.refraction * 4 * s * depth;
         const ry = hGradY * refrMult + centerDirY * LQ.refraction * 4 * s * depth;
 
-        dxBuf[idx] = rx;
-        dyBuf[idx] = ry;
-        const ax = Math.abs(rx);
-        const ay = Math.abs(ry);
-        if (ax > maxAbs) maxAbs = ax;
-        if (ay > maxAbs) maxAbs = ay;
+        // Chromatic aberration sepanjang normal permukaan N.xy (FS_GLASS):
+        // float caS = u_chroma * 18.0 * (edge * 0.7 + 0.3) * 2.0;
+        const caS = LQ.chromAberration * 18.0 * (edge * 0.7 + 0.3) * 2.0 * s;
+        const caX = Nx * caS;
+        const caY = Ny * caS;
+
+        const clampInside = (dx, dy) => {
+          const margin = 2.0;
+          const maxR = Math.max(1, r - margin);
+          let sx = Math.max(-(halfX - margin), Math.min(halfX - margin, px + dx));
+          let sy = Math.max(-(halfY - margin), Math.min(halfY - margin, py + dy));
+          const cx = Math.max(-bx, Math.min(bx, sx));
+          const cy = Math.max(-by, Math.min(by, sy));
+          const vx = sx - cx;
+          const vy = sy - cy;
+          const vLen = Math.hypot(vx, vy);
+          if (vLen > maxR) {
+            sx = cx + (vx / vLen) * maxR;
+            sy = cy + (vy / vLen) * maxR;
+          }
+          return [sx - px, sy - py];
+        };
+
+        const [rRx, rRy] = clampInside(rx + caX, ry + caY);
+        const [gRx, gRy] = clampInside(rx, ry);
+        const [bRx, bRy] = clampInside(rx - caX, ry - caY);
+
+        rxBufR[idx] = rRx; ryBufR[idx] = rRy;
+        rxBufG[idx] = gRx; ryBufG[idx] = gRy;
+        rxBufB[idx] = bRx; ryBufB[idx] = bRy;
+
+        maxAbs = Math.max(
+          maxAbs,
+          Math.abs(rRx), Math.abs(rRy),
+          Math.abs(gRx), Math.abs(gRy),
+          Math.abs(bRx), Math.abs(bRy)
+        );
 
         // Pencahayaan permukaan persis FS_GLASS (Fresnel + innerStroke + rim + innerGlow + envRefl)
-        const fres = Math.pow(1 - Math.abs(Nz), 4) * LQ.fresnel;
-        const innerStrokeBase =
-          smoothstep(-borderWidth - 1, -borderWidth, sdf) *
-          (1 - smoothstep(-1, 0, sdf));
-        const topBias = 0.5 + 0.5 * (-py / Math.max(halfY, 1));
-        const innerStroke = innerStrokeBase * (0.4 + 0.6 * topBias);
+        if (sdf <= 0.5) {
+          const mask = 1 - smoothstep(-1.5, 0.5, sdf);
+          const sInside = Math.max(0, -sdf);
+          const sEdge = smoothstep(maxD * 0.35, 0, sInside);
+          const fres = Math.pow(1 - Math.abs(Nz), 4) * LQ.fresnel;
+          const innerStrokeBase =
+            smoothstep(-borderWidth - 1, -borderWidth, sdf) *
+            (1 - smoothstep(-1, 0, sdf));
+          const topBias = 0.5 + 0.5 * (-py / Math.max(halfY, 1));
+          const innerStroke = innerStrokeBase * (0.4 + 0.6 * topBias);
 
-        const rim = edge * LQ.edgeHighlight * 0.22;
-        const innerGlow = smoothstep(5, 0, inside) * LQ.edgeHighlight * 0.15;
-        const envRefl = (Ny * 0.5 + 0.5) * fres * 0.08;
+          const rim = sEdge * LQ.edgeHighlight * 0.22;
+          const innerGlow = smoothstep(5, 0, sInside) * LQ.edgeHighlight * 0.15;
+          const envRefl = (Ny * 0.5 + 0.5) * fres * 0.08;
 
-        const addWhite = rim + innerGlow + innerStroke * LQ.edgeHighlight * 0.55 + envRefl;
-        const alpha = Math.min(1, Math.max(0, addWhite * (1 - 0.2 * fres) + 0.2 * fres)) * mask;
+          const addWhite = rim + innerGlow + innerStroke * LQ.edgeHighlight * 0.55 + envRefl;
+          const alpha = Math.min(1, Math.max(0, addWhite * (1 - 0.2 * fres) + 0.2 * fres)) * mask;
 
-        const k = idx * 4;
-        shineImg.data[k] = 255;
-        shineImg.data[k + 1] = 255;
-        shineImg.data[k + 2] = 255;
-        shineImg.data[k + 3] = Math.round(alpha * 255);
+          const k = idx * 4;
+          imgS.data[k] = 255;
+          imgS.data[k + 1] = 255;
+          imgS.data[k + 2] = 255;
+          imgS.data[k + 3] = Math.round(alpha * 255);
+        }
       }
     }
 
-    scaleG = 2 * maxAbs;
-    const caPx = LQ.chromAberration * 36 * s; // FS_GLASS: u_chroma * 18.0 * 2.0
-    const caRatio = caPx / Math.max(maxAbs, 1);
-    scaleR = scaleG * (1 - caRatio);
-    scaleB = scaleG * (1 + caRatio);
+    scale = 2 * maxAbs;
+    const invSpan = 1 / scale;
+    const pack = (img, xB, yB) => {
+      for (let idx = 0, n = W * H; idx < n; idx++) {
+        const k = idx * 4;
+        img.data[k] = Math.max(0, Math.min(255, Math.round((0.5 + xB[idx] * invSpan) * 255)));
+        img.data[k + 1] = Math.max(0, Math.min(255, Math.round((0.5 + yB[idx] * invSpan) * 255)));
+        img.data[k + 2] = 128;
+        img.data[k + 3] = 255;
+      }
+    };
+    pack(imgR, rxBufR, ryBufR);
+    pack(imgG, rxBufG, ryBufG);
+    pack(imgB, rxBufB, ryBufB);
 
-    const invSpan = 1 / scaleG;
-    for (let idx = 0, n = W * H; idx < n; idx++) {
-      const k = idx * 4;
-      const u = 0.5 + dxBuf[idx] * invSpan;
-      const v = 0.5 + dyBuf[idx] * invSpan;
-      dispImg.data[k] = Math.max(0, Math.min(255, Math.round(u * 255)));
-      dispImg.data[k + 1] = Math.max(0, Math.min(255, Math.round(v * 255)));
-      dispImg.data[k + 2] = 128;
-      dispImg.data[k + 3] = 255;
-    }
+    ctxR.putImageData(imgR, 0, 0);
+    ctxG.putImageData(imgG, 0, 0);
+    ctxB.putImageData(imgB, 0, 0);
+    ctxS.putImageData(imgS, 0, 0);
 
-    dispCtx.putImageData(dispImg, 0, 0);
-    shineCtx.putImageData(shineImg, 0, 0);
-    dispUrl = dispCanvas.toDataURL("image/png");
-    shineUrl = shineCanvas.toDataURL("image/png");
+    dispUrlR = cR.toDataURL("image/png");
+    dispUrlG = cG.toDataURL("image/png");
+    dispUrlB = cB.toDataURL("image/png");
+    shineUrl = cS.toDataURL("image/png");
   } catch {
-    dispUrl = "";
+    dispUrlR = "";
+    dispUrlG = "";
+    dispUrlB = "";
     shineUrl = "";
   }
 
-  const entry = { dispUrl, shineUrl, scaleR, scaleG, scaleB, w: W, h: H };
+  const entry = {
+    dispUrl: dispUrlG,
+    dispUrlR,
+    dispUrlG,
+    dispUrlB,
+    shineUrl,
+    scale,
+    w: W,
+    h: H,
+  };
   if (mapCache.size > 16) mapCache.delete(mapCache.keys().next().value);
   mapCache.set(key, entry);
   return entry;
@@ -202,7 +274,7 @@ export function makeDisplacementMap(w, h, bezel, radius) {
 export function applyLiquidFilter(filter, w, h, radius = 0) {
   if (!filter || !w || !h) return;
   const maps = makeGlassMaps(w, h, radius);
-  if (!maps.dispUrl) return;
+  if (!maps.dispUrlG) return;
 
   const W = String(maps.w);
   const H = String(maps.h);
@@ -213,24 +285,21 @@ export function applyLiquidFilter(filter, w, h, radius = 0) {
   filter.setAttribute("filterUnits", "userSpaceOnUse");
   filter.setAttribute("primitiveUnits", "userSpaceOnUse");
 
-  const mapEl = filter.querySelector('[data-lq="map"]');
-  if (mapEl) {
-    mapEl.setAttribute("x", "0");
-    mapEl.setAttribute("y", "0");
-    mapEl.setAttribute("width", W);
-    mapEl.setAttribute("height", H);
-    mapEl.setAttribute("href", maps.dispUrl);
-    mapEl.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", maps.dispUrl);
-  }
-  const shineEl = filter.querySelector('[data-lq="shine"]');
-  if (shineEl) {
-    shineEl.setAttribute("x", "0");
-    shineEl.setAttribute("y", "0");
-    shineEl.setAttribute("width", W);
-    shineEl.setAttribute("height", H);
-    shineEl.setAttribute("href", maps.shineUrl);
-    shineEl.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", maps.shineUrl);
-  }
+  const setImg = (sel, url) => {
+    const el = filter.querySelector(sel);
+    if (!el || !url) return;
+    el.setAttribute("x", "0");
+    el.setAttribute("y", "0");
+    el.setAttribute("width", W);
+    el.setAttribute("height", H);
+    el.setAttribute("href", url);
+    el.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", url);
+  };
+
+  setImg('[data-lq="mapR"]', maps.dispUrlR);
+  setImg('[data-lq="mapG"]', maps.dispUrlG);
+  setImg('[data-lq="mapB"]', maps.dispUrlB);
+  setImg('[data-lq="shine"]', maps.shineUrl);
 
   const blurEl = filter.querySelector('[data-lq="blur"]');
   if (blurEl) {
@@ -238,10 +307,11 @@ export function applyLiquidFilter(filter, w, h, radius = 0) {
     blurEl.setAttribute("stdDeviation", isFrosted ? "5" : "0");
   }
 
+  const scaleStr = maps.scale.toFixed(2);
   const dR = filter.querySelector('[data-lq="dR"]');
   const dG = filter.querySelector('[data-lq="dG"]');
   const dB = filter.querySelector('[data-lq="dB"]');
-  if (dR) dR.setAttribute("scale", maps.scaleR.toFixed(2));
-  if (dG) dG.setAttribute("scale", maps.scaleG.toFixed(2));
-  if (dB) dB.setAttribute("scale", maps.scaleB.toFixed(2));
+  if (dR) dR.setAttribute("scale", scaleStr);
+  if (dG) dG.setAttribute("scale", scaleStr);
+  if (dB) dB.setAttribute("scale", scaleStr);
 }

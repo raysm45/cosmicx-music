@@ -338,7 +338,7 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
   bottom: 14px;
   padding: 0 18px;
   height: 80px;
-  border-radius: var(--radius-lg);
+  border-radius: 40px;
   display: flex; align-items: center; gap: 16px; min-width: 0;
   background: transparent;
   border: 0;

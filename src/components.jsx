@@ -1482,7 +1482,7 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
       const flt = el.querySelector("#lg-player");
       const w = el.offsetWidth, h = el.offsetHeight;
       if (!flt || w < 8 || h < 8) return;
-      const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 20;
+      const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 40;
       applyLiquidFilter(flt, w, h, r);
       setLg("ready");
     };
