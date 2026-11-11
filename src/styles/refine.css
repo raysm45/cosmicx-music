@@ -190,3 +190,15 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
   :root, :root[data-cover-dyn]{ --glass-fill: var(--bg-elev); --glass-fill-2: var(--bg-elev-2); --glass-edge: var(--line); --glass-hi: transparent; }
 }
 :root[data-contrast="high"]{ --glass-edge: var(--ink-faint); --glass-hi: transparent; }
+
+/* =====================================================================================================================
+   MOBILE: Home (& halaman feed) harus full lebar layar.
+   Sebelumnya .aivy-home-inner memakai gutter desktop (--page-x: 28px) juga di mobile, sehingga konten menyempit dan
+   carousel (Recommended Artists, Continue listening, dll) terpotong 28px sebelum tepi layar.
+   Sekarang: gutter 16px (sama dengan halaman mobile lain) + carousel "bleed" sampai tepi layar kiri-kanan.
+   ===================================================================================================================== */
+@media (max-width: 860px){
+  .aivy-home-inner{ padding-left: 16px; padding-right: 16px; }
+  .aivy-home-inner .aivy-hoverrail{ margin-left: -16px; margin-right: -16px; }
+  .aivy-home-inner .aivy-hoverrail-track{ padding-left: 16px; padding-right: 16px; scroll-padding-left: 16px; scroll-padding-right: 16px; }
+}
