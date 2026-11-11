@@ -1,12 +1,4 @@
-/* =====================================================================
-   spotify-shell.css
-   Tampilan shell ala Spotify: sidebar "Koleksi Kamu", dock mobile,
-   mini player, topbar mobile, bar pencarian, dan modal simpan ke playlist.
-   Di-import SETELAH global.css supaya menang saat aturan sama kuat.
-   ===================================================================== */
-
 :root{
-  /* Semua warna di file ini diturunkan dari token tema (--ink, --bg, --accent) supaya ikut tema apa pun. */
   --sp-shadow-color: color-mix(in srgb, var(--bg) 22%, black);
   --sp-scrim: color-mix(in srgb, var(--bg) 62%, transparent);
   --sp-surface: color-mix(in srgb, var(--ink) 6%, transparent);
@@ -19,7 +11,6 @@
   --dock-total: calc(var(--sp-tab-h) + var(--sp-mini-h) + var(--sp-mini-gap) + var(--safe-b));
 }
 
-/* ---------- primitif bersama ---------- */
 .sp-icon-btn{
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
@@ -42,7 +33,6 @@
 .sp-pill-btn.wide{ width: 100%; height: 46px; font-size: 15px; }
 .sp-pill-btn:disabled{ opacity: .4; cursor: default; transform: none; }
 
-/* Cover playlist: gambar tunggal, mosaik 2x2, atau placeholder bergradien */
 .sp-plcover{
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0; overflow: hidden; background: var(--bg-elev-3); color: var(--ink-faint);
@@ -51,25 +41,19 @@
 .sp-plcover > svg:not(.sp-plcover-ico):not(.sp-liked-heart){ width: 100%; height: 100%; object-fit: cover; display: block; }
 .sp-plcover.is-mosaic{ display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .sp-plcover-ico{ position: absolute; color: var(--ink); filter: drop-shadow(0 1px 3px var(--sp-shadow-color)); }
-/* sama dengan tile "Liked Songs" di halaman Library */
 .sp-liked-cover{ background: var(--accent); color: var(--accent-ink); }
 .sp-atp-plus, .sp-atp-multi{ background: var(--bg-elev-3); color: var(--ink); }
 
-/* =====================================================================
-   SIDEBAR DESKTOP
-   ===================================================================== */
 .aivy-shell .aivy-sidebar.sp-side{
   background: transparent; border-right: 0; padding: 8px; gap: 8px; overflow: visible;
   box-shadow: none;
 }
 .sp-panel{
-  /* dibangun dari warna teks tema supaya panel selalu terlihat beda dari latar, di tema gelap maupun terang */
   background: var(--sp-surface);
   -webkit-backdrop-filter: blur(20px) saturate(1.15); backdrop-filter: blur(20px) saturate(1.15);
   border: 1px solid var(--sp-hairline);
   border-radius: var(--radius-md); min-width: 0;
-  position: relative; z-index: 1; /* dekorasi tema di sidebar tidak menimpa isi panel */
-}
+  position: relative; z-index: 1;}
 .sp-nav-panel{ flex-shrink: 0; padding: 10px 8px 8px; }
 .sp-brand{ display: flex; align-items: center; gap: 10px; padding: 4px 12px 14px; min-width: 0; }
 .sp-brand .mark{ flex-shrink: 0; }
@@ -158,7 +142,6 @@
 .sp-login{ display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1; min-width: 0; height: 34px; padding: 0 12px; border-radius: var(--radius-pill); background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700; white-space: nowrap; }
 .sp-login:hover{ background: var(--accent-strong); }
 
-/* rail: sidebar diciutkan, hanya cover (cover 44px di panel 64px -> ada napas di kiri-kanan) */
 .sp-side.is-rail .sp-nav-panel{ padding: 8px 0; }
 .sp-side.is-rail .sp-nav{ align-items: center; }
 .sp-side.is-rail .sp-nav-item{ width: 44px; height: 44px; padding: 0; justify-content: center; gap: 0; border-radius: 10px; }
@@ -173,15 +156,8 @@
 .sp-side.is-rail .sp-user{ flex: 0; padding: 2px; }
 .sp-side.is-rail .sp-login{ flex: 0; width: 38px; padding: 0; }
 
-/* handle resize berada di celah antar panel */
 .aivy-sidebar.sp-side .aivy-resize-handle.right{ right: -4px; }
 
-/* =====================================================================
-   BAR PENCARIAN
-   Satu bar menyatu: tombol navigasi + kolom cari dalam satu baris sticky
-   yang menutup penuh lebar area konten (tidak ada konten yang mengintip
-   di sisi kiri/kanan seperti sebelumnya).
-   ===================================================================== */
 .sp-search-head{
   position: sticky; top: 0; z-index: 6;
   display: flex; align-items: center; gap: 12px;
@@ -203,9 +179,6 @@
 .sp-search-back:active{ background: var(--bg-elev-2); }
 .sp-searchbox.is-loading .sp-search-ico{ animation: aivy-live-icon 1s ease-in-out infinite; }
 
-/* =====================================================================
-   MOBILE: TOPBAR
-   ===================================================================== */
 .sp-topbar{
   position: relative; z-index: 5; flex-shrink: 0;
   display: flex; align-items: center; gap: 12px;
@@ -226,9 +199,6 @@ body.aivy-artist-immersive .sp-topbar{ position: absolute; top: 0; left: 0; righ
 body.aivy-artist-immersive .sp-topbar.scrolled{ background: color-mix(in srgb, var(--artist-bg, var(--bg)) 90%, transparent); }
 body.aivy-artist-immersive .sp-topbar .sp-topbar-btn{ color: #fff; }
 
-/* =====================================================================
-   MOBILE: DOCK (mini player + tab bar)
-   ===================================================================== */
 .sp-dock{
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
   display: flex; flex-direction: column; pointer-events: none;
@@ -254,35 +224,63 @@ body.aivy-artist-immersive .sp-topbar .sp-topbar-btn{ color: #fff; }
 .sp-tab:active{ transform: scale(.93); }
 
 .sp-mini{
-  position: relative; display: flex; align-items: center; gap: 10px;
-  height: var(--sp-mini-h); margin: 0 8px var(--sp-mini-gap); padding: 0 4px 0 7px;
-  border-radius: 12px; overflow: hidden; cursor: pointer;
+  position: relative; display: flex; align-items: center; gap: 10px; isolation: isolate;
+  height: var(--sp-mini-h); margin: 0 10px var(--sp-mini-gap); padding: 0 6px 0 6px;
+  border-radius: 999px; overflow: hidden; cursor: pointer;
   touch-action: none; -webkit-tap-highlight-color: transparent;
-  background: color-mix(in srgb, var(--mini-tint, var(--bg-elev-3)) 42%, var(--bg-elev-2));
-  box-shadow: 0 8px 20px -8px var(--sp-shadow-color);
+  background: linear-gradient(105deg,
+    color-mix(in srgb, var(--mini-tint, var(--bg-elev-3)) 46%, var(--bg-elev-2)),
+    color-mix(in srgb, var(--mini-tint, var(--bg-elev-3)) 14%, var(--bg-elev-2)));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent),
+    0 12px 26px -10px color-mix(in srgb, var(--mini-tint, var(--ink)) 70%, transparent),
+    0 4px 10px -6px var(--sp-shadow-color);
   transition: background-color 450ms var(--ease), transform 160ms var(--ease);
   animation: aivy-mini-in 320ms cubic-bezier(.22,1,.36,1) backwards;
 }
-.sp-mini:active{ transform: scale(.985); }
-.sp-mini-cover{ position: relative; width: 44px; height: 44px; border-radius: 7px; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 8px var(--sp-shadow-color); animation: aivy-fade-in 220ms var(--ease) backwards; }
-.sp-mini-cover.no-round{ border-radius: 3px; }
+.sp-mini:active{ transform: scale(.98); }
+
+.sp-mini-cover{
+  position: relative; width: 46px; height: 46px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 14%, transparent), 0 4px 10px var(--sp-shadow-color);
+  animation: aivy-fade-in 220ms var(--ease) backwards, sp-vinyl-spin 7s linear infinite;
+  animation-play-state: running, paused;
+}
+.sp-mini.is-playing .sp-mini-cover{ animation-play-state: running, running; }
+.sp-mini-cover::before{  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 50%;
+  background: repeating-radial-gradient(circle at center, transparent 0 3px, rgba(0,0,0,.09) 3px 4px);
+}
+.sp-mini-cover::after{  content: ""; position: absolute; z-index: 2; left: 50%; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%; background: var(--bg); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 22%, transparent);
+  pointer-events: none;
+}
+.sp-mini-cover.no-round{ border-radius: 9px; animation: aivy-fade-in 220ms var(--ease) backwards; }
+.sp-mini-cover.no-round::before, .sp-mini-cover.no-round::after{ display: none; }
 .sp-mini-cover img, .sp-mini-cover svg{ width: 100%; height: 100%; object-fit: cover; display: block; }
+@keyframes sp-vinyl-spin{ to{ transform: rotate(360deg); } }
+
 .sp-mini-meta{ flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; animation: aivy-fade-in 220ms var(--ease) backwards; }
 .sp-mini-meta .t-row{ display: flex; align-items: center; gap: 6px; min-width: 0; }
-.sp-mini-meta .t{ font-size: 14px; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-mini-meta .a{ font-size: 12.5px; line-height: 1.15; color: color-mix(in srgb, var(--ink) 66%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-mini-actions{ display: flex; align-items: center; flex-shrink: 0; }
-.sp-mini-btn{ display: grid; place-items: center; width: 40px; height: 46px; color: var(--ink); -webkit-tap-highlight-color: transparent; transition: transform 120ms var(--ease), opacity 120ms var(--ease); }
+.sp-mini-meta .t{ font-size: 14px; font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mini-meta .a{ font-size: 12px; line-height: 1.15; color: color-mix(in srgb, var(--ink) 66%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sp-mini-actions{ display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.sp-mini-btn{ display: grid; place-items: center; width: 36px; height: 40px; color: var(--ink); -webkit-tap-highlight-color: transparent; transition: transform 120ms var(--ease), opacity 120ms var(--ease); }
 .sp-mini-btn:not(.play){ opacity: .88; }
+.sp-mini-btn.is-liked{ color: var(--accent-strong, #ef5350); opacity: 1; }
 .sp-mini-btn:active{ transform: scale(.88); }
+.sp-mini-btn.play{ width: 42px; height: 42px; border-radius: 50%; background: var(--ink); color: var(--bg); box-shadow: 0 4px 12px -2px var(--sp-shadow-color); }
 .sp-mini .aivy-swap-icon{ display: inline-flex; animation: aivy-icon-pop 200ms var(--dock-ease, cubic-bezier(.22,1,.36,1)) backwards; }
-.sp-mini-progress{ position: absolute; left: 8px; right: 8px; bottom: 3px; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 22%, transparent); overflow: hidden; pointer-events: none; }
-.sp-mini-progress .fill{ display: block; width: 100%; height: 100%; background: var(--ink); transform-origin: left; transform: scaleX(0); will-change: transform; }
+
+.sp-mini-progress{ position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; border-radius: inherit; }
+.sp-mini-progress .fill{
+  display: block; width: 100%; height: 100%; transform-origin: left; transform: scaleX(0); will-change: transform;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--mini-tint, var(--ink)) 10%, transparent),
+    color-mix(in srgb, var(--mini-tint, var(--ink)) 48%, transparent));
+}
 .sp-mini-progress.is-loading .fill{ width: 35%; transform: translate3d(-100%, 0, 0); animation: aivy-mini-load 1.1s cubic-bezier(.4,0,.2,1) infinite; }
 
-/* =====================================================================
-   MODAL "SIMPAN KE PLAYLIST"
-   ===================================================================== */
 .sp-atp-backdrop{
   position: fixed; inset: 0; z-index: 80; background: var(--sp-scrim); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -303,52 +301,4 @@ body.aivy-artist-immersive .sp-topbar .sp-topbar-btn{ color: #fff; }
 .sp-atp-track-meta .s{ font-size: 12.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-atp-search{ display: flex; align-items: center; gap: 8px; margin: 2px 20px 8px; padding: 0 6px 0 12px; height: 38px; border-radius: 8px; background: var(--bg-elev-3); color: var(--ink-faint); flex-shrink: 0; }
 .sp-atp-search input{ flex: 1; min-width: 0; height: 100%; padding: 0; margin: 0; border: 0; background: none; outline: none; font-size: 14px; color: var(--ink); }
-.sp-atp-list{ flex: 1; min-height: 0; overflow-y: auto; padding: 2px 12px 6px; display: flex; flex-direction: column; gap: 2px; }
-.sp-atp-row{
-  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; border-radius: 8px; text-align: left; flex-shrink: 0;
-  transition: background var(--dur-fast) var(--ease);
-}
-.sp-atp-row:hover{ background: var(--bg-elev-3); }
-.sp-atp-row:active{ background: color-mix(in srgb, var(--ink) 12%, var(--bg-elev-3)); }
-.sp-atp-row:disabled{ opacity: .6; cursor: default; }
-.sp-atp-meta{ display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.sp-atp-meta .t{ font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-atp-meta .s{ font-size: 13px; color: var(--ink-dim); }
-.sp-atp-new .t{ font-weight: 600; }
-.sp-atp-check{
-  width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--ink-faint); flex-shrink: 0;
-  display: grid; place-items: center; color: var(--bg);
-  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
-}
-.sp-atp-check.on{ background: var(--ink); border-color: var(--ink); }
-.sp-atp-create{ display: flex; align-items: center; gap: 12px; padding: 8px; flex-shrink: 0; }
-.sp-atp-create input{ flex: 1; min-width: 0; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-elev-3); padding: 0 12px; font-size: 14.5px; color: var(--ink); outline: none; }
-.sp-atp-create input:focus{ border-color: var(--ink-faint); }
-.sp-atp-empty{ padding: 24px 8px; text-align: center; font-size: 13.5px; color: var(--ink-faint); }
-.sp-atp-foot{ padding: 10px 20px 16px; flex-shrink: 0; border-top: 1px solid var(--line-soft); }
-
-@keyframes sp-sheet-up{ from{ transform: translate3d(0, 100%, 0); } to{ transform: translate3d(0, 0, 0); } }
-
-@media (max-width: 860px){
-  .sp-search-nav{ display: none; }
-  .sp-search-back{ display: inline-flex; }
-  .sp-searchbox .sp-search-ico{ display: none; }
-  .sp-search-head{
-    margin: -6px -16px 4px -16px; padding: calc(10px + var(--safe-t)) 16px 12px;
-  }
-  .sp-search-head .aivy-search-box-wrap-v2{ max-width: none; }
-  .aivy-search-box-v2.sp-searchbox{ height: 48px; padding-left: 14px; }
-
-  .sp-atp-backdrop{ align-items: flex-end; padding: 0; }
-  .sp-atp{
-    width: 100%; max-height: 86dvh; border-radius: 20px 20px 0 0; border-bottom: 0;
-    animation: sp-sheet-up 280ms var(--sheet-ease, cubic-bezier(.32,.72,0,1)) both;
-  }
-  .sp-atp-grab{ display: block; }
-  .sp-atp-foot{ padding-bottom: calc(14px + var(--safe-b)); }
-}
-
-@media (prefers-reduced-motion: reduce){
-  .sp-mini, .sp-mini-cover, .sp-mini-meta, .sp-mini .aivy-swap-icon, .sp-atp, .sp-atp-backdrop{ animation: none !important; }
-  .sp-mini, .sp-tab, .sp-mini-btn{ transition: none; }
-}
+.sp-atp-list{ flex: 1; min-height: 0; overflow-y: auto; padding: 2px 12px 6px; displa

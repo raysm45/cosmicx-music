@@ -1,10 +1,5 @@
-
 :root{
-  --page-x: 28px;        /* gutter kiri/kanan semua halaman (topbar, konten, hero) */
-  --r-card: 14px;        /* kartu album/artis */
-  --r-art: 10px;         /* sampul di dalam kartu */
-  --r-ctl: 10px;         /* baris, tombol kotak, input */
-
+  --page-x: 28px;  --r-card: 14px;  --r-art: 10px;  --r-ctl: 10px;
   --glass-fill:   color-mix(in srgb, var(--ink) 6%, transparent);
   --glass-fill-2: color-mix(in srgb, var(--ink) 11%, transparent);
   --glass-edge:   color-mix(in srgb, var(--ink) 11%, transparent);
@@ -19,7 +14,6 @@
   box-shadow: none;
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-
 .aivy-shell:not(.is-mobile) .sp-nav-panel{ border-bottom: 1px solid var(--line-soft); padding-bottom: 8px; }
 .aivy-shell:not(.is-mobile) .sp-side-foot{ border-top: 1px solid var(--line-soft); }
 
@@ -33,7 +27,6 @@
 .aivy-shell:not(.is-mobile) .aivy-rightpanel-rail{ background: transparent; border-left: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:hover,
 .aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:focus-visible{ background: var(--bg-elev); }
-
 body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-mix(in srgb, #fff 8%, transparent); }
 
 .aivy-shell:not(.is-mobile) .aivy-topbar{ padding: 14px var(--page-x) 6px; }
@@ -45,15 +38,12 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
 .aivy-content.is-mobile{ padding: 6px 16px 24px; }
 .aivy-home-inner{ padding: 4px var(--page-x) 40px; }
 
-/* ritme vertikal: judul section -> isi selalu sama, antar section selalu sama */
 .aivy-section{ margin: 28px 0 0; }
 .aivy-section:first-child{ margin-top: 12px; }
 .aivy-section-head{ align-items: center; margin-bottom: 14px; }
-/* h2 bawaan browser punya margin ~.83em: itu penyebab jarak judul<->isi terlalu lebar dan chip/tombol di sebelah judul tampak naik */
 .aivy-section-title{ margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -.01em; }
 .aivy-home-head-left{ gap: 12px; }
 .aivy-home-tabs{ margin-bottom: 6px; }
-/* HomePage memberi section pertama marginTop:0 lewat style inline -> perlu !important supaya tidak menempel ke tab */
 .aivy-home-tabs + .aivy-section, .aivy-home-tabs + .aivy-home-welcome + .aivy-section{ margin-top: 24px !important; }
 .aivy-home-welcome{ padding: 8px 2px 4px; }
 .aivy-hrow{ gap: 16px; padding: 2px 2px 12px; }
@@ -129,7 +119,6 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
     linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.3));
 }
 :root:not([data-cover-dyn][data-cover-tone="dark"]) .aivy-app-fluid{ display: none; }
-
 :root[data-cover-dyn][data-cover-tone="dark"] .has-app-fluid .sp-search-head{
   background: color-mix(in srgb, var(--bg) 45%, transparent);
   -webkit-backdrop-filter: blur(24px) saturate(1.2); backdrop-filter: blur(24px) saturate(1.2);
@@ -143,7 +132,6 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
 :root[data-cover-dyn] :is(.aivy-ctxmenu, .aivy-trackmenu, .aivy-cselect-menu, .aivy-emoji-pop, .aivy-ai-panel){
   -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
 }
-/* dock mobile (tab bar + mini player) */
 :root[data-cover-dyn] :is(.aivy-tabbar, .aivy-mini-player, .aivy-dock .aivy-tabbar, .aivy-dock .aivy-mini-player){
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   border-color: var(--glass-edge);
@@ -153,8 +141,14 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
   :root, :root[data-cover-dyn]{ --glass-fill: var(--bg-elev); --glass-fill-2: var(--bg-elev-2); --glass-edge: var(--line); --glass-hi: transparent; }
 }
 :root[data-contrast="high"]{ --glass-edge: var(--ink-faint); --glass-hi: transparent; }
+
 @media (max-width: 860px){
-  .aivy-home-inner{ padding-left: 16px; padding-right: 16px; }
-  .aivy-home-inner .aivy-hoverrail{ margin-left: -16px; margin-right: -16px; }
-  .aivy-home-inner .aivy-hoverrail-track{ padding-left: 16px; padding-right: 16px; scroll-padding-left: 16px; scroll-padding-right: 16px; }
+  .aivy-content.is-mobile.home-full{ padding-left: 0; padding-right: 0; }
+  .aivy-home-inner{ --home-gutter: 16px; padding-left: var(--home-gutter); padding-right: var(--home-gutter); }
+  .aivy-home-inner .aivy-hoverrail{ margin-left: calc(var(--home-gutter) * -1); margin-right: calc(var(--home-gutter) * -1); }
+  .aivy-home-inner .aivy-hoverrail-track{
+    padding-left: var(--home-gutter); padding-right: var(--home-gutter);
+    scroll-padding-left: var(--home-gutter); scroll-padding-right: var(--home-gutter);
+  }
+  .aivy-home-inner .aivy-songlist-row{ margin-left: -8px; margin-right: -8px; padding-left: 8px; padding-right: 8px; }
 }
