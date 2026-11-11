@@ -96,30 +96,23 @@ export function getPreferredAudioFormat() {
   return preferredFormat;
 }
 
-// ===========================================================================
-// Info audio terpadu: bentuk lama (yt-dlp) & baru (engine FLAC) menjadi satu
-// bentuk yang dipakai seluruh UI (badge, pipeline, detail teknis).
-// ===========================================================================
 function num(v) {
   const n = typeof v === "string" ? parseFloat(v) : v;
   return typeof n === "number" && isFinite(n) && n > 0 ? n : null;
 }
 
-/** Sample rate bisa datang sebagai Hz (44100), kHz (44.1) atau string "44.1 kHz" — selalu jadikan Hz. */
 function normSampleRate(v) {
   const n = num(v);
   if (!n) return null;
   return n < 1000 ? Math.round(n * 1000) : Math.round(n);
 }
 
-/** Bitrate bisa bps (1411200) atau kbps (1411) — selalu jadikan kbps. */
 function normBitrateKbps(v) {
   const n = num(v);
   if (!n) return null;
   return n > 20000 ? Math.round(n / 1000) : Math.round(n);
 }
 
-/** Codec dari berbagai penyedia ("FLAC", "audio/flac", "mp4a.40.2", "flac 16-bit") -> kunci huruf kecil. */
 function normCodec(v) {
   if (!v) return null;
   const s = String(v).toLowerCase();
@@ -193,7 +186,6 @@ export function describeQuality(format, fallbackLabel) {
   return { main: name, detail: kbps || "", lossless: false, hires: false };
 }
 
-/** Isi dialog info kualitas (gaya Apple Music): judul "Lossless" + baris "24 bit/44,1 kHz ALAC". */
 export function qualityDialogInfo(format, fallbackLabel, lang = "id") {
   const q = describeQuality(format, fallbackLabel);
   if (!q) return null;
@@ -205,7 +197,6 @@ export function qualityDialogInfo(format, fallbackLabel, lang = "id") {
     if (format && format.bitsPerSample) parts.push(`${format.bitsPerSample} bit`);
     if (format && format.sampleRateHz) parts.push(`${decimal(format.sampleRateHz / 1000)} kHz`);
     const head = parts.join("/");
-    // Aturan Apple Music: "Hi-Res Lossless" hanya bila sample rate di atas 48 kHz (24 bit/44,1 kHz tetap "Lossless").
     const hires = ((format && format.sampleRateHz) || 0) > 48000;
     return { title: hires ? "Hi-Res Lossless" : "Lossless", line: [head, codec].filter(Boolean).join(" "), lossless: true, hires };
   }

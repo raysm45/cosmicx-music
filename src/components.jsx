@@ -193,7 +193,6 @@ export class ErrorBoundary extends Component {
   }
 }
 
-/* Boundary ringan untuk potongan UI kosmetik (mis. lirik satu baris): kalau error, cukup hilang, bukan menjatuhkan seluruh aplikasi. */
 class SoftBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null, key: props.resetKey }; }
   static getDerivedStateFromError(error) { return { error }; }
@@ -236,13 +235,10 @@ function WaveformBars({ seed, className }) {
 
 export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, className = "", loading = false, waveformSeed = null }) {
   const trackRef = useRef(null);
-  // Drag disimpan di ref (sinkron, tidak telat render) + state hanya untuk kelas CSS.
   const dragIdRef = useRef(null);
   const [dragging, setDragging] = useState(false);
-  // Mix: penanda di bar = titik mulai mix; saat mix berjalan seluruh bar jadi penuh & "shining" sampai mix selesai.
   const { mixMarkerRatio, isMixing } = usePlayer();
   const hasMix = mixMarkerRatio != null;
-  // Setelah mix selesai bar menyusut mulus ke posisi lagu baru (bukan loncat).
   const [settling, setSettling] = useState(false);
   const wasMixingRef = useRef(false);
   useEffect(() => {
@@ -266,7 +262,6 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
     setDragging(false);
     try { trackRef.current?.releasePointerCapture(e?.pointerId ?? id); } catch {}
   }, []);
-  // Pengaman: kalau pointerup hilang (elemen di-render ulang, kursor lepas di luar jendela, tab blur), drag tetap berhenti.
   useEffect(() => {
     if (!dragging) return;
     const stop = (e) => endDrag(e);
@@ -280,7 +275,6 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
     };
   }, [dragging, endDrag]);
 
-  // Skeleton loading tidak boleh mengganti elemen (itu penyebab pointerup hilang). Selama drag, skeleton disembunyikan.
   const showSkeleton = loading && !dragging;
   const cls = [
     "aivy-scrubber",
@@ -306,7 +300,6 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
       }}
       onPointerMove={(e) => {
         if (dragIdRef.current !== e.pointerId) return;
-        // Mouse sudah tidak ditekan tapi drag masih aktif -> berhenti, jangan ngikut kursor.
         if (e.pointerType === "mouse" && (e.buttons & 1) === 0) { endDrag(e); return; }
         onSeekRatio(ratioFromEvent(e));
       }}
@@ -320,7 +313,6 @@ export function Scrubber({ getRatio, onSeekRatio, registerFill, registerThumb, c
         <div className="fill" ref={registerFill}>
           {waveformSeed && <WaveformBars seed={waveformSeed} className="wave-fg" />}
         </div>
-        {/* Penanda di dalam track (tidak keluar dari bar) & hilang saat mix berjalan */}
         {hasMix && !isMixing && <div className="mix-marker" style={{ left: `calc(${mixMarkerRatio.toFixed(5)} * (100% - 3px))` }} aria-hidden="true" />}
         {showSkeleton && <div className="skeleton-shine scrub-skel" aria-hidden="true" />}
       </div>
@@ -946,15 +938,6 @@ export function FlipList({ items, getKey, renderItem, className, as: Tag = "div"
   );
 }
 
-/**
- * Judul lagu yang kepanjangan akan berjalan (marquee) secara otomatis,
- * tapi HANYA di layar mobile (<=860px) dan HANYA jika teksnya memang
- * overflow dari kontainernya. Di desktop selalu statis (ellipsis "...").
- *
- * `as`/`className` menggantikan elemen judul yang biasanya dipakai (mis. "t", "title", "ttl")
- * supaya style lama (font-weight, font-size, dll) tetap kepakai.
- * `prefix`/`suffix` untuk elemen non-teks yang harus tetap diam di tempat (badge "E", "Preview", dll).
- */
 export function MarqueeText({ text, className = "", as: Tag = "span", prefix = null, suffix = null, gap = 40, pxPerSecond = 42, always = false, onClick, style }) {
   const isMobile = useIsMobile(860);
   const wrapRef = useRef(null);
@@ -1133,9 +1116,6 @@ export function ToastHost({ isMobile }) {
   );
 }
 
-/* ============================================================
-   Playlist cover, helper library, dan modal "Simpan ke playlist"
-   ============================================================ */
 const trLang = (settings, id, en) => (settings?.language === "en" ? en : id);
 
 export function PlaylistCover({ playlist, size = 48, radius = 6, className = "" }) {
@@ -1176,8 +1156,6 @@ export function LikedCover({ size = 48, radius = 6, className = "" }) {
   );
 }
 
-// Playlist dari /api/playlists biasanya belum membawa daftar lagu. Ambil detailnya
-// (4 sekaligus) supaya cover & jumlah lagu bisa tampil di sidebar / modal.
 function usePlaylistDetails(playlists) {
   const { setPlaylistDetail } = usePlayer();
   const requestedRef = useRef(new Set());
@@ -1559,7 +1537,6 @@ export function PlayerBar({ onOpenNowPlaying, onOpenFullscreen }) {
   );
 }
 
-// MiniPlayer mobile: ringan (tanpa GlassLayers/MarqueeText/SVG ring), GPU scaleX progress + scaleY eq
 export function MiniPlayer({ onExpand }) {
   const { currentTrack, isPlaying, togglePlay, next, loadingAudio, registerProgressEl, liked, toggleLike } = usePlayer();
   const { t, settings } = useUI();
@@ -2015,12 +1992,6 @@ export function NowPlayingVisualizer({ running = true }) {
 
 const NPX_COVER_FILL_STYLE = { width: "100%", height: "100%" };
 
-// ==========================================================================
-// Now playing mobile — potongan UI yang mengikuti referensi video
-// (mode player / lirik / antrean dalam satu sheet)
-// ==========================================================================
-
-/* Ikon custom: ukuran viewBox = piksel video referensi supaya proporsinya sama persis */
 function NpxPrevIcon() {
   return (
     <svg viewBox="0 0 67 38" aria-hidden="true" fill="currentColor" stroke="currentColor" strokeWidth="5" strokeLinejoin="round">
@@ -2081,7 +2052,6 @@ function NpxHandleIcon() {
   );
 }
 
-/* Polling ringan ke elemen <am-lyrics>: baris aktif, sumber lirik, status romanisasi/terjemahan. */
 const LYR_CTRL_IDLE_MS = 5000;
 const NPX_FALLBACK_LANGS = [
   { code: "en", label: "English" },
@@ -2103,12 +2073,12 @@ function useNpxLyricsInfo(enabled, trackKey) {
     try {
       const node = el.shadowRoot?.querySelector(".lyrics-line.active:not(.lyrics-gap) .main-vocal-container");
       line = (node?.textContent || "").replace(/\s+/g, " ").trim();
-    } catch { /* shadow DOM belum siap */ }
+    } catch {}
     let source = "";
     try {
       const raw = el.lyricsSource;
       if (raw) source = typeof el.constructor?.getDisplaySourceLabel === "function" ? el.constructor.getDisplaySourceLabel(raw) : String(raw);
-    } catch { /* abaikan */ }
+    } catch {}
     return {
       line, source,
       has: Array.isArray(el.lyrics) ? el.lyrics.length > 0 : false,
@@ -2129,7 +2099,6 @@ function useNpxLyricsInfo(enabled, trackKey) {
   return { info, refresh: () => { const n = read(); if (n) setInfo(n); } };
 }
 
-/* ---------- Lirik di atas bar durasi (mode player): transisi antarbaris + sorotan kata per kata bila datanya ada ---------- */
 const NPX_INL_LEAVE_MS = 460;
 const NPX_INL_GAP_HOLD_MS = 900;
 
@@ -2145,7 +2114,6 @@ function toInlineLine(l) {
   return { t0, t1, words, sync, text };
 }
 
-/** Baca baris lirik (beserta timing kata) dari <am-lyrics> mobile yang sudah ter-mount. */
 function useNpxLyricLines(enabled, trackKey) {
   const [lines, setLines] = useState([]);
   const prevTrackRef = useRef(trackKey);
@@ -2158,7 +2126,6 @@ function useNpxLyricLines(enabled, trackKey) {
       const el = typeof document !== "undefined" ? document.getElementById("aivy-am-lyrics-mobile") : null;
       return el && Array.isArray(el.lyrics) ? el.lyrics : null;
     };
-    // setelah ganti lagu, array lirik lagu sebelumnya bisa masih menempel sampai lirik baru termuat
     const stale = trackChanged ? getRaw() : null;
     let last = null;
     const read = () => {
@@ -2228,7 +2195,6 @@ function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
       const live = started && !inGap;
       const cur = viewRef.current;
       if (resync) {
-        // frame pertama setelah sheet dibuka/ lirik termuat: langsung ke baris yang benar, tanpa animasi pergantian
         resync = false;
         wordEls.current = [];
         lastP.length = 0;
@@ -2269,8 +2235,6 @@ function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
     return () => { cancelAnimationFrame(raf); clearTimeout(leaveTimer); };
   }, [disabled, active, lines, trackKey]);
 
-  // view.i bisa sesaat tertinggal dari `lines` (mis. ganti lagu / lirik diganti sumber lain dengan jumlah baris lebih sedikit).
-  // Jangan pernah mengakses lines[view.i] tanpa cek: efek rAF di atas yang akan menyelaraskan indeksnya di frame berikutnya.
   const line = view.i >= 0 ? lines[view.i] : null;
   if (disabled || !lines.length || !line) return <div className="npx-inl is-empty" />;
   const gone = leaving && lines[leaving.i];
@@ -2282,8 +2246,6 @@ function NpxInlineLyrics({ lines, disabled, active = true, onOpen, trackKey }) {
   );
 }
 
-/* Baris cuplikan lirik (♫ teks ›) di mode player & antrean; "Lirik oleh …" di mode lirik. */
-/* Ikon baris bawah: solid/tebal ala Apple. viewBox = bbox video (u), ukuran dipasang lewat style */
 const npxSz = (w, h) => ({ width: `calc(var(--u) * ${w})`, height: `calc(var(--u) * ${h})` });
 function NpxLyricsIcon() {
   return (
@@ -2361,7 +2323,7 @@ function NpxNoteIcon({ className }) {
 }
 function NpxSnippetRow({ mode, info, hintKey, lyricsDisabled, onOpenLyrics, onOpenProviders }) {
   const { t } = useUI();
-  const hint = useMemo(() => (Math.random() < 0.5 ? t("npHintIntro") : t("npHintChorus")), [hintKey, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hint = useMemo(() => (Math.random() < 0.5 ? t("npHintIntro") : t("npHintChorus")), [hintKey, t]);
   if (mode === "lyrics") {
     if (!info.source) return <div className="npx-snip is-credit" />;
     return (
@@ -2380,7 +2342,6 @@ function NpxSnippetRow({ mode, info, hintKey, lyricsDisabled, onOpenLyrics, onOp
   );
 }
 
-/* Baris bawah: lirik | pill (🎧 👤 atau acak/ulang/∞) | antrean */
 function NpxBottomRow({ mode, onToggleLyrics, lyricsDisabled, onToggleQueue, onClose }) {
   const { t, settings, updateSettings, pushToast } = useUI();
   const { shuffle, toggleShuffle, repeat, cycleRepeat, room } = usePlayer();
@@ -2413,7 +2374,6 @@ function NpxBottomRow({ mode, onToggleLyrics, lyricsDisabled, onToggleQueue, onC
   );
 }
 
-/* Tombol transport: prev / play / next dengan ikon bergaya referensi */
 function NpxTransport() {
   const { isPlaying, togglePlay, next, prev, currentTrack, room, posInOrder } = usePlayer();
   const { authUser, t } = useUI();
@@ -2429,7 +2389,6 @@ function NpxTransport() {
   );
 }
 
-/* Antrean di dalam sheet: Sedang diputar → (Berikutnya) → AutoPlay */
 function NpxQueueRow({ track, handle, current, onPlay, onRemove, dragProps, style, className = "" }) {
   const { t } = useUI();
   return (
@@ -2457,7 +2416,7 @@ function NpxQueueView({ active, currentTrack, onCollapse }) {
     dismissSuggestion, playSuggestion, next, isPlaying, room,
   } = usePlayer();
   const scRef = useRef(null);
-  const [drag, setDrag] = useState(null); // { from, over, startY, dy, h }
+  const [drag, setDrag] = useState(null);
 
   useEffect(() => { if (!active && scRef.current) scRef.current.scrollTop = 0; }, [active]);
 
@@ -2565,7 +2524,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const qualityInfo = qualityDialogInfo(techFormat, formatLabel, settings.language === "en" ? "en" : "id");
   const openAudioSettings = () => {
     setQualityOpen(false);
-    try { window.sessionStorage.setItem("aivy.settingsTab", "audio"); } catch { /* abaikan */ }
+    try { window.sessionStorage.setItem("aivy.settingsTab", "audio"); } catch {}
     onClose();
     navigate("settings");
   };
@@ -2633,8 +2592,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const bodyScrollRef = useRef(null);
   const lyricsWrapRef = useRef(null);
 
-  // Auto-hide kontrol bawah di mode lirik: sembunyi setelah 5 dtk tanpa aktivitas, muncul lagi saat lirik di-scroll ke bawah
-  // atau area bawah diketuk, lalu sembunyi lagi setelah 5 dtk (berulang).
   useEffect(() => {
     if (!lyricsMode || !lyrCtrlOpen || langMenuOpen) return undefined;
     const ctrl = controlsRef.current;
@@ -2667,7 +2624,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
     };
   }, [lyricsMode, lyrCtrlOpen, langMenuOpen, currentTrack?.id]);
 
-  // Scroll lirik ke bawah (jari geser ke atas / roda ke bawah) -> kontrol muncul lagi. Scroll otomatis tidak dihitung.
   useEffect(() => {
     if (!lyricsMode) return undefined;
     const wrap = lyricsWrapRef.current;
@@ -2699,8 +2655,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   useEffect(() => { setLyricsUnsynced(false); }, [trackKey]);
   useEffect(() => { if (!open) { setQueueMode(false); setQCollapsed(false); } }, [open]);
   useEffect(() => { if (!queueMode) setQCollapsed(false); }, [queueMode]);
-  // Panel lirik dibuka / sheet dibuka -> kontrol bawah tampil dulu, lalu sembunyi otomatis (efek auto-hide di bawah).
-  // useLayoutEffect: state di-reset sebelum paint, jadi kontrol tidak sempat turun lalu naik lagi ("loncat").
   useLayoutEffect(() => { if (open) setLyrCtrlOpen(true); }, [lyricsMode, open]);
   useLayoutEffect(() => {
     if (!open) { setOpening(false); return undefined; }
@@ -2746,7 +2700,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
       const fn = kind === "roman" ? el.toggleRomanization : el.toggleTranslation;
       const res = typeof fn === "function" ? fn.call(el) : null;
       if (res && typeof res.then === "function") res.then(lyricsPoll.refresh, lyricsPoll.refresh); else lyricsPoll.refresh();
-    } catch { /* abaikan */ }
+    } catch {}
   };
   const lyricsLangs = useMemo(() => {
     const ctor = typeof customElements !== "undefined" ? customElements.get("am-lyrics") : null;
@@ -3597,7 +3551,6 @@ export function RightPanel() {
           aria-label={t("expandPanel", "Buka panel")}
           title={t("expandPanel", "Buka panel")}
         >
-          {}
           <span className="aivy-rightpanel-rail-peek-wrap">
             <span className="aivy-rightpanel-rail-peek" style={{ width: rightPanelWidth }}>{bodyContent}</span>
           </span>
@@ -4474,7 +4427,6 @@ export function Sidebar() {
     </button>
   );
 
-  /* ---------------- rail (sidebar diciutkan) ---------------- */
   if (sidebarCollapsed) {
     return (
       <aside className="aivy-sidebar sp-side is-rail">
@@ -4505,7 +4457,6 @@ export function Sidebar() {
     );
   }
 
-  /* ---------------- sidebar penuh ---------------- */
   const chips = [
     ["playlists", tt("Playlist", "Playlists")],
     ["albums", "Album"],
@@ -4650,7 +4601,6 @@ const LiquidGlassDefs = React.memo(function LiquidGlassDefs({ ids = LG_DOCK_IDS 
     </svg>
   );
 });
-// Navigasi bawah mobile ala Spotify: mini player melayang + tab bar penuh.
 export function MobileDock({ onExpandPlayer }) {
   const { name } = useRouter();
   const { t, settings } = useUI();
@@ -4747,7 +4697,6 @@ const AM_LYRICS_FONT_SIZES = {
   md: { "--am-lyrics-compact-font-size": "28px", "--lyplus-font-size-base": "34px", "--am-lyrics-wide-font-size": "48px" },
   lg: { "--am-lyrics-compact-font-size": "34px", "--lyplus-font-size-base": "42px", "--am-lyrics-wide-font-size": "58px" },
   xl: { "--am-lyrics-compact-font-size": "40px", "--lyplus-font-size-base": "52px", "--am-lyrics-wide-font-size": "72px" },
-  // Terbesar: ukuran mengikuti tinggi layar sehingga hanya sekitar 3 baris lirik yang muat
   max: { "--am-lyrics-compact-font-size": "max(36px, 5.5vh)", "--lyplus-font-size-base": "max(44px, 7.5vh)", "--am-lyrics-wide-font-size": "max(48px, 9vh)" },
 };
 export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur, hideChrome = false }) {
@@ -4766,8 +4715,6 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       const st = document.createElement("style");
       st.setAttribute("data-perf-layer", "");
       st.textContent = ".lyrics-line-container{ will-change: transform; } .lyrics-line{ will-change: filter; }";
-      // Khusus Now Playing mobile: baris aktif dilukis di atas tetangganya & tidak ikut di-blur, supaya halo blur
-      // baris sebelum/sesudah tidak menutupi teks yang sedang dinyanyikan.
       if (el.closest(".npx-lyrics-wrap")) {
         st.textContent += " .lyrics-line.active,.lyrics-line.pre-active,.lyrics-line.persist-highlight{ z-index: 3; filter: none !important; }";
       }
@@ -4836,7 +4783,6 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       if (el.shadowRoot.querySelector("style[data-hide-download]")) return;
       const st = document.createElement("style");
       st.setAttribute("data-hide-download", "");
-      // hideChrome: header (romanisasi/terjemahan/unduh) & footer sumber dipindah ke UI sheet (tombol bulat + "Lirik oleh …").
       st.textContent = '.download-button[title="Download Lyrics"]{display:none!important}' + (hideChrome ? '.lyrics-header,.lyrics-footer{display:none!important}.lyrics-container{padding-top:0!important}' : '');
       el.shadowRoot.appendChild(st);
     };
@@ -5183,7 +5129,6 @@ export function LyricsOverlay() {
 
       <div className="aivy-lyrics-float">
         <button className="aivy-lyrics-fbtn primary" onClick={closeLyrics} aria-label={t("close")}><X size={19} /></button>
-        { }
         <button className="aivy-lyrics-fbtn aivy-lyrics-fbtn-dup" onClick={() => setShareOpen((v) => !v)} disabled={!currentTrack} aria-label={t("share")}>
           <Share2 size={16} />
         </button>
@@ -5254,7 +5199,6 @@ export function LyricsOverlay() {
                   <Mic size={14} />
                   <span>{t("singLabel", "Sing")}</span>
                 </button>
-                {/* waktu & scrubber ikut status loadingAudio */}
                 <div className="aivy-lyrics-scrubber-row">
                   <span className="aivy-time font-mono">{loadingAudio ? "\u2013\u2013" : formatTime(scrubTime)}</span>
                   <Scrubber getRatio={getRatio} onSeekRatio={onSeekRatio} registerFill={registerFill} registerThumb={registerThumb} loading={loadingAudio} />

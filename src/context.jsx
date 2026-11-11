@@ -114,7 +114,6 @@ function clearPlaybackState() {
   try { localStorage.removeItem(PLAYBACK_STATE_KEY); } catch { }
 }
 
-// Musim Halloween: 1 Okt - 2 Nov, pengunjung yang belum pernah memilih tema otomatis dapat tema Halloween.
 function defaultThemeForSeason() {
   try {
     const d = new Date();
@@ -126,19 +125,15 @@ function defaultThemeForSeason() {
 
 const OUTPUT_DEVICE_KEY = "aivy_output_device";
 
-// ---- MIX: kurva equal-power untuk overlap lagu aktif -> lagu berikutnya ----
 const MIX_CURVE_LEN = 256;
 const MIX_CURVE_OUT = new Float32Array(MIX_CURVE_LEN);
 const MIX_CURVE_IN = new Float32Array(MIX_CURVE_LEN);
-// Equal-power (cos/sin) + easing smoothstep: awal & akhir fade sangat landai (tidak ada "tarikan" mendadak),
-// sementara total daya tetap konstan (cos^2 + sin^2 = 1) jadi volume tidak turun di tengah mix.
 for (let i = 0; i < MIX_CURVE_LEN; i++) {
   const p = i / (MIX_CURVE_LEN - 1);
   const e = p * p * p * (p * (p * 6 - 15) + 10);
   MIX_CURVE_OUT[i] = Math.cos(e * Math.PI / 2);
   MIX_CURVE_IN[i] = Math.sin(e * Math.PI / 2);
 }
-// WAV senyap kecil: dipakai "membuka kunci" elemen audio kedua lewat gestur pengguna (iOS/Safari).
 const SILENT_WAV = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 function readSavedOutputDevice() {
   try {
@@ -234,8 +229,6 @@ function migrateSettings(obj) {
   if (next.visualizerPreset === "matrix") next.visualizerPreset = "auto";
   return next;
 }
-// Migrasi sekali: pengguna yang sebelumnya tersimpan liquidGlass=false (default lama untuk perangkat low-end)
-// dinyalakan ulang. Setelah ada penyimpanan pertama, pilihan pengguna dihormati lagi.
 const LG_FLAG = "aivy_lg_v2";
 function forceLiquidGlassOnce(obj) {
   return obj;
@@ -382,8 +375,6 @@ export function UIProvider({ children }) {
   const loggingOutRef = useRef(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const logout = useCallback(async () => {
-    // Sedang dalam mode impersonate: jangan panggil /auth/logout — itu akan
-    // menghapus cookie sesi asli (admin) di browser ini. Cukup lepas token.
     if (isImpersonating()) { exitImpersonate(); return; }
     if (loggingOutRef.current) return;
     loggingOutRef.current = true;
@@ -531,10 +522,6 @@ function probeLocalAudioDuration(url) {
   });
 }
 
-// ===== CACHE AUTOPLAY =====
-// Daftar AutoPlay disimpan per seed (lagu terakhir di antrean) supaya daftarnya
-// identik setiap kali antrean yang sama diputar ulang / halaman di-reload —
-// AutoPlay tidak pernah "berubah-ubah" sendiri.
 const AUTOPLAY_CACHE_PREFIX = "cx.autoplay.v2:";
 const AUTOPLAY_CACHE_TTL = 24 * 60 * 60 * 1000;
 const AUTOPLAY_MAX = 200;
@@ -635,12 +622,6 @@ export function PlayerProvider({ children }) {
   const roomTrackEndedRef = useRef(null);
   const roomAdvanceKeyRef = useRef(null);
   const [chatMessages, setChatMessages] = useState([]);
-  // ===== AUTOPLAY (gaya Spotify) =====
-  // Daftar AutoPlay hidup terpisah dari antrean: dibuat sekali per "konteks"
-  // (seed = lagu terakhir dari antrean yang diisi), tidak pernah ditambahkan
-  // ke queueList, dan tidak diacak/diubah ulang. autoCursor = indeks lagu
-  // AutoPlay terakhir; inAuto = true berarti lagu yang sedang diputar berasal
-  // dari daftar AutoPlay.
   const [autoList, setAutoList] = useState([]);
   const [autoCursor, setAutoCursor] = useState(-1);
   const [inAuto, setInAuto] = useState(false);
@@ -654,17 +635,10 @@ export function PlayerProvider({ children }) {
   const autoSeqRef = useRef(0);
   const autoPendingRef = useRef(new Map());
   const autoExtendingRef = useRef(false);
-  // Seed AutoPlay dipatok saat antrean DIISI (bukan lagu terakhir tiap kali
-  // antrean berubah), jadi menambah lagu ke antrean tidak mengubah daftar
-  // AutoPlay. Kalau pin kosong (mis. antrean dipulihkan), fallback ke lagu
-  // terakhir di antrean.
   const [autoSeedPin, setAutoSeedPin] = useState(null);
   const queueListRef = useRef([]);
   useEffect(() => { queueListRef.current = queueList; }, [queueList]);
 
-  // Seed AutoPlay. Selama antrean tidak diisi ulang, seed tidak berubah, jadi
-  // daftar AutoPlay-nya juga tidak berubah (walau lagu yang diputar berganti
-  // atau user menambah lagu ke antrean).
   const autoSeedTrack = useMemo(() => {
     if (autoSeedPin) return autoSeedPin;
     if (!queueList.length || !order.length) return null;
@@ -682,8 +656,6 @@ export function PlayerProvider({ children }) {
     }).catch(() => {});
   }, [authUser, settings.historyEnabled]);
 
-  // Ambil daftar rekomendasi untuk sebuah seed. Request untuk seed yang sama
-  // yang masih jalan dipakai bersama (tidak dobel).
   const loadAutoTracks = useCallback((seedTrack) => {
     const key = autoplaySeedKey(seedTrack) || `${seedTrack?.title || ""}|${seedTrack?.artist?.name || ""}`;
     const pending = autoPendingRef.current.get(key);
@@ -699,7 +671,6 @@ export function PlayerProvider({ children }) {
     return p;
   }, []);
 
-  // Buang satu lagu dari daftar AutoPlay (dismiss / promote) tanpa menyentuh antrean.
   const removeFromAuto = useCallback((trackId) => {
     const list = autoListRef.current;
     const idx = list.findIndex((t) => String(t.id) === String(trackId));
@@ -708,7 +679,6 @@ export function PlayerProvider({ children }) {
     if (idx <= autoCursorRef.current) setAutoCursor((c) => Math.max(c - 1, -1));
   }, []);
 
-  // Maju ke lagu AutoPlay berikutnya yang sudah ada di daftar.
   const advanceAutoFrom = useCallback((list, nextIdx) => {
     const track = list?.[nextIdx];
     if (!track) return false;
@@ -724,8 +694,6 @@ export function PlayerProvider({ children }) {
     [advanceAutoFrom]
   );
 
-  // Daftar AutoPlay habis -> ambil lanjutan dari lagu AutoPlay terakhir.
-  // Hanya MENAMBAH; entri yang sudah tampil tidak pernah diganti atau diacak.
   const extendAuto = useCallback(async () => {
     if (autoExtendingRef.current) return null;
     const list = autoListRef.current;
@@ -767,8 +735,6 @@ export function PlayerProvider({ children }) {
     a.muted = true;
     return a;
   })());
-  // Elemen audio kedua untuk fitur Mix: lagu berikutnya diputar di sini, tumpang tindih dengan
-  // ekor lagu aktif, lalu peran kedua elemen ditukar (audioRef <-> altAudioRef) tanpa jeda.
   const altAudioRef = useRef((() => {
     if (typeof Audio === "undefined") return null;
     const a = new Audio();
@@ -827,15 +793,11 @@ export function PlayerProvider({ children }) {
     if (saved.muted) setMuted(true);
     if (saved.playSource) setPlaySource(saved.playSource);
     pendingResumeTimeRef.current = typeof saved.currentTime === "number" ? saved.currentTime : 0;
-    // Pulihkan state AutoPlay. Tanpa ini, refresh menjatuhkan pemutar ke lagu
-    // antrean (lagu AutoPlay hidup di autoList, bukan di queueList) — lagu
-    // AutoPlay yang sedang diputar "hilang" dan balik ke lagu antrean.
     if (saved.inAuto && Array.isArray(saved.autoList) && saved.autoList.length) {
       const cur = Math.min(Math.max(saved.autoCursor || 0, 0), saved.autoList.length - 1);
       setAutoList(saved.autoList);
       setAutoCursor(cur);
       setInAuto(true);
-      // Patok kunci seed supaya efek AutoPlay tidak membuat ulang daftar.
       if (saved.autoSeedKey) autoSeedKeyRef.current = saved.autoSeedKey;
     }
   }, []);
@@ -950,7 +912,6 @@ export function PlayerProvider({ children }) {
 
   const getAudioContext = useCallback(() => ensureAudioGraph()?.ctx || null, [ensureAudioGraph]);
 
-  // Pilih perangkat output (null = default sistem). Web Audio dirutekan lewat AudioContext, jadi pakai ctx.setSinkId.
   const setOutputDevice = useCallback(async (dev) => {
     const ctx = ensureAudioGraph()?.ctx;
     const id = dev?.id || "";
@@ -1059,12 +1020,6 @@ export function PlayerProvider({ children }) {
           title: track.title || "",
           artist: artistName,
         });
-        // Siapkan asset di server SEBELUM src di-set. Request media jadi hangat:
-        // dapat Content-Length (seekable) dan tak dibatalkan Chrome yang menyerah
-        // pada request diam ~5 dtk saat FLAC dingin. Gagal -> lanjut apa adanya.
-        // `warm.format` memberi tahu format yang benar-benar akan dialirkan
-        // ('flac' | 'webm' | null) supaya label Now Playing tidak berbohong
-        // saat FLAC turun ke opus.
         let format = null;
         try { format = (await Api.warmStream(src))?.format || null; } catch { }
         return { src, preview: false, videoId, format };
@@ -1125,12 +1080,8 @@ export function PlayerProvider({ children }) {
     };
   }, [resumeAudioCtx]);
 
-  // ===================== MIX: lagu menyatu ke lagu berikutnya tanpa jeda =====================
   const mixOn = !!settings.mixEnabled && !inRoom;
   const mixSeconds = clamp(Number(settings.mixSeconds) || 8, 2, 20);
-  // Lead pra-muat lagu mix berikutnya SEBELUM zona mix. Opus cukup pendek;
-  // FLAC butuh jauh lebih panjang (header + byte pertama datang lebih lambat),
-  // kalau tidak `alt.play()` di zona mix masih dingin -> timeout -> mix gagal.
   const mixPreloadLead = getPreferredAudioFormat() === "flac" ? 30 : 8;
   const mixNextPos = posInOrder + 1 < order.length ? posInOrder + 1 : (repeat === "all" && order.length > 1 ? 0 : -1);
   const autoNextTrack = autoList[autoCursor + 1] || null;
@@ -1138,7 +1089,6 @@ export function PlayerProvider({ children }) {
   const mixNextAuto = mixNextPos < 0 && !!autoNextTrack;
   const mixPlanned = mixOn && repeat !== "one" && settings.autoplay !== false && !!currentTrack
     && !!mixNextTrack && mixNextTrack.id !== currentTrack.id && clipDuration > mixSeconds * 2 + 2;
-  // Posisi penanda di bar durasi = titik di mana mix mulai berjalan.
   const mixMarkerRatio = mixPlanned ? clamp((clipDuration - mixSeconds) / clipDuration, 0, 1) : null;
 
   const abortMix = () => {
@@ -1166,12 +1116,6 @@ export function PlayerProvider({ children }) {
   };
 
   const preloadMixTarget = () => {
-    // FLAC juga dipra-muat. Dulu baris ini langsung `return` untuk FLAC supaya
-    // tidak merebut bandwidth — akibatnya saat zona mix tiba, `alt.play()` masih
-    // menunggu byte pertama FLAC dingin, lewat timeout, mix gagal, dan lagu
-    // berikutnya tidak pernah jalan. Pra-muat sekarang dimulai lebih awal
-    // (lead FLAC di mixTick) saat lagu aktif tinggal sedikit, jadi bagian yang
-    // belum diputar tidak kehilangan bandwidth.
     const alt = altAudioRef.current;
     const cached = nextResolvedRef.current;
     if (!alt || !mixNextTrack || !cached || cached.id !== mixNextTrack.id || mixRef.current.active) return;
@@ -1211,11 +1155,8 @@ export function PlayerProvider({ children }) {
       try { alt.currentTime = 0; } catch {}
       alt.volume = audio.volume;
       resumeAudioCtx();
-      // FLAC dingin bisa perlu beberapa detik sebelum canplay. Timeout lama 6 dtk
-      // terlalu ketat setelah pra-muat; naikkan supaya alt.play() tidak dibatalkan.
       await Promise.race([alt.play(), new Promise((_, rej) => setTimeout(() => rej(new Error("mix-timeout")), 12000))]);
       if (stale()) throw new Error("mix-stale");
-      // Hitung ulang sisa waktu setelah lagu berikutnya benar-benar jalan, supaya fade pas dengan akhir lagu.
       const remaining = audio.duration - audio.currentTime;
       if (!isFinite(remaining) || remaining < 1) throw new Error("mix-late");
       const now = graph.ctx.currentTime;
@@ -1234,7 +1175,6 @@ export function PlayerProvider({ children }) {
       m.resolved = resolved;
       setIsMixing(true);
     } catch {
-      // Gagal menyiapkan mix -> kembali ke transisi biasa (lagu berikutnya jalan setelah lagu ini selesai).
       if (token === m.token) { abortMix(); mixBlockedKeyRef.current = keyAtStart; }
     }
   };
@@ -1249,7 +1189,6 @@ export function PlayerProvider({ children }) {
     m.token += 1;
     m.active = false; m.starting = false;
     m.targetId = null; m.nextPos = -1; m.nextAuto = false; m.nextAutoCursor = -1; m.resolved = null;
-    // Tukar peran: elemen yang sudah memutar lagu berikutnya jadi elemen utama.
     audioRef.current = B;
     altAudioRef.current = A;
     skipLoadKeyRef.current = targetId;
@@ -1289,7 +1228,7 @@ export function PlayerProvider({ children }) {
     if (m.active) { if (remaining <= 0.12) finalizeMix(); return; }
     if (m.starting || !mixPlanned || audio.paused) return;
     if (mixBlockedKeyRef.current === currentKey) {
-      if (remaining > mixSeconds + 1.5) mixBlockedKeyRef.current = null; // user mundur sebelum zona mix -> boleh mix lagi
+      if (remaining > mixSeconds + 1.5) mixBlockedKeyRef.current = null;
       return;
     }
     if (remaining <= mixSeconds + mixPreloadLead && remaining > 0) preloadMixTarget();
@@ -1302,14 +1241,12 @@ export function PlayerProvider({ children }) {
     finalizeMixRef.current = finalizeMix;
   });
   useEffect(() => { if (!mixOn) abortMixRef.current?.(); }, [mixOn]);
-  // ===========================================================================================
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     if (!currentTrack) { abortMixRef.current?.(); audio.pause(); audio.removeAttribute("src"); setAudioFormat(null); return; }
     let cancelled = false;
-    // Perpindahan hasil Mix: lagu berikutnya sudah jalan di elemen audio lain -> jangan muat ulang / mulai dari nol.
     const handoff = skipLoadKeyRef.current != null && skipLoadKeyRef.current === currentTrack.id ? handoffRef.current : null;
     skipLoadKeyRef.current = null;
     handoffRef.current = null;
@@ -1335,11 +1272,10 @@ export function PlayerProvider({ children }) {
       } else if (resolved.preview) {
         setAudioFormat({ label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" });
       } else if (resolved.videoId) {
-        const served = resolved.format; // format yang BENAR-BENAR dialirkan server
+        const served = resolved.format;
         if (served === "flac") {
           setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
         } else if (served === "webm" || served === "opus") {
-          // FLAC tidak tersedia -> server menurunkan ke opus/webm; tampilkan itu.
           setAudioFormat({ label: "Opus", mimeType: "audio/webm", codec: "opus", container: "WEBM" });
         } else if (getPreferredAudioFormat() === "flac") {
           setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
@@ -1417,11 +1353,6 @@ export function PlayerProvider({ children }) {
       : (settings.autoplay !== false ? (autoList[autoCursor + 1] || null) : null);
     if (!nextTrack) return;
     let cancelled = false;
-    // Pra-siapkan tiket lagu berikutnya supaya transisi tidak perlu meminta
-    // tiket lagi (±1–2 s). Badan file hanya dipra-unduh untuk format ringan;
-    // FLAC 20–29 MB TIDAK diambil penuh — di jalur ~5 Mbps pra-unduhan penuh
-    // merebut bandwidth dari lagu yang sedang diputar (terukur: stream utama
-    // turun ke ~1,4 Mbps → audio putus-putus).
     const skipBody = getPreferredAudioFormat() === "flac";
     resolveAudioSrc(nextTrack, { prefetch: true }).then((resolved) => {
       if (cancelled || !resolved) return;
@@ -1750,11 +1681,6 @@ export function PlayerProvider({ children }) {
     }).catch(() => {});
   }, [inRoom, playSingle, authUser, settings.historyEnabled, shuffle, resumeAudioCtx]);
 
-  // ===== AUTO PLAY: daftar stabil per antrean =====
-  // Daftar dibuat sekali untuk seed (lagu terakhir antrean), disimpan di cache,
-  // dan TIDAK berubah hanya karena lagu yang sedang diputar berganti. Yang
-  // mengubahnya cuma aksi user (dismiss/promote) atau daftar yang habis
-  // (lanjutan di-append dari lagu AutoPlay terakhir).
   useEffect(() => {
     if (inRoom) return;
     if (settings.autoplay === false) {
@@ -1789,8 +1715,6 @@ export function PlayerProvider({ children }) {
     });
   }, [inRoom, autoSeedTrack, settings.autoplay, loadAutoTracks]);
 
-  // Yang ditampilkan ke UI = lagu AutoPlay setelah lagu AutoPlay yang sedang
-  // diputar (kalau belum masuk AutoPlay: seluruh daftar).
   const suggestedQueue = useMemo(() => {
     if (inRoom || !autoList.length) return [];
     return autoList.slice(autoCursor + 1);
@@ -1802,13 +1726,10 @@ export function PlayerProvider({ children }) {
     addToQueueEndRef.current?.(track);
   }, [removeFromAuto]);
 
-  // Hapus satu saran AutoPlay dari daftar (tombol ✕ di antrean now playing mobile).
   const dismissSuggestion = useCallback((track) => {
     if (track) removeFromAuto(track.id);
   }, [removeFromAuto]);
 
-  // Putar saran AutoPlay sekarang juga: lompat di dalam daftar AutoPlay,
-  // antrean user tidak disentuh sama sekali.
   const playSuggestion = useCallback((rawTrack) => {
     const track = normalizeTrack(rawTrack);
     if (!track || inRoom) return;
@@ -1836,7 +1757,6 @@ export function PlayerProvider({ children }) {
 
     const hasQueueNext = posInOrder + 1 < order.length;
 
-    // Masuk / lanjut AutoPlay. Kalau daftar belum siap, ambil dulu lalu maju.
     const startAuto = () => {
       if (advanceAuto()) return true;
       extendAuto().then((nextList) => {
@@ -1846,8 +1766,6 @@ export function PlayerProvider({ children }) {
       return true;
     };
 
-    // Sedang memutar AutoPlay. Lagu yang user tambahkan ke antrean tetap
-    // didahulukan; setelah antrean habis, AutoPlay lanjut dari posisi terakhir.
     if (inAutoRef.current) {
       if (hasQueueNext) { setInAuto(false); setPosInOrder(posInOrder + 1); return; }
       startAuto();
@@ -1867,8 +1785,6 @@ export function PlayerProvider({ children }) {
     if (inRoom) { socketRef.current?.emit("playback-control", { roomId: room.id, action: "prev" }); return; }
     const audio = audioRef.current;
     if (audio && audio.currentTime > 3) { audio.currentTime = 0; return; }
-    // Di dalam AutoPlay: mundur satu lagu; dari lagu AutoPlay pertama kembali
-    // ke lagu terakhir antrean.
     if (inAutoRef.current) {
       if (autoCursorRef.current > 0) { setAutoCursor(autoCursorRef.current - 1); return; }
       setInAuto(false);
@@ -2335,8 +2251,6 @@ export function PlayerProvider({ children }) {
     return null;
   }, []);
 
-  // Dipanggil saat audio room selesai. Hanya satu klien (host, atau member pertama
-  // jika host sudah keluar) yang memajukan lagu supaya tidak terjadi skip ganda.
   const handleRoomTrackEnded = useCallback(async () => {
     const me = authUserRef.current;
     const sock = socketRef.current;

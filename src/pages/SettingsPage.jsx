@@ -342,7 +342,7 @@ export function SettingsPage() {
     try {
       const want = window.sessionStorage.getItem("aivy.settingsTab");
       if (want) { window.sessionStorage.removeItem("aivy.settingsTab"); return want; }
-    } catch { /* abaikan */ }
+    } catch {}
     return "appearance";
   });
   const fileInputRef = useRef(null);

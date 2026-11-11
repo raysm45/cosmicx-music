@@ -41,7 +41,6 @@ function artistName(track) {
   return track.artist?.name || (typeof track.artist === "string" ? track.artist : "") || "";
 }
 
-// ---- sumber lirik: pakai komponen <am-lyrics> yang sama dengan halaman lirik web ----
 function ensureProbe() {
   if (probe || typeof document === "undefined") return probe;
   const el = document.createElement("am-lyrics");
@@ -65,7 +64,7 @@ function aimProbe(track) {
   const apply = () => {
     if (probe !== el) return;
     if (el.songTitle === title && el.songArtist === artist && el.songDurationMs === durationMs) return;
-    el.lyrics = undefined; // buang lirik lagu sebelumnya biar nggak kebaca basi
+    el.lyrics = undefined;
     el.songTitle = title;
     el.songArtist = artist;
     el.songDurationMs = durationMs;
@@ -78,8 +77,6 @@ function aimProbe(track) {
   else customElements.whenDefined("am-lyrics").then(apply);
 }
 
-// Prioritas: elemen lirik yang kelihatan di web (biar persis sama, termasuk kalau user ganti sumber),
-// kalau nggak ada baru pakai probe tersembunyi.
 function lyricLines(track) {
   const want = cleanTrackTitleForLyrics(track.title, artistName(track));
   for (const el of document.querySelectorAll("am-lyrics.aivy-am-lyrics")) {
@@ -132,7 +129,6 @@ export function useDiscordPresence({ enabled, track, isPlaying, audioRef, lyrics
       });
     };
 
-    // Dipanggil ~4x/detik oleh <audio>; cuma kirim kalau barisnya beda dari yang terakhir dikirim.
     const onTime = () => {
       if (!withLyrics || audio.paused || pending) return;
       if (currentLyric() === sentLyric) return;
@@ -146,7 +142,6 @@ export function useDiscordPresence({ enabled, track, isPlaying, audioRef, lyrics
     audio.addEventListener("timeupdate", onTime);
     if (!trackChanged) push();
     const fallback = setTimeout(push, 2500);
-    // Push karena lirik sudah membawa posisi terbaru, jadi heartbeat cukup kalau lama nggak ada kiriman.
     const heartbeat = setInterval(() => { if (Date.now() - lastSentAt >= 8000) push(); }, 10000);
 
     return () => {

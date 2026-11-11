@@ -64,8 +64,6 @@ function useIsMobile(breakpoint = 860) {
 
 const FULL_BLEED_ROUTES = new Set(["home", "newTrending", "editorsPicks", "bestAlbums"]);
 
-// Warna dinamis (desktop): latar fluid WebGL ala Now Playing desktop di belakang seluruh shell.
-// Cover disinkronkan dengan useCoverTheme (520px) agar latar, aksen, dan teks berganti bersamaan.
 function AppFluidBackdrop({ track, paused }) {
   const { settings } = useUI();
   const { isPlaying } = usePlayer();
@@ -148,7 +146,6 @@ function AppInner() {
     return () => window.removeEventListener("popstate", onPop);
   }, [settings.interceptBackToCloseModals]);
 
-  // Halaman donasi bersifat publik (tanpa login) dan tampil di luar shell aplikasi.
   if (name === "donate") return <Suspense fallback={<div className="aivy-boot"><ViewLoading /></div>}><DonatePage /></Suspense>;
   if (!authChecked) return <div className="aivy-boot"><ViewLoading /></div>;
   if (name === "landing") return <LandingPage />;
@@ -190,7 +187,6 @@ function AppInner() {
 
       {isMobile && <LyricsPrefetch />}
       {isMobile && !isImmersiveShorts && <MobileDock onExpandPlayer={() => setNowPlayingOpen(true)} />}
-      { }
       <NowPlayingSheet open={nowPlayingOpen} onClose={() => setNowPlayingOpen(false)} onOpenQueue={() => { setNowPlayingOpen(false); openMobileQueue(); }} />
       {isMobile && <QueueSheet open={mobileQueueOpen} onClose={closeMobileQueue} />}
       {!isMobile && <NowPlayingDesktop open={fullPlayerOpen} onClose={() => setFullPlayerOpen(false)} />}

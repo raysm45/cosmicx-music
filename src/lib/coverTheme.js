@@ -6,22 +6,18 @@ import { BG_FADE_MS, EASE_CSS } from "./motion.js";
 import { pickAccent, buildSet, buildSurfaces, parseColor, luminance, ISLAND_SURFACES, FULL_VARS } from "./themeColor.js";
 import "../styles/cover-theme.css";
 
-// Warna dinamis. Nilai dipasang sebagai inline CSS variable di <html>; transisinya dikerjakan CSS
-// (@property <color> + durasi/easing dari motion.js, lihat styles/cover-theme.css).
-//   mode "accent" (setting coverTheme)    : hanya --accent*  (+ --cv-dk-* untuk layar Now Playing)
-//   mode "full"   (setting dynamicColors) : + latar mesh 4 warna (--dyn-a..d) dan permukaan kaca transparan (--bg-elev*, --glass-*, --ink*)
-const COVER_PX = 520;                 // harus sama dengan NowPlayingDesktop -> cache prepareCover terpakai bersama
-const ATTR = "data-cover-theme";      // ada selama aksen aktif
-const ATTR_FULL = "data-cover-dyn";   // ada selama mode penuh aktif (gerbang aturan latar gradien + sidebar kaca)
-const ATTR_LIGHT = "data-cover-tone";  // "light" | "dark": nada latar mode penuh (untuk bayangan/specular di refine.css)
-const SNAP = "data-cv-snap";          // sementara menonaktifkan transisi saat theme (gelap/terang) diganti
+const COVER_PX = 520;
+const ATTR = "data-cover-theme";
+const ATTR_FULL = "data-cover-dyn";
+const ATTR_LIGHT = "data-cover-tone";
+const SNAP = "data-cv-snap";
 const SURFACE = ["--accent", "--accent-strong", "--accent-ink", "--accent-soft"];
 const ISLAND = ["--cv-dk-accent", "--cv-dk-strong", "--cv-dk-ink", "--cv-dk-soft"];
 const FULL = FULL_VARS;
 
-let accent = null;   // { h, C, h2, C2 } atau null (= theme bawaan)
-let mode = "accent"; // "accent" | "full"
-let base = null;     // permukaan theme ASLI (tanpa timpaan kita): { light, surfaces }
+let accent = null;
+let mode = "accent";
+let base = null;
 
 function clearAll(root) {
   [...SURFACE, ...ISLAND, ...FULL].forEach((k) => root.style.removeProperty(k));
@@ -30,8 +26,6 @@ function clearAll(root) {
   root.removeAttribute(ATTR_LIGHT);
 }
 
-// Baca permukaan theme asli. Hanya dipanggil saat init & saat theme diganti (di bawah SNAP, jadi tanpa animasi);
-// kalau dibaca tiap apply(), kita akan membaca warna timpaan kita sendiri.
 function refreshBase() {
   const root = document.documentElement;
   FULL.forEach((k) => root.style.removeProperty(k));
@@ -48,7 +42,7 @@ function apply() {
   if (!base) refreshBase();
 
   let surfaces = base.surfaces;
-  const full = mode === "full" && root.getAttribute("data-contrast") !== "high";   // kontras tinggi: tetap pakai warna theme
+  const full = mode === "full" && root.getAttribute("data-contrast") !== "high";
   if (full) {
     const f = buildSurfaces(accent, base.light);
     surfaces = f.surfaces;
@@ -60,7 +54,7 @@ function apply() {
     root.removeAttribute(ATTR_FULL);
     root.removeAttribute(ATTR_LIGHT);
   }
-  const neutral = mode === "full";   // Warna dinamis: latar ikut cover, tapi aksen (tombol/scrubber) tetap hitam/putih
+  const neutral = mode === "full";
   const s = buildSet(accent, { surfaces, light: base.light, neutral });
   const d = buildSet(accent, { surfaces: ISLAND_SURFACES, island: true, neutral });
   SURFACE.forEach((k, i) => root.style.setProperty(k, s.strings[i]));
@@ -68,8 +62,6 @@ function apply() {
   root.setAttribute(ATTR, "");
 }
 
-// Ganti theme (hitam<->putih, kontras tinggi): baca ulang permukaan asli & hitung ulang kontras, TANPA animasi,
-// kalau tidak ikon sempat terang-di-atas-putih selama 1,7 dtk.
 function watchTheme() {
   const root = document.documentElement;
   let raf = 0;
@@ -90,7 +82,6 @@ export function useCoverTheme() {
   const full = settings.dynamicColors === true;
   const on = full || settings.coverTheme !== false;
 
-  // Warna baru baru dipakai setelah cover + paletnya siap (sama persis dengan yang menahan crossfade & latar NPD)
   const snap = useSyncedCoverTrack(on ? currentTrack : null, COVER_PX);
   const cover = on ? snap.cover : null;
 

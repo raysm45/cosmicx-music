@@ -6,15 +6,6 @@ import { useUI } from "./context.jsx";
 import { SmartCover } from "./lib/brand.jsx";
 import "./styles/download-sheet.css";
 
-/*
- * Sheet "Unduh lagu": pilih format file sebelum mengunduh.
- * Dibuka dari mana saja lewat openDownload(track) — tombol di Now Playing
- * (desktop & mobile) dan menu "..." lagu memakai fungsi yang sama, jadi
- * hanya ada satu sheet (DownloadSheetHost, dipasang sekali di App).
- *
- * `format` dikirim ke /api/stream-ticket. Backend saat ini memahami
- * aac | opus | flac; "mp3" butuh dukungan di backend (lihat catatan README).
- */
 const OPEN_EVENT = "aivy:download-track";
 const LAST_KEY = "aivy.download.format";
 
@@ -50,7 +41,7 @@ function readLast() {
   try { return window.localStorage.getItem(LAST_KEY) || ""; } catch { return ""; }
 }
 function writeLast(v) {
-  try { window.localStorage.setItem(LAST_KEY, v); } catch { /* storage dimatikan */ }
+  try { window.localStorage.setItem(LAST_KEY, v); } catch {}
 }
 
 export function DownloadSheetHost() {

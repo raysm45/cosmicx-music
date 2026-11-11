@@ -308,12 +308,9 @@ function useCoverSwipe({ onNext, onPrev, disabled }) {
   };
 }
 
-/* ---------- transisi panel kanan (Now Playing <-> Lirik / Antrean / Artis) ---------- */
 const PANE_ORDER = { controls: 0, lyrics: 1, artist: 1, queue: 2 };
 const PANE_EXIT_MS = 280;
 
-// Panel lama tetap ter-mount selama animasi keluar (class is-leaving) sementara panel baru
-// masuk dari arah yang sama dengan urutan tombol di dock. Reduced motion = ganti langsung.
 function usePaneTransition(view, reduce) {
   const [st, setSt] = useState({ cur: view, leaving: [], dir: 1 });
   if (st.cur !== view) {
@@ -386,10 +383,6 @@ function useNpdGlass(rootRef, enabled, hasTrack, view, liquidGlass) {
   return ready;
 }
 
-/* ---------- crossfade thumbnail ---------- */
-// Cover lama tetap ter-mount (frozen) dan DI ATAS, dibalik seperti halaman buku (CSS .is-out) sampai menghilang,
-// cover baru menunggu di bawahnya (.is-in), lalu yang lama dibuang. Semua layer dirender dalam SATU array ber-key supaya React tidak me-remount
-// layer yang berpindah dari "current" ke "leaving" (kalau di-remount, gambar akan berkedip).
 function CoverCrossfade({ layerKey, reduce, children }) {
   const [st, setSt] = useState({ gen: 0, leaving: [] });
   const last = useRef({ key: layerKey, node: children, animated: false });
@@ -434,10 +427,8 @@ function FullPlayer({ shown, onClose }) {
   const refract = supportsRefraction();
   const lgReady = useNpdGlass(rootRef, refract, !!currentTrack, view, settings.liquidGlass);
 
-  // cover + warna latar diganti bersamaan, setelah keduanya siap (lihat lib/coverSync.js)
   const coverTrack = useSyncedCoverTrack(currentTrack, COVER_PX);
 
-  // pemanasan: siapkan cover lagu berikutnya selagi lagu sekarang main, jadi pergantian lagu langsung mulus
   const warmSrc = upNext?.[0]?.cover || suggestedQueue?.[0]?.cover || null;
   useEffect(() => { if (warmSrc) prepareCover(warmSrc, COVER_PX); }, [warmSrc]);
 

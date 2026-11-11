@@ -1,11 +1,5 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
 
-/*
- * Legacy mesh gradient untuk Now Playing mobile.
- * Bukan thumbnail blur: gradasi radial lebar dengan warna dari cover, tanpa blob dan tanpa grain.
- * Diam saat dipakai; hanya saat dibuka warnanya "drift" sekali (transform saja, ringan di GPU) lalu mengendap.
- */
-
 const DEFAULT_PALETTE = [
   "hsl(240, 6%, 34%)",
   "hsl(230, 8%, 26%)",
@@ -36,8 +30,6 @@ function rgbToHsl(r, g, b) {
 
 const hslCss = (h, s, l) => `hsl(${Math.round(((h % 360) + 360) % 360)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)`;
 
-// Rapikan warna supaya kaya tapi tetap cukup gelap untuk teks putih.
-// Cover hitam-putih (sat rendah) dibiarkan abu-abu, tidak dipaksa berwarna.
 function tune(h, s, l) {
   const neutral = s < 0.12;
   const sat = neutral ? s : clamp(s * 1.15, 0.38, 0.82);

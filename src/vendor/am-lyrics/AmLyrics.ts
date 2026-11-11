@@ -52,7 +52,6 @@ const DEFAULT_KPOE_SOURCE_ORDER =
 
 const GENIUS_WORKER_URL = 'https://fetch-genius.samidy.workers.dev/';
 const LRC_RED_BASE = 'https://lrc.red';
-// BetterLyrics: endpoint resmi, lalu domain lama sebagai cadangan.
 const BETTER_LYRICS_BASES = [
   'https://api.betterlyrics.org',
   'https://lyrics-api.boidu.dev',
@@ -131,7 +130,6 @@ export class AmLyrics extends LitElement {
         var(--highlight-color, #ffffff)
       );
       --lyplus-text-primary: var(--lyplus-lyrics-palette);
-      /* Use color-mix with the text color rather than just opacity so it adapts */
       --lyplus-text-secondary: color-mix(
         in srgb,
         var(--lyplus-lyrics-palette),
@@ -194,9 +192,6 @@ export class AmLyrics extends LitElement {
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ==========================================================================
-       CONTAINER & SCROLL BEHAVIOR
-       ========================================================================== */
     .lyrics-container {
       position: relative;
       padding: 60px var(--am-lyrics-inline-padding)
@@ -218,12 +213,6 @@ export class AmLyrics extends LitElement {
       overflow-anchor: none;
       overscroll-behavior-y: contain;
       scroll-padding-block-start: var(--lyrics-scroll-padding-top);
-      /* Baris lirik di ujung atas/bawah area scroll ini sebelumnya kepotong
-         tajam persis di batas kotak elemen — kelihatan kayak "dikurung"
-         pembatas persegi. Fade lewat mask-image bikin baris paling
-         atas/bawah meluruh ke transparan alih-alih terpotong, jadi area
-         lirik terasa nyambung/blend ke background, bukan kotak tegas.
-         Ukurannya bisa diatur lewat --am-lyrics-edge-fade kalau perlu. */
       -webkit-mask-image: linear-gradient(
         to bottom,
         transparent 0,
@@ -244,23 +233,18 @@ export class AmLyrics extends LitElement {
       display: none;
     }
 
-    /* Disable transitions during touch-scrolling for 1:1 feedback */
     .lyrics-container.touch-scrolling .lyrics-line,
     .lyrics-container.touch-scrolling .lyrics-plus-metadata {
       transition: none !important;
       filter: none !important;
     }
 
-    /* Apply smooth gliding transition for mouse-wheel scrolling */
     .lyrics-container.wheel-scrolling .lyrics-line {
       transition: transform 0.3s ease-out !important;
       filter: none !important;
     }
 
     .lyrics-line.scroll-animate {
-      /* Preserve the graceful fade duration; the keyframe handles the
-         transform, so we only need to keep opacity/filter transitions
-         alive without !important overriding the base rule. */
       transition:
         opacity 0.7s ease,
         filter 0.7s ease,
@@ -278,9 +262,6 @@ export class AmLyrics extends LitElement {
       transition-delay: 0ms !important;
     }
 
-    /* ==========================================================================
-       LYRICS LINE BASE STYLES
-       ========================================================================== */
     .lyrics-line {
       position: relative;
       isolation: isolate;
@@ -292,15 +273,11 @@ export class AmLyrics extends LitElement {
       line-height: var(--am-lyrics-line-height);
       cursor: pointer;
       transform-origin: left;
-      /* Graceful 0.7 s fade so the line stays mostly bright while the
-         0.4 s scroll animation runs, then settles into the inactive state. */
       transition:
         opacity 0.7s ease,
         transform 0.4s cubic-bezier(0.41, 0, 0.12, 0.99)
           var(--lyrics-line-delay, 0ms),
         filter 0.7s ease;
-      /* Keep line geometry stable in WebKit; content-visibility:auto can
-         change offsetTop as Safari reveals an offscreen lyric. */
       contain: layout style;
       text-rendering: optimizeLegibility;
     }
@@ -337,7 +314,6 @@ export class AmLyrics extends LitElement {
       animation: none;
     }
 
-    /* --- Line Container & Vocal Containers --- */
     .lyrics-line-container {
       position: relative;
       overflow-wrap: break-word;
@@ -401,9 +377,6 @@ export class AmLyrics extends LitElement {
       margin-right: 0;
     }
 
-    /* Background vocals expand only when .bg-expanded is present.
-       This is separate from .active so bg vocals can collapse immediately
-       while .active stays to keep text white until the scroll passes. */
     .lyrics-line.bg-expanded .background-vocal-container {
       height: calc(
         var(
@@ -420,10 +393,6 @@ export class AmLyrics extends LitElement {
       will-change: opacity, transform;
     }
 
-    /* During exit, collapse the layout shell with the lyric scroll while an
-       absolutely positioned copy of its normal wrapper remains unclipped and
-       scales away in place. This lets following lines reclaim the space in the
-       same motion instead of after the background vocal has disappeared. */
     .lyrics-line.bg-collapsing .background-vocal-container {
       display: flex;
       align-items: center;
@@ -478,7 +447,6 @@ export class AmLyrics extends LitElement {
       transition-duration: 1ms !important;
     }
 
-    /* --- Line States & Modifiers --- */
     .lyrics-line.active {
       opacity: 1;
       color: var(--lyplus-text-primary);
@@ -488,8 +456,6 @@ export class AmLyrics extends LitElement {
       opacity: 1;
     }
 
-    /* Predictive scrolling begins before the next timestamp. Start dimming
-       the outgoing line at the same moment so it settles with the scroll. */
     .lyrics-line.scroll-exiting {
       opacity: 0.8;
       color: var(--lyplus-text-secondary);
@@ -535,8 +501,6 @@ export class AmLyrics extends LitElement {
       text-align: right;
     }
 
-    /* Preserve a clear duet lane without forcing every line into a narrow
-       column. Logical padding keeps the spacing correct for RTL content. */
     .lyrics-container.has-duet-lines .lyrics-line.singer-left {
       padding-inline-end: max(var(--lyplus-padding-line), 15%);
     }
@@ -545,7 +509,6 @@ export class AmLyrics extends LitElement {
       padding-inline-start: max(var(--lyplus-padding-line), 15%);
     }
 
-    /* --- Unsynced (Plain Text) Lyrics Overrides --- */
     .lyrics-container.is-unsynced .lyrics-line {
       opacity: 1 !important;
       color: var(--lyplus-text-primary) !important;
@@ -587,7 +550,6 @@ export class AmLyrics extends LitElement {
       transition-duration: 120ms;
     }
 
-    /* --- Blur Effect for Inactive Lines --- */
     .lyrics-container.blur-inactive-enabled:not(.not-focused)
       .lyrics-line:not(.active):not(.pre-active):not(.lyrics-gap):not(
         .persist-highlight
@@ -595,8 +557,6 @@ export class AmLyrics extends LitElement {
       filter: blur(var(--lyplus-blur-amount));
     }
 
-    /* Viewport Virtualization: Strip expensive filters and animations from
-       offscreen lines.  IntersectionObserver toggles this class. */
     .lyrics-line.far-line {
       filter: none !important;
       will-change: auto !important;
@@ -618,8 +578,6 @@ export class AmLyrics extends LitElement {
       filter: blur(var(--lyplus-blur-amount-near));
     }
 
-    /* Distance falloff mirrors the native lyric stack: neighbouring lines
-       remain legible while lines farther from the focus gently recede. */
     .lyrics-line.prev-2,
     .lyrics-line.next-2 {
       opacity: 0.7;
@@ -655,22 +613,17 @@ export class AmLyrics extends LitElement {
       filter: blur(var(--lyplus-blur-amount));
     }
 
-    /* Unblur all lines when user is scrolling */
     .lyrics-container.user-scrolling .lyrics-line {
       transition: none !important;
       filter: none !important;
       opacity: 0.8 !important;
     }
 
-    /* Unblur early for pre-active lines */
     .lyrics-container.blur-inactive-enabled .lyrics-line.pre-active {
       filter: blur(0px) !important;
       opacity: 1;
     }
 
-    /* ==========================================================================
-       WORD & SYLLABLE STYLES
-       ========================================================================== */
     .lyrics-word:not(.allow-break) {
       display: inline-block;
       vertical-align: baseline;
@@ -729,12 +682,8 @@ export class AmLyrics extends LitElement {
         transform 0.7s ease;
     }
 
-    /* --- Syllable States --- */
     .lyrics-syllable.finished {
       background-color: var(--lyplus-text-primary);
-      /* Unified transition: transform keeps its 1s glow decay, while
-         background-color and color fade at 0.7s so everything dims
-         together when the line becomes inactive. */
       transition:
         transform 1s ease,
         background-color 0.7s ease,
@@ -752,7 +701,6 @@ export class AmLyrics extends LitElement {
         color 0.5s;
     }
 
-    /* --- Wipe Highlight Effect --- */
     .lyrics-line.active:not(.lyrics-gap) .lyrics-syllable.highlight.no-chars,
     .lyrics-line.active:not(.lyrics-gap)
       .lyrics-syllable.pre-highlight.no-chars {
@@ -783,8 +731,6 @@ export class AmLyrics extends LitElement {
       background-position: right 0%;
     }
 
-    /* Background vocals: muted gray wipe instead of white.
-       Must match specificity of the main .active .highlight rule (0,3,1). */
     .lyrics-line.active
       .background-vocal-container
       .lyrics-syllable.highlight.no-chars,
@@ -827,7 +773,6 @@ export class AmLyrics extends LitElement {
       );
     }
 
-    /* Non-growable words float up with a gentle curve */
     .lyrics-line.active:not(.lyrics-gap)
       .lyrics-word:not(.growable):not(.char-drag)
       .lyrics-syllable.highlight {
@@ -859,8 +804,6 @@ export class AmLyrics extends LitElement {
       transform: translate3d(0, var(--char-rise-y, -1.12px), 0);
     }
 
-    /* Background vocal overrides — placed AFTER main rules so they win
-       on equal specificity. */
     .background-vocal-container .lyrics-syllable {
       background-color: color-mix(
         in srgb,
@@ -946,7 +889,6 @@ export class AmLyrics extends LitElement {
       user-select: none;
     }
 
-    /* Syllable with chars: make syllable transparent, chars handle color */
     .lyrics-line .lyrics-syllable.has-chars:not(.finished) {
       background-color: transparent;
       color: transparent;
@@ -980,7 +922,6 @@ export class AmLyrics extends LitElement {
       transition: color 0.18s;
     }
 
-    /* Active char spans: structural only, wipe animation sets gradient */
     .lyrics-line.active .lyrics-syllable span.char {
       background-clip: text;
       -webkit-background-clip: text;
@@ -1028,9 +969,6 @@ export class AmLyrics extends LitElement {
       animation-fill-mode: forwards;
     }
 
-    /* ==========================================================================
-       INSTRUMENTAL GAP STYLES
-       ========================================================================== */
     .lyrics-gap {
       --gap-scale: 0;
       --gap-opacity: 0;
@@ -1063,8 +1001,6 @@ export class AmLyrics extends LitElement {
         transform var(--scroll-duration, 280ms);
     }
 
-    /* Reclaim the row from the first predictive-scroll frame, after the dot
-       pop has finished, so the reflow and scroll share one curve. */
     .lyrics-gap.gap-collapsing {
       height: 0;
       transition:
@@ -1079,9 +1015,6 @@ export class AmLyrics extends LitElement {
       inset-inline-start: var(--lyplus-padding-line);
       display: flex;
       align-items: center;
-      /* The preceding lyric already owns the normal line spacing. Include it
-         in the dot layer so the dots sit midway between the surrounding lyric
-         boxes, including while the instrumental row expands or collapses. */
       height: calc(100% + var(--am-lyrics-line-spacing));
       margin: 0;
       line-height: 1;
@@ -1132,7 +1065,6 @@ export class AmLyrics extends LitElement {
       margin: 0 var(--lyplus-gap-dot-margin);
     }
 
-    /* Line-synced lyrics should fade in instantly/quickly instead of wiping */
     .lyrics-syllable.line-synced {
       background: transparent !important;
       color: var(--lyplus-lyrics-palette) !important;
@@ -1177,9 +1109,6 @@ export class AmLyrics extends LitElement {
       animation: none !important;
     }
 
-    /* ==========================================================================
-       METADATA & FOOTER STYLES
-       ========================================================================== */
     .lyrics-plus-metadata {
       display: block;
       position: relative;
@@ -1227,7 +1156,7 @@ export class AmLyrics extends LitElement {
 
     .lyrics-footer.active {
       opacity: 1;
-      color: rgba(255, 255, 255, 0.5); /* Grey instead of primary */
+      color: rgba(255, 255, 255, 0.5);
     }
 
     .lyrics-footer.scroll-animate {
@@ -1256,7 +1185,7 @@ export class AmLyrics extends LitElement {
     }
 
     .lyrics-footer a {
-      color: var(--lyplus-text-primary); /* Stand out using primary color */
+      color: var(--lyplus-text-primary);
       text-underline-offset: 2px;
       opacity: 0.8;
       transition: opacity 0.2s;
@@ -1278,9 +1207,6 @@ export class AmLyrics extends LitElement {
       align-items: center;
     }
 
-    /* ==========================================================================
-       HEADER & CONTROLS
-       ========================================================================== */
     .lyrics-header {
       display: flex;
       position: absolute;
@@ -1439,9 +1365,6 @@ export class AmLyrics extends LitElement {
       color: #fff;
     }
 
-    /* ==========================================================================
-       TRANSLATION & ROMANIZATION
-       ========================================================================== */
     .lyrics-translation-container,
     .lyrics-romanization-container {
       padding-top: 0.2em;
@@ -1496,9 +1419,6 @@ export class AmLyrics extends LitElement {
       font-weight: normal;
     }
 
-    /* ==========================================================================
-       SKELETON LOADING
-       ========================================================================== */
     @keyframes skeleton-loading {
       0% {
         background-color: rgba(255, 255, 255, 0.1);
@@ -1535,17 +1455,12 @@ export class AmLyrics extends LitElement {
       font-weight: normal;
     }
 
-    /* ==========================================================================
-       KEYFRAME ANIMATIONS
-       ========================================================================== */
-
     @keyframes source-switch-spin {
       to {
         transform: rotate(360deg);
       }
     }
 
-    /* Wipe animation for syllables */
     @keyframes wipe {
       from {
         background-size: 0% 100%;
@@ -1634,9 +1549,6 @@ export class AmLyrics extends LitElement {
       }
     }
 
-    /* Character-rendered words use a separate moving gradient in front of
-       their solid fill. This makes the individual glyph wipes read as one
-       continuous word-level wipe. */
     @keyframes char-pre-wipe {
       from {
         background-size:
@@ -1715,8 +1627,6 @@ export class AmLyrics extends LitElement {
       }
     }
 
-    /* Scroll animation — class is removed and re-added (with a forced
-       reflow in between) to reliably restart the animation each time */
     @keyframes lyrics-scroll {
       from {
         transform: translate3d(0, var(--scroll-delta), 0);
@@ -1726,8 +1636,6 @@ export class AmLyrics extends LitElement {
       }
     }
 
-    /* Character grow animation — translate3d+scale3d for smooth transform,
-       drop-shadow for glow */
     @keyframes grow-dynamic {
       0% {
         transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
@@ -1802,7 +1710,6 @@ export class AmLyrics extends LitElement {
       }
     }
 
-    /* Fade in animation */
     @keyframes fadeInUp {
       from {
         opacity: 0;
@@ -1814,7 +1721,6 @@ export class AmLyrics extends LitElement {
       }
     }
 
-    /* Legacy support */
     .opposite-turn {
       text-align: right;
     }
@@ -1829,7 +1735,6 @@ export class AmLyrics extends LitElement {
       justify-content: flex-start;
     }
 
-    /* Legacy progress-text for backward compatibility */
     .progress-text {
       position: relative;
       display: inline-block;
@@ -2328,9 +2233,6 @@ export class AmLyrics extends LitElement {
 
   private preActiveLineElements: HTMLElement[] = [];
 
-  /* Timers that release a finished line's persist-highlight (sharp + white)
-     shortly after the line stops being active, so it re-blurs once the
-     scroll to the next line has settled. */
   private persistReleaseTimeouts = new Map<HTMLElement, number>();
 
   private _cancelPersistRelease(lineElement: HTMLElement): void {
@@ -2483,8 +2385,6 @@ export class AmLyrics extends LitElement {
           collectedSources.push(lrcRedResult);
         }
 
-        // Fallback: kalau lrc.red kosong atau cuma punya lirik tanpa timing,
-        // coba BetterLyrics sebelum provider lain.
         const lrcRedSynced =
           !!lrcRedResult &&
           lrcRedResult.lines.some(l => l.timestamp > 0 || l.endtime > 0);
@@ -2947,11 +2847,6 @@ export class AmLyrics extends LitElement {
     return entry.match.some(m => lower.includes(m));
   }
 
-  /**
-   * Daftar provider untuk UI "Choose lyrics provider".
-   * status: current = sedang dipakai, ready = sudah di-fetch (tinggal pindah),
-   * fetch = belum diambil, missing = sudah dicoba tapi tidak ada hasil.
-   */
   public getProviderList(): {
     key: string;
     label: string;
@@ -2997,7 +2892,6 @@ export class AmLyrics extends LitElement {
     return list;
   }
 
-  /** Pilih provider tertentu; kalau belum di-fetch, ambil dulu. */
   public async selectProvider(key: string): Promise<boolean> {
     if (this.isFetchingAlternatives) return false;
 
@@ -3105,7 +2999,6 @@ export class AmLyrics extends LitElement {
           }
         }
       } catch {
-        // abaikan; ditandai missing di bawah
       } finally {
         if (controller === this.fetchAbortController) {
           this.isFetchingAlternatives = false;
@@ -3372,15 +3265,6 @@ export class AmLyrics extends LitElement {
     return null;
   }
 
-  /**
-   * lrc.red — katalog lirik publik (TTML, word-sync bila ada timing).
-   * Urutan lookup:
-   *   1. ISRC langsung  -> /s/{ISRC}.ttml
-   *   2. title + artist -> /match.json (album & durasi dalam detik opsional)
-   *   3. query bebas    -> /search.json?q=...
-   * Hasil match/search membawa ISRC yang dipakai untuk mengunduh TTML.
-   * Parser TTML-nya sama dengan BiniLyrics.
-   */
   private static async fetchLyricsFromLrcRed(
     title: string,
     artist: string,
@@ -3414,14 +3298,10 @@ export class AmLyrics extends LitElement {
           };
         }
       } catch {
-        // abaikan, lanjut ke kandidat berikutnya
       }
       return null;
     };
 
-    // Ambil daftar kandidat ISRC dari respons match/search. Bentuk responsnya
-    // dibaca longgar (array / {results|items|tracks|data}) supaya tahan
-    // perubahan kecil di sisi lrc.red.
     const collectCandidates = (data: any): string[] => {
       const list: any[] = Array.isArray(data)
         ? data
@@ -3460,20 +3340,18 @@ export class AmLyrics extends LitElement {
           if (gotTitle === wantTitle) score += 4;
           else if (gotTitle.includes(wantTitle) || wantTitle.includes(gotTitle))
             score += 2;
-          else continue; // judul beda -> bukan lagu yang sama
+          else continue;
         }
         const gotSec = Number(
           item?.duration ?? item?.durationSec ?? item?.track?.duration,
         );
         if (wantSec && gotSec > 0) {
-          // sebagian API memberi ms, sebagian detik
           const sec = gotSec > 10000 ? gotSec / 1000 : gotSec;
           const diff = Math.abs(sec - wantSec);
           if (diff <= 3) score += 3;
           else if (diff <= 8) score += 1;
           else score -= 3;
         }
-        // skor bawaan lrc.red dipakai sebagai pembeda tipis antar kandidat
         score += (Number(item?.score) || 0) * 0.1;
         scored.push({ code, score });
       }
@@ -3507,7 +3385,6 @@ export class AmLyrics extends LitElement {
           );
           if (res.ok) queue.push(...collectCandidates(await res.json()));
         } catch {
-          // lanjut ke search
         }
       }
 
@@ -3519,7 +3396,6 @@ export class AmLyrics extends LitElement {
           );
           if (res.ok) queue.push(...collectCandidates(await res.json()));
         } catch {
-          // tidak ada kandidat
         }
       }
 
@@ -3535,12 +3411,6 @@ export class AmLyrics extends LitElement {
     return null;
   }
 
-  /**
-   * BetterLyrics — TTML dengan timing per suku kata.
-   * GET {base}/getLyrics?s=&a=&al=&d=  ->  { ttml }
-   * Lagu yang belum ada di cache server dijawab 401/404: dianggap tidak ada
-   * (bukan error). Parser TTML-nya sama dengan lrc.red.
-   */
   private static async fetchLyricsFromBetterLyrics(
     title: string,
     artist: string,
@@ -3580,7 +3450,6 @@ export class AmLyrics extends LitElement {
           };
         }
       } catch {
-        // coba domain berikutnya
       }
     }
     return null;

@@ -32,7 +32,6 @@ uniform float uAspect;
 
 mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 
-// blob lonjong: diputar sebesar ang, lalu y diregangkan (stretch)
 float blob(vec2 d, float ang, float k, float stretch){
   d = rot(ang) * d;
   d.y *= stretch;
@@ -45,14 +44,11 @@ void main(){
   vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0);
   float t = uTime;
 
-  // domain warp: batas antar warna mengalir seperti cairan
   p += 0.12 * vec2(sin(p.y * 2.6 + t * 0.33), cos(p.x * 2.3 + t * 0.29));
   p += 0.055 * vec2(sin(p.y * 5.4 - t * 0.47 + 1.7), cos(p.x * 4.9 + t * 0.41));
 
   float ax = uAspect * 0.5;
 
-  // 7 blob lonjong yang melayang & berputar (lintasan / kecepatan berbeda-beda).
-  // Bentuk lonjong + rotasi inilah yang bikin tampak "mengalir", bukan sekadar gradien diam.
   vec2 q0 = vec2(sin(t * 0.23 + 0.0) * 0.80 * ax, cos(t * 0.17 + 0.6) * 0.42);
   vec2 q1 = vec2(cos(t * 0.20 + 2.1) * 0.86 * ax, sin(t * 0.25 + 1.3) * 0.44);
   vec2 q2 = vec2(sin(t * 0.27 + 4.0) * 0.76 * ax, sin(t * 0.19 + 0.4) * 0.46);
@@ -74,16 +70,13 @@ void main(){
   vec3 avg = (uC0 + uC1 + uC2 + uC3 + uC4) * 0.2;
   vec3 col = (sum + avg * 0.02) / (wsum + 0.02);
 
-  // saturasi tipis + highlight rolloff supaya tidak neon
   float l = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(l), col, 1.22);
   col = clamp(col, 0.0, 1.0);
 
-  // vignette halus
   float v = 1.0 - smoothstep(0.25, 1.35, length((vUv - 0.5) * vec2(1.15, 1.0)));
   col *= mix(0.80, 1.0, v);
 
-  // dither tipis supaya tidak ada banding di gradien gelap
   col += (hash(gl_FragCoord.xy + fract(t)) - 0.5) * (2.0 / 255.0);
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -244,7 +237,6 @@ function loadCorsImage(src) {
     img.crossOrigin = "anonymous";
     img.decoding = "async";
     img.onload = () => {
-      // decode() = dekode off-main-thread, jadi drawImage 48px nanti tidak memicu jank
       if (img.decode) img.decode().then(() => resolve(img), () => resolve(img));
       else resolve(img);
     };
@@ -295,9 +287,6 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
   const live = useRef({ active, playing, still });
   live.current = { active, playing, still };
 
-  // cur   = warna yang sedang tampil (sRGB, dikirim ke shader tiap frame)
-  // from/to = titik awal & tujuan transisi (OKLab). Transisi berbasis WAKTU (bukan per-frame), jadi
-  // tetap mulus saat frame drop, dan kalau lagu diganti di tengah transisi, awalnya = warna yang tampil saat itu.
   const colors = useRef({ cur: colorsFromPalette(null), from: null, to: null, t0: 0, dur: BG_FADE_MS, running: false, ready: false });
   const clock = useRef({ t: 23.7, last: 0, speed: 1 });
   const rafRef = useRef(0);
@@ -384,7 +373,6 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
       if (!alive) return;
       const col = colors.current;
       if (!col.ready || live.current.still) {
-        // pertama kali / reduced motion: langsung, tanpa transisi
         col.cur = list.map((c) => c.slice());
         col.running = false;
         col.ready = true;
@@ -403,7 +391,7 @@ export const FluidBackground = memo(function FluidBackground({ src, fallbackColo
 
     if (!src) { usePalette(); return () => { alive = false; }; }
     const cached = getCachedFluidColors(src);
-    if (cached) { apply(cached); return () => { alive = false; }; }   // sudah di-prepare -> mulai di frame yang sama dengan cover
+    if (cached) { apply(cached); return () => { alive = false; }; }
     extractFluidColors(src).then(apply, usePalette);
     return () => { alive = false; };
   }, [src]);

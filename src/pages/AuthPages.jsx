@@ -181,7 +181,6 @@ function CosmicMark() {
   );
 }
 
-// ---- Login NORMAL: ivory + champagne (mengikuti desain cosmicx music) ----
 const WAVES = Array.from({ length: 9 }, (_, i) =>
   `M-80 ${300 + i * 6} C260 ${150 + i * 9}, 520 ${620 - i * 7}, 900 ${470 + i * 5} S1380 ${360 + i * 6}, 1700 ${540 + i * 4}`);
 
@@ -254,7 +253,6 @@ export function LoginPage() {
   const handleGoogle = () => { setPending("google"); loginGoogle(); };
   const handleDiscord = () => { setPending("discord"); login(); };
 
-  // Event (Halloween) tetap pakai tampilan & logo event; hari biasa pakai desain ivory baru.
   if (!halloween) {
     return <SoftLogin errorCode={errorCode} pending={pending} authChecked={authChecked} onGoogle={handleGoogle} onDiscord={handleDiscord} />;
   }

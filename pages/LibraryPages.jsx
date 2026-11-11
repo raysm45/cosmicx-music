@@ -36,8 +36,6 @@ function mergeTracks(...lists) {
 
 const LIB_VIEW_KEY = "cx_lib_view";
 
-/* ---------- helpers ---------- */
-
 function useMq(query) {
   const [matches, setMatches] = React.useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
   React.useEffect(() => {
@@ -50,7 +48,6 @@ function useMq(query) {
   return matches;
 }
 
-/* jumlah kolom grid saat ini, supaya 1 baris "shelf" tidak pernah terpotong */
 function useGridCols(ref, fallback = 6) {
   const [cols, setCols] = React.useState(fallback);
   React.useLayoutEffect(() => {
@@ -84,8 +81,6 @@ function artistItem(a, t) {
   return { key: "ar" + a.id, to: "artist", params: { id: a.id }, title: a.name, sub: "", kind: t("artistLabel"), cover: a.image, seed: "artist" + a.id + a.name, round: true };
 }
 
-/* ---------- data (dipakai desktop & mobile) ---------- */
-
 function useLibraryData() {
   const { playlists, liked, localTracks, playList, setPlaylistDetail, followedArtists, savedAlbums } = usePlayer();
   const { t, authUser } = useUI();
@@ -102,7 +97,7 @@ function useLibraryData() {
 
   const setView = (v) => {
     setViewState(v);
-    try { localStorage.setItem(LIB_VIEW_KEY, v); } catch { /* ignore */ }
+    try { localStorage.setItem(LIB_VIEW_KEY, v); } catch {}
   };
 
   React.useEffect(() => {
@@ -175,8 +170,6 @@ function useLibraryData() {
   };
 }
 
-/* ---------- potongan UI bersama ---------- */
-
 function LibItem({ it, layout }) {
   const size = layout === "row" ? 56 : 200;
   const sub = layout === "row" ? [it.kind, it.sub].filter(Boolean).join(" \u00b7 ") : (it.sub || it.kind);
@@ -217,7 +210,6 @@ function LibPin({ Icon, accent = false, title, sub, to, onOpen, onPlay, playLabe
   );
 }
 
-/* satu baris kartu, jumlahnya mengikuti lebar layar */
 function LibShelf({ title, items, onMore }) {
   const ref = useRef(null);
   const cols = useGridCols(ref);
@@ -262,7 +254,6 @@ function LibBody({ lib, isMobile }) {
     <LibPin Icon={Music2} title="Semua lagu" sub={`${allSongs.length} ${t("songsCount")}`} onOpen={() => setTab("songs")} />
   );
 
-  /* ---- Semua ---- */
   if (tab === "all") {
     const mixed = [...pls, ...als, ...ars];
     const hasCollections = mixed.length > 0;
@@ -310,7 +301,6 @@ function LibBody({ lib, isMobile }) {
     );
   }
 
-  /* ---- Lagu ---- */
   if (tab === "songs") {
     if (!songs.length) {
       return searching
@@ -340,7 +330,6 @@ function LibBody({ lib, isMobile }) {
     );
   }
 
-  /* ---- Artist / Album / Playlist ---- */
   const list = tab === "artists" ? ars : tab === "albums" ? als : pls;
   const empty = {
     artists: { Icon: Mic2, title: "Belum ada artist yang diikuti", sub: "Ikuti artist dari halaman artist, nanti muncul di sini." },
@@ -359,8 +348,6 @@ function LibBody({ lib, isMobile }) {
     </>
   );
 }
-
-/* ---------- Desktop ---------- */
 
 function LibraryDesktop({ lib }) {
   const { t, tab, setTab, tabs, q, setQ, view, setView } = lib;
@@ -403,8 +390,6 @@ function LibraryDesktop({ lib }) {
   );
 }
 
-/* ---------- Mobile ---------- */
-
 function LibraryMobile({ lib }) {
   const { t, tab, setTab, tabs, q, setQ } = lib;
   const [searchOpen, setSearchOpen] = React.useState(q !== "");
@@ -440,8 +425,6 @@ function LibraryMobile({ lib }) {
     </div>
   );
 }
-
-/* ---------- Halaman ---------- */
 
 export function LibraryPage() {
   const isMobile = useMq("(max-width: 860px)");

@@ -1,14 +1,10 @@
-// Konstanta + helper bersama untuk transisi Now Playing Desktop (cover + warna latar).
-// Satu sumber kebenaran: cover (CSS) dan latar (WebGL) memakai kurva yang SAMA, jadi geraknya menyatu.
-
-export const COVER_FADE_MS = 1100;   // crossfade thumbnail
-export const BG_FADE_MS = 1700;      // perpindahan warna latar (sedikit lebih lambat dari cover = terasa "menyusul")
-export const BG_STAGGER_MS = 70;     // jeda antar slot warna -> perpindahan terasa mengalir, bukan fade seragam
+export const COVER_FADE_MS = 1100;
+export const BG_FADE_MS = 1700;
+export const BG_STAGGER_MS = 70;
 
 export const EASE_POINTS = [0.45, 0.05, 0.2, 1];
 export const EASE_CSS = `cubic-bezier(${EASE_POINTS.join(",")})`;
 
-// cubic-bezier solver (Newton + bisection) supaya kurva JS identik dengan CSS timing-function.
 export function makeBezier(x1, y1, x2, y2) {
   const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
   const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
@@ -40,12 +36,10 @@ export function makeBezier(x1, y1, x2, y2) {
 
 export const ease = makeBezier(...EASE_POINTS);
 
-/* ---------- OKLab: interpolasi warna yang perseptual (tidak keruh/abu-abu di tengah) ---------- */
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const toLin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 const toGam = (c) => (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
 
-// [r,g,b] 0..1 (sRGB gamma) -> [L,a,b]
 export function rgbToLab(rgb) {
   const r = toLin(rgb[0]), g = toLin(rgb[1]), b = toLin(rgb[2]);
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
@@ -58,7 +52,6 @@ export function rgbToLab(rgb) {
   ];
 }
 
-// [L,a,b] -> tulis ke out [r,g,b] 0..1 (tanpa alokasi, dipanggil tiap frame)
 export function labToRgb(lab, out) {
   const l_ = lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2];
   const m_ = lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2];
@@ -70,7 +63,6 @@ export function labToRgb(lab, out) {
   return out;
 }
 
-/* ---------- pasangkan slot warna lama -> baru dengan jarak total terkecil ---------- */
 const permCache = new Map();
 function permutations(n) {
   if (permCache.has(n)) return permCache.get(n);
@@ -89,8 +81,6 @@ function permutations(n) {
   return res;
 }
 
-// Tanpa ini slot 0 lama (mis. merah) bisa bergerak ke slot 0 baru (mis. biru) padahal ada slot lain yang
-// lebih dekat -> warna melewati abu-abu. Dengan pencocokan, tiap warna "meluncur" ke tetangga terdekatnya.
 export function matchSlots(fromLab, toLab) {
   const n = fromLab.length;
   let best = null, bestCost = Infinity;

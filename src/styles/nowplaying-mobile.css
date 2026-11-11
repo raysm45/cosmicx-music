@@ -1,18 +1,9 @@
-/* ==========================================================================
-   Now Playing mobile v3 (mengikuti video referensi: mode player / lirik / antrean)
-   - cover edge-to-edge yang menyatu ke background lewat fade
-   - background: gradasi mesh halus & diam, drift sekali saat dibuka (bukan thumbnail blur)
-   Dimuat setelah global.css, semua selector di-scope ke .aivy-sheet.npx-v2.
-   ========================================================================== */
-
-/* Warna mesh didaftarkan sebagai <color> supaya bisa di-transition saat ganti lagu. */
 @property --m1 { syntax: "<color>"; inherits: true; initial-value: #3a3a40; }
 @property --m2 { syntax: "<color>"; inherits: true; initial-value: #2c2c32; }
 @property --m3 { syntax: "<color>"; inherits: true; initial-value: #46464d; }
 @property --m4 { syntax: "<color>"; inherits: true; initial-value: #232328; }
 @property --m5 { syntax: "<color>"; inherits: true; initial-value: #34343a; }
 
-/* ---------- Mesh gradient: gradasi halus & diam (tanpa blob/pola). Saat sheet dibuka, warna "drift" sekali lalu mengendap. ---------- */
 .npx-mesh{
   position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
   contain: strict;
@@ -20,7 +11,6 @@
   background: linear-gradient(180deg, color-mix(in srgb, var(--m4) 72%, #0a0a0c) 0%, color-mix(in srgb, var(--m4) 88%, #060608) 100%);
   transition: --m1 1.4s ease, --m2 1.4s ease, --m3 1.4s ease, --m4 1.4s ease, --m5 1.4s ease;
 }
-/* tiap lapisan lebih besar dari layar (inset negatif) supaya tepinya tidak pernah terlihat saat bergeser */
 .npx-mesh .f{ position: absolute; inset: -22%; transform: translate3d(0, 0, 0); }
 .npx-mesh .f1{
   background:
@@ -36,7 +26,6 @@
   background: radial-gradient(ellipse 78% 44% at 82% 88%, var(--m4) 0%, color-mix(in srgb, var(--m4) 84%, transparent) 16%, color-mix(in srgb, var(--m4) 56%, transparent) 38%, color-mix(in srgb, var(--m4) 24%, transparent) 62%, color-mix(in srgb, var(--m4) 6%, transparent) 84%, transparent 100%);
 }
 
-/* drift satu kali saat Now Playing dibuka: tiap lapisan datang dari arah berbeda lalu diam di posisi akhir */
 .npx-mesh.is-active .f1{ animation: npx-settle-a 2.2s cubic-bezier(.2, .75, .25, 1) both; }
 .npx-mesh.is-active .f2{ animation: npx-settle-b 2.4s cubic-bezier(.2, .75, .25, 1) both; }
 .npx-mesh.is-active .f3{ animation: npx-settle-c 2.6s cubic-bezier(.2, .75, .25, 1) both; }
@@ -55,7 +44,6 @@
   to   { transform: translate3d(0, 0, 0) scale(1) rotate(0); opacity: 1; }
 }
 
-/* Vignette halus supaya teks tetap terbaca di warna cover yang terang */
 .npx-mesh::after{
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 50%, rgba(0,0,0,.10) 60%, rgba(0,0,0,.16) 67%, rgba(0,0,0,.21) 74%, rgba(0,0,0,.27) 85%, rgba(0,0,0,.32) 100%);
@@ -65,18 +53,12 @@
   .npx-mesh{ transition: none; }
 }
 
-/* ==========================================================================
-   Sheet — ukuran dalam satuan "u"
-   1u = 1 piksel video referensi (lebar 720) = 100vw / 720, jadi proporsinya
-   sama persis di lebar layar HP berapa pun.
-   ========================================================================== */
 .aivy-sheet.npx-v2{
   --u: calc(100vw / 720);
   --sheet-dur: .52s; --sheet-ease: cubic-bezier(.16, 1, .3, 1);
   background: #0b0b0d;
 }
 
-/* Animasi buka: panel naik, isinya membesar dari sisi kiri (±0,5 dtk, ease-out kuat) */
 @keyframes npx-body-in{
   from{ transform: scale(.45); opacity: .35; }
   to{ transform: scale(1); opacity: 1; }
@@ -87,7 +69,6 @@
 }
 @media (prefers-reduced-motion: reduce){ .aivy-sheet.npx-v2.is-opening .aivy-sheet-body{ animation: none; } }
 
-/* ---------- Grabber + "Playing from …" ---------- */
 .aivy-sheet.npx-v2 .aivy-sheet-grabber-row{
   position: absolute; top: 0; left: 0; right: 0; height: calc(var(--u) * 125); z-index: 6; padding: 0; display: block; background: none;
 }
@@ -105,21 +86,17 @@
 }
 .aivy-sheet.npx-v2:not(.mode-player) .npx-playfrom{ opacity: 0; }
 
-/* ---------- Body: semua elemen diposisikan eksplisit ---------- */
 .aivy-sheet.npx-v2 .aivy-sheet-body{ position: absolute; inset: 0; padding: 0; display: block; overflow: hidden; z-index: 2; }
 
-/* ---------- Hero: cover + judul ---------- */
 .aivy-sheet.npx-v2 .npx-hero{
   position: absolute; top: 0; left: 0; right: 0; z-index: 3; width: auto;
   display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0;
 }
 .aivy-sheet.npx-v2 .npx-cover.is-bleed{
   width: 100%; height: min(119vw, calc(100dvh - calc(var(--u) * 676) - env(safe-area-inset-bottom, 0px))); aspect-ratio: auto; margin: 0; border-radius: 0;
-  /* kurva alpha dari video: ±.9 di y560, .5 di y760, .16 di y800, 0 di y840 (tinggi cover 856u) */
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 61%, rgba(0,0,0,.9) 65.4%, rgba(0,0,0,.5) 88.8%, rgba(0,0,0,.16) 93.5%, transparent 98.1%, transparent 100%);
           mask-image: linear-gradient(180deg, #000 0%, #000 61%, rgba(0,0,0,.9) 65.4%, rgba(0,0,0,.5) 88.8%, rgba(0,0,0,.16) 93.5%, transparent 98.1%, transparent 100%);
 }
-/* garis tipis terang di batas bawah cover (video: y≈853–859, +7 level) */
 .aivy-sheet.npx-v2 .npx-hero:not(.is-compact)::after{
   content: ""; position: absolute; left: 0; right: 0; top: calc(var(--u) * 853); height: calc(var(--u) * 9); pointer-events: none;
   background: linear-gradient(180deg, rgba(255,255,255,.04) 0, rgba(255,255,255,.04) 67%, rgba(255,255,255,0) 100%);
@@ -128,7 +105,6 @@
   content: ""; position: absolute; inset: 0 0 auto 0; height: 34%; z-index: 2; pointer-events: none;
   background: linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 100%);
 }
-/* Mode CD spin / tilt: cover berdiri sendiri */
 .aivy-sheet.npx-v2 .npx-hero:not(.is-compact) .npx-cover:not(.is-bleed){
   align-self: center; width: min(72vw, 320px); margin: calc(var(--u) * 110) 0 calc(var(--u) * 24);
 }
@@ -153,7 +129,6 @@
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn svg{ width: calc(var(--u) * 25); height: calc(var(--u) * 25); }
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn:nth-child(2) svg{ width: calc(var(--u) * 19); height: calc(var(--u) * 5); }
 
-/* Hero ringkas (mode lirik & antrean): cover calc(var(--u) * 78) di kiri atas */
 .aivy-sheet.npx-v2 .npx-hero.is-compact{ flex-direction: row; align-items: flex-start; gap: calc(var(--u) * 17); padding: calc(var(--u) * 126) calc(var(--u) * 43) 0; }
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-cover{
   width: calc(var(--u) * 78); height: calc(var(--u) * 78); aspect-ratio: 1; margin: 0; border-radius: calc(var(--u) * 6); flex: none;
@@ -164,7 +139,6 @@
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .t{ font-size: calc(var(--u) * 20); line-height: calc(var(--u) * 25); letter-spacing: 0; }
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-titles .a{ font-size: calc(var(--u) * 19); line-height: calc(var(--u) * 25); }
 
-/* ---------- Mode lirik ---------- */
 .aivy-sheet.npx-v2 .npx-lyrics-wrap{
   position: absolute; left: 0; right: 0; top: calc(var(--u) * 240); bottom: calc(var(--u) * 640); width: auto; order: 0; z-index: 2;
   display: block; opacity: 0; transform: none; pointer-events: none; transition: opacity .18s ease;
@@ -177,7 +151,6 @@
   --am-lyrics-inline-padding: calc(var(--u) * 33); --lyplus-padding-line: calc(var(--u) * 10); --lyrics-scroll-padding-top: 0%;
   --am-lyrics-compact-font-size: calc(var(--u) * 40) !important; --lyplus-font-size-base: calc(var(--u) * 40) !important; --am-lyrics-wide-font-size: calc(var(--u) * 40) !important;
   --am-lyrics-line-height: 1.325; --am-lyrics-line-spacing: calc(var(--u) * 29);
-  /* container query bawaan am-lyrics (<520px) memakai varian compact, jadi set yang ini juga */
   --am-lyrics-compact-line-spacing: calc(var(--u) * 29); --am-lyrics-compact-selected-position: 0%;
 }
 .aivy-sheet.npx-v2 .npx-lyr-btn{
@@ -191,7 +164,6 @@
 .aivy-sheet.npx-v2 .npx-lyr-btn:active{ transform: scale(.94); }
 .aivy-sheet.npx-v2 .npx-lyr-btn svg{ width: calc(var(--u) * 25); height: calc(var(--u) * 25); }
 
-/* ---------- Mode antrean ---------- */
 .aivy-sheet.npx-v2 .npx-queue-title{
   position: absolute; left: calc(var(--u) * 43); top: calc(var(--u) * 212); margin: 0; z-index: 4;
   font-size: calc(var(--u) * 25.5); font-weight: 700; line-height: calc(var(--u) * 30); letter-spacing: -.012em; color: #fff;
@@ -240,7 +212,6 @@
 .aivy-sheet.npx-v2 .npx-q-auto .d{ font-size: calc(var(--u) * 17); line-height: calc(var(--u) * 23); color: rgba(255,255,255,.55); white-space: nowrap; }
 .aivy-sheet.npx-v2 .npx-q-end{ height: calc(var(--u) * 60); }
 
-/* ---------- Blok kontrol (menempel ke bawah, y relatif ke atas blok = y video − 1090) ---------- */
 .aivy-sheet.npx-v2 .npx-top-controls{ padding: 0; }
 .aivy-sheet.npx-v2 .npx-controls{
   position: absolute; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px); height: calc(var(--u) * 550); z-index: 5;
@@ -301,7 +272,6 @@
 .aivy-sheet.npx-v2 .aivy-vol .vol-end{ position: absolute; right: calc(var(--u) * 1); top: 0; width: calc(var(--u) * 28); height: calc(var(--u) * 33); display: grid; place-items: center; color: rgba(255,255,255,.5); }
 .aivy-sheet.npx-v2 .aivy-vol .vol-end svg{ width: calc(var(--u) * 25); height: calc(var(--u) * 23); }
 
-/* Baris bawah: lirik | pill | antrean */
 .aivy-sheet.npx-v2 .npx-bottom{ position: absolute; left: 0; right: 0; top: calc(var(--u) * 383); height: calc(var(--u) * 63); }
 .aivy-sheet.npx-v2 .npx-circ{
   position: absolute; top: 0; width: calc(var(--u) * 63); height: calc(var(--u) * 63); padding: 0; border-radius: 50%; display: grid; place-items: center;
@@ -332,27 +302,22 @@
   color: rgba(255,255,255,.52); pointer-events: none;
 }
 
-/* ---------- Mode lirik: panel kontrol (durasi, transport, volume, kredit) + tombol bulat turun bersama ke luar layar ---------- */
 .aivy-sheet.npx-v2{
   --lyr-hide: calc(var(--u) * 660 + env(safe-area-inset-bottom, 0px));
   --lyr-show-dur: .6s; --lyr-show-ease: cubic-bezier(.22, 1, .36, 1);
   --lyr-hide-dur: .85s; --lyr-hide-ease: cubic-bezier(.45, .05, .2, 1);
 }
-/* muncul (state tujuan = terbuka) */
 .aivy-sheet.npx-v2 .npx-controls{ transition: transform var(--lyr-show-dur) var(--lyr-show-ease); }
-/* tutup (state tujuan = tersembunyi): lebih lambat, ease-in-out supaya turunnya halus */
 .aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-controls{
   transform: translateY(var(--lyr-hide));
   transition: transform var(--lyr-hide-dur) var(--lyr-hide-ease);
   pointer-events: none;
 }
-/* area lirik melebar ke bawah dengan durasi/easing yang sama */
 .aivy-sheet.npx-v2 .npx-lyrics-wrap.is-active{ transition: opacity .3s ease .3s, bottom var(--lyr-show-dur) var(--lyr-show-ease); }
 .aivy-sheet.npx-v2.mode-lyrics:not(.is-lyr-ctrl-open) .npx-lyrics-wrap.is-active{
   bottom: calc(var(--u) * 40 + env(safe-area-inset-bottom, 0px));
   transition: opacity .3s ease .3s, bottom var(--lyr-hide-dur) var(--lyr-hide-ease);
 }
-/* tombol romanisasi/terjemahan: ikut turun (transform, jarak & easing sama dengan panel kontrol) lalu memudar */
 .aivy-sheet.npx-v2 .npx-lyr-btn{
   transition: background .2s ease, color .2s ease, transform var(--lyr-show-dur) var(--lyr-show-ease), opacity .4s ease;
   animation: npx-lyr-btn-in .3s ease .3s backwards;
@@ -364,35 +329,27 @@
 @keyframes npx-lyr-btn-in{ from{ opacity: 0; } to{ opacity: 1; } }
 @media (prefers-reduced-motion: reduce){ .aivy-sheet.npx-v2 .npx-lyr-btn{ animation: none; } }
 
-/* area ketuk di bawah (saat kontrol tersembunyi di mode lirik): satu ketukan memunculkan kontrol lagi */
 .aivy-sheet.npx-v2 .npx-ctrl-zone{
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; height: calc(var(--u) * 150 + env(safe-area-inset-bottom, 0px));
   padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 
-/* tombol unduh: di antara like dan "..." ; disembunyikan di hero kompak (mode lirik) agar judul tetap lega */
 .aivy-sheet.npx-v2 .npx-actions .aivy-icon-btn:nth-child(2){ order: 3; }
 .aivy-sheet.npx-v2 .npx-actions .npx-dl-btn{ order: 2; }
 .aivy-sheet.npx-v2 .npx-actions .npx-dl-btn svg{ width: calc(var(--u) * 24); height: calc(var(--u) * 24); }
 .aivy-sheet.npx-v2 .npx-hero.is-compact .npx-dl-btn{ display: none; }
 
-/* label format/codec tepat di bawah bar durasi (tengah, di antara waktu kiri & kanan) */
 .aivy-sheet.npx-v2 .aivy-scrubber-row .aivy-quality{
   grid-column: 1 / -1; grid-row: 2; justify-self: center; align-self: center;
   height: calc(var(--u) * 24); padding: 0 calc(var(--u) * 10); border-radius: calc(var(--u) * 7); gap: calc(var(--u) * 8);
   font-size: calc(var(--u) * 15); max-width: calc(100% - var(--u) * 200);
 }
 
-/* ---------- Thumbnail (cover bleed): tanpa garis batas, fade bawah lewat blur progresif ---------- */
-/* garis tipis terang di batas bawah cover dihapus: posisinya dipaku (853u) padahal tinggi cover berubah mengikuti layar,
-   jadi garis itu sering muncul di tengah-tengah gambar sebagai "garis thumbnail" */
 .aivy-sheet.npx-v2 .npx-hero:not(.is-compact)::after{ content: none; display: none; }
 .aivy-sheet.npx-v2 .npx-cover.is-bleed{
-  /* kurva lebih halus & benar-benar transparan sebelum tepi bawah, sehingga tepi thumbnail tidak pernah terlihat */
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 56%, rgba(0,0,0,.9) 64%, rgba(0,0,0,.68) 74%, rgba(0,0,0,.4) 83%, rgba(0,0,0,.16) 91%, rgba(0,0,0,.04) 96%, transparent 99%);
           mask-image: linear-gradient(180deg, #000 0%, #000 56%, rgba(0,0,0,.9) 64%, rgba(0,0,0,.68) 74%, rgba(0,0,0,.4) 83%, rgba(0,0,0,.16) 91%, rgba(0,0,0,.04) 96%, transparent 99%);
 }
-/* blur bertahap di bagian bawah gambar: makin ke bawah makin kabur, menyatu dengan mesh gradient di belakangnya */
 .aivy-sheet.npx-v2 .npx-cover.is-bleed::after{
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 46%; z-index: 1; pointer-events: none;
   -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
@@ -400,8 +357,6 @@
           mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.35) 35%, #000 80%);
 }
 
-/* ---------- Lirik mobile: baris aktif tidak lagi ketutup fade/blur ---------- */
-/* sebelumnya baris aktif dipaku di 0% atas, tepat di zona fade ganda (mask wrap + fade internal am-lyrics) */
 .aivy-sheet.npx-v2 .npx-lyrics-wrap .aivy-am-lyrics{
   --am-lyrics-edge-fade: 0px;
   --lyrics-scroll-padding-top: 6%; --am-lyrics-compact-selected-position: 6%; --am-lyrics-wide-selected-position: 6%;
@@ -411,7 +366,6 @@
           mask-image: linear-gradient(180deg, transparent 0, #000 calc(var(--u) * 24), #000 calc(100% - calc(var(--u) * 64)), transparent 100%);
 }
 
-/* ---------- Lirik di atas bar durasi (mode player) ---------- */
 .aivy-sheet.npx-v2 .npx-inl{
   position: absolute; left: calc(var(--u) * 43); right: calc(var(--u) * 43); top: calc(var(--u) * -18); height: calc(var(--u) * 52);
   margin: 0; padding: 0; border: 0; background: none; text-align: left; overflow: hidden; display: block;
@@ -433,11 +387,9 @@
 @keyframes npx-inl-in{ from{ opacity: 0; transform: translateY(45%); } to{ opacity: 1; transform: none; } }
 @keyframes npx-inl-out{ from{ opacity: 1; transform: none; } to{ opacity: 0; transform: translateY(-45%); } }
 
-/* baris tanpa timing kata: menyala utuh saat gilirannya */
 .aivy-sheet.npx-v2 .npx-inl-line.is-plain{ color: rgba(255,255,255,.42); transition: color .35s ease; }
 .aivy-sheet.npx-v2 .npx-inl-line.is-plain.is-live{ color: #fff; }
 
-/* baris dengan timing kata: isi memanjang per kata (--p diatur lewat JS) */
 .aivy-sheet.npx-v2 .npx-inl-line.is-sync .w{
   --p: -6%; color: transparent;
   background: linear-gradient(90deg, #fff var(--p), rgba(255,255,255,.42) calc(var(--p) + 6%));
@@ -448,12 +400,10 @@
   .aivy-sheet.npx-v2 .npx-inl-line.is-leaving{ display: none; }
 }
 
-/* panah kecil setelah baris lirik (ikut mengalir di akhir teks) */
 .aivy-sheet.npx-v2 .npx-inl-line .chev{
   display: inline-block; width: calc(var(--u) * 20); height: calc(var(--u) * 20); margin-left: calc(var(--u) * 10);
   vertical-align: calc(var(--u) * -4); color: rgba(255,255,255,.53); -webkit-text-fill-color: currentColor;
 }
-/* ---------- Dialog kualitas (gaya Apple Music) & sheet provider lirik: dirender lewat portal ke <body> ---------- */
 .npx-dlg-layer{ position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .npx-dlg-layer.shown{ pointer-events: auto; }
 .npx-dlg-backdrop{ position: absolute; inset: 0; background: rgba(0,0,0,.52); opacity: 0; transition: opacity .22s ease; -webkit-tap-highlight-color: transparent; }
@@ -479,7 +429,6 @@
 .npx-dlg-btn.is-strong{ font-weight: 700; }
 .npx-dlg-btn:active{ opacity: .55; }
 
-/* sheet provider lirik */
 .npx-dlg-layer.is-sheet{ align-items: flex-end; }
 .npx-psheet{
   position: relative; width: 100%; max-height: 70dvh; display: flex; flex-direction: column;
@@ -509,7 +458,6 @@
   .npx-dlg, .npx-psheet, .npx-dlg-backdrop{ transition: opacity .15s ease; transform: none !important; }
 }
 
-/* badge kualitas jadi tombol (ketuk -> dialog info) */
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality{ border: 0; font-family: inherit; cursor: pointer; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: transform .15s ease, background .2s ease; }
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality:active{ transform: scale(.95); background: rgba(255,255,255,.28); }
 .aivy-quality .q-ico{ flex: 0 0 auto; width: 1.55em; height: auto; margin-right: -2px; color: rgba(255,255,255,.88); }

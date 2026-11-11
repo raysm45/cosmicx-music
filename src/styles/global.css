@@ -34,11 +34,9 @@
   --tabbar-h: 60px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
-  /* Judul/heading: Outfit. Teks isi: Inter. Angka & label teknis: JetBrains Mono. */
   --font-display: "Outfit", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  /* Lirik: SF Pro Display (font asli Apple Music) di perangkat Apple, fallback Inter (optical size display) di platform lain. */
   --font-lyrics: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   color-scheme: dark;
 }
@@ -409,24 +407,19 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-waveform.wave-fg span{ background: var(--sheet-ink, var(--accent-strong)); }
 .aivy-scrubber .fill .aivy-waveform.wave-fg{ position: absolute; left: 0; top: 0; bottom: 0; }
 
-/* ---- Mix: penanda titik mulai mix + animasi saat mix berjalan ---- */
 .aivy-scrubber.has-mix .track::before{
   content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: var(--mix-zone, 0%);
   border-radius: 0 999px 999px 0; pointer-events: none;
   background: color-mix(in srgb, var(--accent-strong, var(--ink)) 38%, transparent);
 }
-/* Penanda ada DI DALAM track: tingginya = tinggi bar, posisinya dijepit agar tidak keluar dari ujung bar. */
 .aivy-scrubber .track > .mix-marker{
   position: absolute; top: 0; bottom: 0; width: 3px; border-radius: 2px; pointer-events: none; z-index: 2;
   background: var(--accent-strong, var(--ink));
 }
-/* Saat mix berjalan: progress yang berjalan DIHAPUS. Bar langsung penuh (full bar), "shining" menyapu SELURUH bar 2x,
-   lalu seluruh bar berkedip sampai mix selesai (kelas is-mixing dilepas). Masuk/keluar memakai transisi agar mulus. */
 .aivy-scrubber{ --mix-shine: color-mix(in srgb, var(--ink) 85%, transparent); }
 .aivy-sheet .aivy-scrubber{ --mix-shine: color-mix(in srgb, var(--sheet-ink, var(--ink)) 85%, transparent); }
 .aivy-lyrics-scrubber-row .aivy-scrubber{ --mix-shine: color-mix(in srgb, var(--lyr-ink, var(--ink)) 85%, transparent); }
 
-/* Bar penuh: fill dipaksa 100% (menimpa transform inline dari writeProgress) dan diredupkan supaya kilau terlihat jelas. */
 .aivy-scrubber.is-mixing .track{ overflow: hidden; animation: aivy-mix-blink .9s ease-in-out 2.6s infinite; }
 .aivy-scrubber.is-mixing .fill{
   transform: scaleX(1) !important; opacity: .5;
@@ -442,7 +435,6 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 @keyframes aivy-mix-blink{ 0%, 100%{ opacity: 1; } 50%{ opacity: .3; } }
 @keyframes aivy-mix-shine-in{ to{ opacity: 1; } }
 
-/* Setelah mix selesai: bar menyusut mulus dari penuh ke posisi lagu baru, thumb muncul kembali. */
 .aivy-scrubber.mix-settle .fill{ transition: transform .6s cubic-bezier(.22,.9,.32,1); }
 
 @media (prefers-reduced-motion: reduce){
@@ -454,14 +446,11 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 :root[data-reduced-motion="true"] .aivy-scrubber.is-mixing .fill,
 :root[data-reduced-motion="true"] .aivy-scrubber.mix-settle .fill{ transition: none; }
 
-/* Loading: skeleton jadi lapisan di atas track (elemen scrubber tidak diganti, supaya drag tidak putus). */
 .aivy-scrubber.is-loading{ cursor: default; }
 .aivy-scrubber .track > .scrub-skel{ position: absolute; inset: 0; width: auto; height: auto; border-radius: inherit; background: transparent; z-index: 4; }
 .aivy-scrubber.is-loading .fill, .aivy-scrubber.is-loading .aivy-waveform, .aivy-scrubber.is-loading .mix-marker{ visibility: hidden; }
 .aivy-scrubber.is-loading .thumb{ opacity: 0 !important; }
 .aivy-scrubber.is-loading.has-waveform .track{ background: var(--bg-elev-3); }
-/* Kilau loading khusus scrubber: selektor lebih spesifik dari aturan global .skeleton-shine::after,
-   warnanya ikut aksen sehingga menyatu dengan warna dinamis cover. */
 .aivy-scrubber{ --scrub-shine: color-mix(in srgb, var(--accent-strong, var(--ink)) 80%, transparent); }
 .aivy-scrubber .track > .scrub-skel{ overflow: hidden; background: color-mix(in srgb, var(--accent-strong, var(--ink)) 8%, transparent); }
 .aivy-scrubber .track > .scrub-skel::after{
@@ -1046,16 +1035,49 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-voice-handle{ width: 36px; height: 4px; border-radius: 999px; background: var(--line); margin: 6px 0 2px; }
 .aivy-voice-lang{ align-self: flex-start; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-faint); }
 .aivy-voice-title{ align-self: flex-start; font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--ink); }
-.aivy-voice-stage{ position: relative; width: 100%; display: flex; align-items: center; justify-content: center; height: 128px; }
-.aivy-voice-ring{ position: absolute; width: 64px; height: 64px; border-radius: 50%; border: 1.5px solid var(--accent-strong); opacity: 0; animation: aivy-voice-pulse 1.8s var(--ease) infinite; }
-.aivy-voice-ring.r2{ animation-delay: .6s; }
-.aivy-voice-ring.r3{ animation-delay: 1.2s; }
-.aivy-voice-mic{ position: relative; z-index: 1; width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(155deg, var(--berry-strong), var(--berry)); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: none; transition: transform var(--dur-fast) var(--ease); }
-.aivy-voice-mic:active{ transform: scale(.94); }
+.aivy-voice-stage{ position: relative; width: 100%; display: flex; align-items: center; justify-content: center; height: 132px; }
+.aivy-voice-wave{
+  position: absolute; left: 0; right: 0; top: 50%; height: 96px; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center; gap: 5px; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22%, #000 78%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22%, #000 78%, transparent 100%);
+}
+.aivy-voice-wave i{
+  display: block; width: 4px; height: 100%; border-radius: 999px; flex: none;
+  background: linear-gradient(180deg, var(--accent-strong), var(--berry-strong));
+  opacity: .85; transform: scaleY(.12); transform-origin: center;
+  animation: aivy-voice-bar var(--d, 1s) ease-in-out var(--dl, 0s) infinite alternate;
+}
+.aivy-voice-orb{
+  position: relative; z-index: 1; width: 76px; height: 76px; display: grid; place-items: center;
+  color: #fff; border-radius: 50%; -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.aivy-voice-orb:active{ transform: scale(.94); }
+.aivy-voice-orb .blob{
+  position: absolute; inset: 0; z-index: -1;
+  background: conic-gradient(from 0deg, var(--accent-strong), var(--berry-strong), var(--accent), var(--berry), var(--accent-strong));
+  border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
+  animation: aivy-voice-morph 5.5s ease-in-out infinite, aivy-voice-spin 9s linear infinite;
+}
+.aivy-voice-orb .blob.b2{
+  inset: 7px; opacity: .55; filter: saturate(1.2);
+  animation: aivy-voice-morph 4.2s ease-in-out -1.6s infinite reverse, aivy-voice-spin 6s linear infinite reverse;
+}
+.aivy-voice-orb::after{ content: ""; position: absolute; inset: 14px; border-radius: 50%; background: color-mix(in srgb, var(--bg) 72%, transparent); z-index: -1; }
+.aivy-voice-orb svg{ position: relative; }
 .aivy-voice-hint{ font-size: 12px; color: var(--ink-faint); }
+.aivy-voice-heard{ max-width: 100%; min-height: 1.3em; text-align: center; font-size: 16px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
 
 @keyframes aivy-voice-slideup{ from{ transform: translateY(28px); opacity: 0; } to{ transform: translateY(0); opacity: 1; } }
-@keyframes aivy-voice-pulse{ 0%{ width: 62px; height: 62px; opacity: .45; } 100%{ width: 168px; height: 168px; opacity: 0; } }
+@keyframes aivy-voice-bar{ from{ transform: scaleY(.12); } to{ transform: scaleY(var(--amp, 1)); } }
+@keyframes aivy-voice-spin{ to{ transform: rotate(360deg); } }
+@keyframes aivy-voice-morph{
+  0%, 100%{ border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%; }
+  25%{ border-radius: 54% 46% 44% 56% / 46% 56% 44% 54%; }
+  50%{ border-radius: 50% 50% 58% 42% / 56% 44% 56% 44%; }
+  75%{ border-radius: 44% 56% 50% 50% / 52% 48% 52% 48%; }
+}
 
 .aivy-hero{ display: flex; align-items: flex-end; gap: 22px; padding: 22px 2px 26px; min-width: 0; }
 .aivy-hero .art{ flex-shrink: 0; border-radius: var(--radius-md); overflow: hidden; }
@@ -2926,7 +2948,6 @@ body.aivy-artist-immersive .aivy-player{
 :root[data-glass="blur"] .lg-warp{ backdrop-filter: blur(var(--lg-blur)); -webkit-backdrop-filter: blur(var(--lg-blur)); }
 :root[data-glass="blur"] .lg-rim{ mix-blend-mode: normal; opacity: .32; }
 
-/* ---------- Mobile Dock v2: Stacked Monolith Deck (Simple, GPU-Smooth, Unik) ---------- */
 .aivy-dock{
   position: fixed; left: 0; right: 0; margin: 0 auto;
   width: min(calc(100% - 20px), 430px);
@@ -2995,7 +3016,6 @@ body.aivy-artist-immersive .aivy-player{
   transform: translate3d(0, 0, 0) scale(.98);
 }
 
-/* --- Tabbar Items & Sliding Spotlight Pill --- */
 .aivy-dock .aivy-tab{
   position: relative; z-index: 1;
   flex: 1 1 0; min-width: 0;
@@ -3047,7 +3067,6 @@ body.aivy-artist-immersive .aivy-player{
 }
 .aivy-dock .aivy-tabbar[data-lens="off"] .aivy-tab-lens{ opacity: 0; }
 
-/* --- MiniPlayer Deck Details --- */
 @keyframes aivy-mini-in{
   from{ opacity: 0; transform: translate3d(0, 12px, 0) scale(.96); }
   to{ opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
@@ -3084,7 +3103,6 @@ body.aivy-artist-immersive .aivy-player{
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* Live 3-bar Equalizer Badge (GPU scaleY only) */
 .aivy-mini-player .mini-eq{
   display: inline-flex; align-items: flex-end; gap: 1.5px;
   width: 0; height: 10px; opacity: 0; overflow: hidden; flex-shrink: 0;
@@ -3125,7 +3143,6 @@ body.aivy-artist-immersive .aivy-player{
   background: rgba(255,255,255,.18);
 }
 
-/* Laser Progress Seam along bottom of MiniPlayer (GPU scaleX only) */
 .aivy-dock .aivy-mini-player .mini-progress{
   position: absolute; left: 12px; right: 12px; bottom: 0;
   height: 2px; border-radius: 2px;
@@ -3269,7 +3286,8 @@ body.aivy-artist-immersive .aivy-player{
 .aivy-skeleton::after, .skeleton-shine::after{ animation: none; display: none; }
 .aivy-chat-msg, .aivy-ai-msg-wrap, .aivy-ai-msg.is-typing{ animation: none; }
 .aivy-aod-dot.is-playing{ animation: none; }
-.aivy-voice-ring{ animation: none; display: none; }
+.aivy-voice-wave i, .aivy-voice-orb .blob{ animation: none; }
+.aivy-voice-wave i{ transform: scaleY(.45); }
 .aivy-preview-mock-row .wave{ animation: none; }
 .aivy-ai-fab:hover svg path:nth-child(1),
 .aivy-ai-fab:hover svg path:nth-child(3),
@@ -3490,10 +3508,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   .aivy-ck-foot{ flex-direction: column; }
   .aivy-ck-foot .aivy-ck-btn{ height: 44px; }
 }
-/* =====================================================================
-   TEMA HALLOWEEN 🎃
-   Semua gambar di sini adalah file PNG/JPG asli di /public/halloween
-   ===================================================================== */
 @font-face{
   font-family: "Creepster";
   src: url("/halloween/fonts/creepster.woff2") format("woff2");
@@ -3516,7 +3530,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 }
 :root[data-theme="halloween"] ::selection{ background: #FF7A18; color: #1A0A00; }
 
-/* logo & judul pakai font Halloween */
 :root[data-theme="halloween"] .aivy-brand .word{
   font-family: var(--font-creepy); font-weight: 400; font-size: 27px; letter-spacing: .04em; line-height: 1;
   color: var(--accent-strong); text-shadow: 0 2px 0 #000, 0 0 14px rgba(255,122,24,.45);
@@ -3528,7 +3541,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   text-shadow: 0 2px 0 rgba(0,0,0,.6), 0 0 22px rgba(255,122,24,.28);
 }
 
-/* panel samping: sarang laba-laba di pojok */
 :root[data-theme="halloween"] .aivy-sidebar{
   background: linear-gradient(180deg, rgba(20,11,30,.96), rgba(13,7,20,.98));
   border-right-color: var(--line);
@@ -3544,7 +3556,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   opacity: .13; z-index: 0;
 }
 
-/* tombol utama menyala seperti lilin */
 :root[data-theme="halloween"] .aivy-btn-primary{
   background: linear-gradient(180deg, #FFA24A, #FF7A18); color: #1A0A00;
   box-shadow: 0 0 0 1px rgba(255,170,80,.4), 0 6px 22px rgba(255,122,24,.32);
@@ -3552,11 +3563,9 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 :root[data-theme="halloween"] .aivy-btn-primary:hover{ filter: brightness(1.08); }
 :root[data-theme="halloween"] .aivy-nav-item.active{ box-shadow: inset 2px 0 0 var(--accent); }
 
-/* loader labu */
 :root[data-theme="halloween"] .aivy-pumpkin-loader img{ animation: aivy-pumpkin-bob 1.2s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(255,122,24,.55)); }
 @keyframes aivy-pumpkin-bob{ 0%,100%{ transform: translateY(0) rotate(-5deg) scale(.96); } 50%{ transform: translateY(-6px) rotate(5deg) scale(1.04); } }
 
-/* kelelawar terbang melintas */
 :root[data-theme="halloween"] body::after{
   content: ""; position: fixed; top: 9vh; left: -90px; width: 56px; height: 56px; pointer-events: none; z-index: 3;
   background: url("/halloween/decor/bat.png") center / contain no-repeat; opacity: .55;
@@ -3574,7 +3583,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 :root[data-reduced-motion="true"][data-theme="halloween"] body::after{ display: none; }
 @media (prefers-reduced-motion: reduce){ :root[data-theme="halloween"] body::after{ display: none; } }
 
-/* halaman login / landing */
 :root[data-theme="halloween"] .cx-stage{
   --cx-bg: #0A0510; --cx-ink: #FBEFE0; --cx-ink-dim: rgba(251,239,224,.62);
   --cx-line: rgba(255,170,90,.28); --cx-line-soft: rgba(255,170,90,.14);
@@ -3600,10 +3608,6 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 @media (min-width: 1100px){ :root[data-theme="halloween"] .cx-wordmark{ font-size: 46px; } }
 :root[data-theme="halloween"] .cx-eq i{ background: linear-gradient(to top, rgba(255,122,24,.28), rgba(255,122,24,.02)); }
 
-/* =========================================================
-   Login normal — ivory + champagne (desain cosmicx music)
-   Event (Halloween) tetap memakai .cx-* di atas.
-   ========================================================= */
 .lx-stage{
   --lx-ink:#1c1814; --lx-dim:#6d645a; --lx-line:rgba(140,118,80,.22); --lx-gold:#cdb88f;
   position:relative; min-height:100dvh; width:100%; overflow:hidden; display:flex; align-items:center; justify-content:center;
@@ -3661,10 +3665,8 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 }
 @media (prefers-reduced-motion:reduce){ .lx-grid{ animation:none; } .lx-btn{ transition:none; } }
 
-/* Logo normal di sidebar: wordmark pakai font desain baru (event tetap font Halloween) */
 .aivy-brand .word{ font-family:'Outfit',var(--font-display),sans-serif; font-weight:600; letter-spacing:-.02em; }
 
-/* Album & playlist: warna mengikuti tema (tidak dari thumbnail); tema terang butuh teks gelap */
 :root[data-theme="white"] .aivy-am-page, :root[data-theme="latte"] .aivy-am-page, :root[data-theme="salmon"] .aivy-am-page, :root[data-theme="premium"] .aivy-am-page{
   --am-dim: color-mix(in srgb, var(--ink) 62%, transparent);
   --am-line: color-mix(in srgb, var(--ink) 12%, transparent);
@@ -3680,15 +3682,10 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   --bg-elev: unset; --bg-elev-2: unset; --bg-elev-3: unset;
 }
 
-/* =========================================================
-   Donasi — banner di Home (.dnb) & halaman /donasi (.dn-*)
-   Palet ivory + champagne, sama dengan banner donasi.
-   ========================================================= */
 .dnb{ position:relative; }
 .dnb-frame{ position:relative; border-radius:22px; overflow:hidden; line-height:0; background:#f3eadf;
   border:1px solid rgba(140,118,80,.22); box-shadow:0 30px 60px -36px rgba(110,88,56,.55); }
 .dnb-img{ display:block; width:100%; height:auto; }
-/* Posisi tombol tergambar di banner: x 182-564, y 559-658 dari 1983x793 */
 .dnb-hit{ position:absolute; left:9.18%; top:70.49%; width:19.26%; height:12.48%; border-radius:999px; display:block; }
 .dnb-hit-ring{ position:absolute; inset:0; border-radius:999px; transition:box-shadow 180ms ease, transform 180ms ease; }
 .dnb-hit:hover .dnb-hit-ring{ transform:scale(1.035); box-shadow:0 0 0 3px rgba(205,184,143,.6), 0 14px 30px -10px rgba(28,24,20,.5); }

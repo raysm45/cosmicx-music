@@ -159,7 +159,7 @@
 .aivy-sidebar.sp-side .aivy-resize-handle.right{ right: -4px; }
 
 .sp-search-head{
-  position: sticky; top: 0; z-index: 6;
+  position: sticky; top: -6px; z-index: 6;
   display: flex; align-items: center; gap: 12px;
   margin: -6px -20px 6px -28px; padding: 14px 20px 14px 28px;
   background: var(--bg);
@@ -231,10 +231,7 @@ body.aivy-artist-immersive .sp-topbar .sp-topbar-btn{ color: #fff; }
   background: linear-gradient(105deg,
     color-mix(in srgb, var(--mini-tint, var(--bg-elev-3)) 46%, var(--bg-elev-2)),
     color-mix(in srgb, var(--mini-tint, var(--bg-elev-3)) 14%, var(--bg-elev-2)));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent),
-    0 12px 26px -10px color-mix(in srgb, var(--mini-tint, var(--ink)) 70%, transparent),
-    0 4px 10px -6px var(--sp-shadow-color);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
   transition: background-color 450ms var(--ease), transform 160ms var(--ease);
   animation: aivy-mini-in 320ms cubic-bezier(.22,1,.36,1) backwards;
 }
@@ -242,7 +239,7 @@ body.aivy-artist-immersive .sp-topbar .sp-topbar-btn{ color: #fff; }
 
 .sp-mini-cover{
   position: relative; width: 46px; height: 46px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 14%, transparent), 0 4px 10px var(--sp-shadow-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 14%, transparent);
   animation: aivy-fade-in 220ms var(--ease) backwards, sp-vinyl-spin 7s linear infinite;
   animation-play-state: running, paused;
 }
@@ -269,7 +266,7 @@ body.aivy-artist-immersive .sp-topbar .sp-topbar-btn{ color: #fff; }
 .sp-mini-btn:not(.play){ opacity: .88; }
 .sp-mini-btn.is-liked{ color: var(--accent-strong, #ef5350); opacity: 1; }
 .sp-mini-btn:active{ transform: scale(.88); }
-.sp-mini-btn.play{ width: 42px; height: 42px; border-radius: 50%; background: var(--ink); color: var(--bg); box-shadow: 0 4px 12px -2px var(--sp-shadow-color); }
+.sp-mini-btn.play{ width: 42px; height: 42px; border-radius: 50%; background: var(--ink); color: var(--bg); }
 .sp-mini .aivy-swap-icon{ display: inline-flex; animation: aivy-icon-pop 200ms var(--dock-ease, cubic-bezier(.22,1,.36,1)) backwards; }
 
 .sp-mini-progress{ position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; border-radius: inherit; }

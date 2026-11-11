@@ -459,7 +459,6 @@ export function SearchPage() {
       topResult?.kind === "artist" ? topResult : null,
       ...artistHits,
     ];
-    // Also extract artists from song results if artistHits is sparse
     for (const r of results.slice(0, 12)) {
       const aObj = r?.artist && typeof r.artist === "object" ? r.artist : (r?.artist ? { name: r.artist } : null);
       if (aObj?.name && isRelevantArtistMatch(aObj.name, searchedQuery)) {
@@ -493,7 +492,6 @@ export function SearchPage() {
   const topArtist = allArtists[0] || null;
   const otherArtists = allArtists.slice(1, 16);
 
-  // Enrich topArtist with full artist profile + Apple Music editorial artwork
   useEffect(() => {
     if (!topArtist) {
       setTopArtistDetail(null);
@@ -523,7 +521,6 @@ export function SearchPage() {
     return () => { cancelled = true; };
   }, [topArtist?.id, topArtist?.name, searchedQuery]);
 
-  // Enrich all artists with profile avatars & audience in the background
   useEffect(() => {
     if (!allArtists.length) return undefined;
     let cancelled = false;

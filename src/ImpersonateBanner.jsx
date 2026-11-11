@@ -1,6 +1,3 @@
-// Banner penanda mode "masuk sebagai user" (impersonate dari panel admin).
-// Token datang lewat URL, dipakai sebagai Bearer, dan dibersihkan dari address
-// bar oleh lib/impersonate.js saat aplikasi dimuat.
 import React, { useState } from "react";
 import { impersonateUser, exitImpersonate } from "./lib/impersonate.js";
 

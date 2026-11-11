@@ -6,10 +6,6 @@ export function supportsRefraction() {
   try { return !!CSS.supports("backdrop-filter", "blur(1px)"); } catch { return false; }
 }
 
-// Konfigurasi persis dari @ybouane/liquidglass (https://liquid-glass.ybouane.com/)
-// Regular Glass (#glass-fp1): blurAmount = 0
-// Frosted Glass (#glass-fp2): blurAmount = 0.5
-// Keduanya memakai shader FS_GLASS yang sama persis:
 export const LQ = {
   floating: true,
   blurAmount: 0,
@@ -36,14 +32,12 @@ function smoothstep(e0, e1, x) {
   return t * t * (3 - 2 * t);
 }
 
-// Rounded-rect signed distance (FS_GLASS rrSDF)
 function rrSDF(px, py, bx, by, r) {
   const qx = Math.abs(px) - bx + r;
   const qy = Math.abs(py) - by + r;
   return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - r;
 }
 
-// Biconvex half-circle bevel profile (FS_GLASS bevelHeight)
 function bevelHeight(d, zR) {
   if (d <= 0) return 0;
   if (d >= zR) return zR;
@@ -91,7 +85,7 @@ export function makeGlassMaps(w, h, radius = 0) {
 
     const e = 1.6;
     const ior = 1.5;
-    const refrPow = 1 - 1 / ior; // 1/3
+    const refrPow = 1 - 1 / ior;
     let maxAbs = 1;
 
     const bx = Math.max(0, halfX - r);
@@ -126,7 +120,6 @@ export function makeGlassMaps(w, h, radius = 0) {
         const inside = Math.max(0, -qSdf);
         const edge = smoothstep(maxD * 0.35, 0, inside);
 
-        // Surface normal via bevel height field sepanjang arah radial normal (FS_GLASS)
         const hC = bevelHeight(inside, zR);
         const hPlus = bevelHeight(inside + e, zR);
         const hMinus = bevelHeight(inside - e, zR);
@@ -140,7 +133,6 @@ export function makeGlassMaps(w, h, radius = 0) {
 
         const depth = smoothstep(0, zR, inside);
 
-        // Biconvex dual-surface refraction (FS_GLASS bevelMode == 0)
         const thickness = hC * 2;
         const thickNorm = thickness / Math.max(zR * 2, 1);
         const refrMult = refrPow * (2 + 0.5 * thickNorm) * LQ.refraction * 30 * s;
@@ -150,8 +142,6 @@ export function makeGlassMaps(w, h, radius = 0) {
         const rx = hGradX * refrMult + centerDirX * LQ.refraction * 4 * s * depth;
         const ry = hGradY * refrMult + centerDirY * LQ.refraction * 4 * s * depth;
 
-        // Chromatic aberration sepanjang normal permukaan N.xy (FS_GLASS):
-        // float caS = u_chroma * 18.0 * (edge * 0.7 + 0.3) * 2.0;
         const caS = LQ.chromAberration * 18.0 * (edge * 0.7 + 0.3) * 2.0 * s;
         const caX = Nx * caS;
         const caY = Ny * caS;
@@ -188,7 +178,6 @@ export function makeGlassMaps(w, h, radius = 0) {
           Math.abs(bRx), Math.abs(bRy)
         );
 
-        // Pencahayaan permukaan persis FS_GLASS (Fresnel + innerStroke + rim + innerGlow + envRefl)
         if (sdf <= 0.5) {
           const mask = 1 - smoothstep(-0.5, 0.5, sdf);
           const sInside = Math.max(0, -sdf);

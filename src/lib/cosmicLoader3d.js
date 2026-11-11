@@ -1,15 +1,5 @@
-/*
-  Mesin loader logo 3D CosmicX.
-
-  - three.js dimuat lazy (chunk terpisah) supaya bundle utama tidak membengkak.
-  - SATU WebGLRenderer dipakai bersama oleh semua loader di halaman (browser membatasi
-    jumlah konteks WebGL ±16). Hasil render digambar ke canvas 2D milik tiap loader.
-  - Semua loader selalu satu fase karena animasi hanya bergantung pada waktu.
-  - Dua varian: "light" (titanium gelap, untuk latar terang) dan "dark" (krom terang, untuk latar gelap).
-*/
-
-const MAXRS = 512;       // ukuran canvas WebGL bersama (px); tiap loader dirender di viewport seukuran dirinya
-const DUR = 3.0;         // durasi satu loop (detik)
+const MAXRS = 512;
+const DUR = 3.0;
 const BASE_Y = 0.42;
 const BASE_X = -0.22;
 const TAU = Math.PI * 2;
@@ -45,7 +35,6 @@ async function createEngine() {
   const { RoomEnvironment } = envMod;
   const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---- renderer bersama (melempar error kalau WebGL tidak ada -> komponen tetap pakai fallback) ---- */
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(1);
   renderer.setSize(MAXRS, MAXRS, false);
@@ -57,7 +46,6 @@ async function createEngine() {
   const envTex = pmrem.fromScene(new RoomEnvironment(renderer), 0.025).texture;
   pmrem.dispose();
 
-  /* ---- geometri logo (koordinat seperti SVG, -50..50) ---- */
   function starShape(top, side, c) {
     const s = new THREE.Shape();
     const P = (x, y) => [x, -y];
@@ -85,7 +73,6 @@ async function createEngine() {
   sparkGeo.translate(0, 0, -SPARK_DEPTH / 2);
   sparkGeo.computeVertexNormals();
 
-  /* ---- rig per varian (dibuat saat pertama dibutuhkan) ---- */
   function makeRig(dark) {
     const scene = new THREE.Scene();
     scene.environment = envTex;
@@ -141,7 +128,6 @@ async function createEngine() {
   const rigs = {};
   const getRig = (variant) => rigs[variant] || (rigs[variant] = makeRig(variant === "dark"));
 
-  /* ---- animasi (sama dengan demo, termasuk parallax mouse) ---- */
   function animate(rig, time, mx, my) {
     const sec = time * 0.001;
     const t = reduce ? 0.92 : (sec / DUR) % 1;
@@ -175,7 +161,6 @@ async function createEngine() {
     rig.pivot.position.y = py;
   }
 
-  /* ---- loop bersama: tiap loader dirender di resolusi aslinya (px) lalu disalin ke canvas 2D-nya ---- */
   const instances = new Set();
   let raf = 0;
 
@@ -197,7 +182,6 @@ async function createEngine() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
-      // viewport WebGL berasal dari kiri-bawah, canvas dari kiri-atas
       ctx.drawImage(renderer.domElement, 0, MAXRS - px, px, px, 0, 0, canvas.width, canvas.height);
       if (!inst.drawn) { inst.drawn = true; inst.onFirstFrame?.(); }
     });

@@ -17,10 +17,6 @@ const PAID_FONT_HOSTS = [
 
 const matchesHost = (host, list) => list.some((h) => host === h || host.endsWith(`.${h}`));
 
-/**
- * Periksa URL font.
- * @returns {{ok:true, kind:"css"|"file", href:string, host:string} | {ok:false, reason:"empty"|"invalid"|"insecure"|"paid"}}
- */
 export function checkFontUrl(raw) {
   const value = String(raw || "").trim();
   if (!value) return { ok: false, reason: "empty" };
@@ -83,10 +79,9 @@ let cachedValue = null;
 const subs = new Set();
 const emit = () => subs.forEach((fn) => fn());
 
-/** @returns {null | {kind:"file", name:string} | {kind:"installed", name:string}} */
 export function getLocalFont() {
   let raw = null;
-  try { raw = localStorage.getItem(LS_KEY); } catch { /* storage diblokir */ }
+  try { raw = localStorage.getItem(LS_KEY); } catch {}
   if (raw === cachedRaw) return cachedValue;
   cachedRaw = raw;
   try {
@@ -196,12 +191,6 @@ export function isFontInstalled(name) {
 
 let activeLocalFace = null;
 
-/**
- * Terapkan font kustom (font lokal lebih diprioritaskan daripada URL).
- * `onStack(stack)` dipanggil dengan string font-family, atau null jika tidak ada
- * font kustom yang aktif (pemanggil lalu memakai preset).
- * @returns {{active:boolean, cleanup:()=>void}}
- */
 export function applyCustomFont({ fontUrl, localFont }, onStack) {
   const ID_FACE = "aivy-custom-font-face";
   const ID_LINK = "aivy-custom-font-link";
@@ -211,7 +200,7 @@ export function applyCustomFont({ fontUrl, localFont }, onStack) {
     document.getElementById(ID_LINK)?.remove();
   };
   const removeLocalFace = () => {
-    if (activeLocalFace) { try { document.fonts.delete(activeLocalFace); } catch { /* abaikan */ } activeLocalFace = null; }
+    if (activeLocalFace) { try { document.fonts.delete(activeLocalFace); } catch {} activeLocalFace = null; }
   };
   const cleanup = () => { cancelled = true; };
 

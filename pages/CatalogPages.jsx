@@ -299,7 +299,6 @@ export function ArtistPage() {
 
   return (
     <div ref={pageRef} className="aivy-view-enter aivy-am-page">
-      {}
       <div ref={mediaRef} className="aivy-am-media" aria-hidden="true">
         {showHeroVideo ? (
           <video
@@ -317,12 +316,10 @@ export function ArtistPage() {
         ) : (
           <SmartCover src={posterImg} seed={"artist-bg" + artist.id + artist.name} size={1600} radius={0} style={{ width: "100%", height: "100%" }} />
         )}
-        {}
         <div className="aivy-am-media-blur"><i /><i /><i /><i /></div>
         <div className="aivy-am-media-scrim" />
       </div>
 
-      {}
       <header ref={heroRef} className="aivy-am-hero">
         <div className="aivy-am-hero-inner">
           {showLogo ? (
@@ -366,7 +363,6 @@ export function ArtistPage() {
         </div>
       </header>
 
-      {}
       <div className="aivy-am-body">
         <div className="aivy-am-body-inner">
           <div className={`aivy-am-topgrid ${latest ? "" : "is-single"}`}>
@@ -488,7 +484,6 @@ export function ArtistPage() {
         </div>
       </div>
 
-      {/* ---------- Popover Info (tombol "i") ---------- */}
       {aboutOpen && (
         <div className="aivy-am-about-backdrop" onClick={() => setAboutOpen(false)} role="presentation">
           <div className="aivy-am-about aivy-scroll" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("aboutArtist")}>

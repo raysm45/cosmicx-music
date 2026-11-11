@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { loadCosmicEngine } from "./cosmicLoader3d.js";
 
-/* Bintang 4 sudut logo (versi datar), dipakai sebagai fallback selama three.js dimuat / jika WebGL tidak ada */
 const FALLBACK_PATH = "M1 -47 Q9 -9 50 1 Q9 9 -1 47 Q-9 9 -50 -1 Q-9 -9 1 -47Z";
 
-/* true kalau warna teks (ink) terang -> latar gelap -> pakai logo krom terang */
 function inkIsLight(el) {
   if (!el || typeof getComputedStyle !== "function") return true;
   const c = getComputedStyle(el).color || "";
@@ -22,11 +20,6 @@ function inkIsLight(el) {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.55;
 }
 
-/**
- * Loader logo 3D CosmicX.
- * `color` = warna "tinta" di sekitarnya (sama seperti StarLoader lama). Dari situ dipilih varian logo:
- * tinta terang (latar gelap) -> krom terang, tinta gelap (latar terang) -> titanium gelap.
- */
 export default function CosmicLoader({ size = 48, color = "var(--accent-strong)", label, className = "", style, decorative = false, staticFallback = false }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);

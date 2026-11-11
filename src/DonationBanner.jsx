@@ -3,10 +3,6 @@ import { Heart } from "lucide-react";
 import { Link } from "./router.jsx";
 import { useUI } from "./context.jsx";
 
-// Banner donasi (gambar) dengan tombol "Donate Now" transparan tepat di atas tombol
-// yang tergambar di banner. Posisi overlay dihitung dari gambar asli 1983x793 px,
-// jadi tetap pas di ukuran layar berapa pun. Di layar kecil, tombol tergambar terlalu
-// mungil untuk disentuh, jadi diganti tombol asli di bawah banner.
 export function DonationBanner({ className = "" }) {
   const { settings } = useUI();
   const en = settings.language === "en";

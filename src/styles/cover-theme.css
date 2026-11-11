@@ -1,7 +1,3 @@
-/* Theme ikut warna lagu. Variabel diisi dari src/lib/coverTheme.js; durasi & easing dari motion.js
-   (--cv-dur-ms = BG_FADE_MS, --cv-ease = EASE_CSS) supaya menyatu dengan latar WebGL.
-   Semua aturan di bawah dipagari :root[data-cover-theme] -> kalau fitur mati, tampilan 100% seperti semula. */
-
 @property --accent        { syntax: "<color>"; inherits: true; initial-value: #E6E6E6; }
 @property --accent-strong { syntax: "<color>"; inherits: true; initial-value: #FFFFFF; }
 @property --accent-ink    { syntax: "<color>"; inherits: true; initial-value: #000000; }
@@ -10,7 +6,6 @@
 @property --cv-dk-strong  { syntax: "<color>"; inherits: true; initial-value: #FFFFFF; }
 @property --cv-dk-ink     { syntax: "<color>"; inherits: true; initial-value: #000000; }
 @property --cv-dk-soft    { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.10); }
-/* mode penuh (Warna dinamis) */
 @property --bg            { syntax: "<color>"; inherits: true; initial-value: #000000; }
 @property --bg-elev      { syntax: "<color>"; inherits: true; initial-value: #0B0B0B; }
 @property --bg-elev-2    { syntax: "<color>"; inherits: true; initial-value: #151515; }
@@ -24,7 +19,6 @@
 @property --dyn-b        { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --dyn-c        { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --dyn-d        { syntax: "<color>"; inherits: true; initial-value: transparent; }
-/* kaca (dipakai refine.css); di mode penuh nilainya diisi coverTheme.js */
 @property --glass-fill   { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.07); }
 @property --glass-fill-2 { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.12); }
 @property --glass-edge   { syntax: "<color>"; inherits: true; initial-value: rgba(255,255,255,.14); }
@@ -53,14 +47,12 @@
 @media (prefers-reduced-motion: reduce){ :root{ --cv-dur: 0ms; } }
 :root[data-cv-snap]{ transition: none; }
 
-/* Pulau gelap (Now Playing): pakai set --cv-dk-* sebagai --accent*, bukan set permukaan theme */
 :root[data-cover-theme] .npd,
 :root[data-cover-theme] .aivy-sheet.npx-v2{
   --accent: var(--cv-dk-accent); --accent-strong: var(--cv-dk-strong);
   --accent-ink: var(--cv-dk-ink); --accent-soft: var(--cv-dk-soft);
 }
 
-/* Scrubber & volume: isian ikut aksen (sebelumnya baru berwarna saat hover) */
 :root[data-cover-theme] .aivy-scrubber .fill,
 :root[data-cover-theme] .aivy-vol .fill,
 :root[data-cover-theme] .npd .aivy-scrubber .fill,
@@ -71,7 +63,6 @@
 :root[data-cover-theme] .aivy-sheet.npx-v2 .aivy-vol:hover .fill{ background: var(--accent-strong); }
 :root[data-cover-theme] .npd .aivy-scrubber .thumb{ background: var(--accent-strong); }
 
-/* Now Playing desktop: tombol aktif, like, transport */
 :root[data-cover-theme] .npd .npd-round:hover,
 :root[data-cover-theme] .npd .npd-round.active,
 :root[data-cover-theme] .npd .npd-mini:hover,
@@ -81,15 +72,8 @@
 :root[data-cover-theme] .npd .npd-chip.active::after,
 :root[data-cover-theme] .npd .npd-mini.active::after{ background: color-mix(in srgb, var(--accent-strong) 30%, transparent); }
 
-/* Highlight lirik (am-lyrics membaca --am-lyrics-highlight-color lewat shadow DOM) */
 :root[data-cover-theme] .aivy-am-lyrics{ --am-lyrics-highlight-color: var(--accent-strong); }
 
-/* ====================================================================================================
-   MODE PENUH (Warna dinamis): latar TENANG ala Apple/YouTube Music. Satu hue dominan di atas yang memudar secara
-   vertikal menjadi abu-abu gelap netral di bawah (bukan mesh pelangi). Kartu/panel/baris memakai token kaca
-   transparan (lihat refine.css) jadi semuanya menyatu dengan latar. Dipagari :root[data-cover-dyn].
-   --dyn-a..d = atas -> bawah (diisi coverTheme.js); satu sorotan lembut di kanan-atas memberi sedikit kedalaman.
-   ==================================================================================================== */
 :root[data-cover-dyn] body:not(#_){
   background-color: var(--bg);
   background-image:

@@ -6,7 +6,6 @@ import { StarLoader } from "./lib/brand.jsx";
 export const NPX_LYRICS_ID = "aivy-am-lyrics-mobile";
 const EXIT_MS = 220;
 
-/** Tetap ter-mount selama animasi keluar, supaya dialog/sheet bisa menutup dengan halus. */
 function useMountTransition(open) {
   const [mounted, setMounted] = useState(open);
   const [shown, setShown] = useState(false);
@@ -32,7 +31,6 @@ function useEscape(open, onClose) {
   }, [open, onClose]);
 }
 
-/** Logo gelombang Lossless (mirip yang dipakai Apple Music). */
 export function LosslessGlyph({ className = "", ...rest }) {
   return (
     <svg className={className} viewBox="0 0 120 84" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...rest}>
@@ -44,10 +42,6 @@ export function LosslessGlyph({ className = "", ...rest }) {
   );
 }
 
-/**
- * Dialog info kualitas audio: ikon, judul ("Lossless"), spesifikasi ("24 bit/44,1 kHz ALAC"),
- * lalu dua tombol "Pengaturan" dan "OKE" seperti Apple Music.
- */
 export function QualityDialog({ open, info, tx, onSettings, onClose }) {
   const { mounted, shown } = useMountTransition(open);
   useEscape(open, onClose);
@@ -73,7 +67,6 @@ export function QualityDialog({ open, info, tx, onSettings, onClose }) {
   );
 }
 
-/** Sheet pilih provider lirik (versi mobile dari LyricsProviderSheet desktop). */
 export function LyricsProviderMobileSheet({ open, tx, onClose }) {
   const { mounted, shown } = useMountTransition(open);
   const [list, setList] = useState([]);

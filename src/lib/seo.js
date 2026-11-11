@@ -72,7 +72,6 @@ const ROUTE_SEO = {
   roomLobby:      { title: "Rooms | cosmicx Music", ...PRIVATE },
   room:           { title: "Room | cosmicx Music", ...PRIVATE },
   playlist:       { title: "Playlist | cosmicx Music", ...PRIVATE },
-  // artist & album: judul/meta diisi halamannya sendiri setelah data dimuat
   artist:         { title: "Artis | cosmicx Music" },
   album:          { title: "Album | cosmicx Music" },
 };

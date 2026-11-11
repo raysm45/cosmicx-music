@@ -104,6 +104,7 @@ export function useImmersiveHero({ ready, tint }) {
     let lastBlurStep = -1;
     let lastProgStep = -1;
     const BLUR_STEPS = 14;
+    const isNative = () => scroller.classList.contains("is-mobile");
     const apply = () => {
       raf = 0;
       const heroH = heroRef.current?.offsetHeight || Math.round((window.innerHeight || 800) * 0.78);
@@ -112,7 +113,8 @@ export function useImmersiveHero({ ready, tint }) {
       const progress = Math.min(1, top / Math.max(1, heroH * 0.82));
       const step = Math.round(progress * BLUR_STEPS) / BLUR_STEPS;
       if (mediaRef.current) {
-        mediaRef.current.style.setProperty("--am-shift", `${-shift}px`);
+        if (!isNative()) mediaRef.current.style.setProperty("--am-shift", `${-shift}px`);
+        else mediaRef.current.style.removeProperty("--am-shift");
         const blurStep = Math.round(progress * BLUR_STEPS);
         if (blurStep !== lastBlurStep) {
           lastBlurStep = blurStep;
@@ -132,9 +134,12 @@ export function useImmersiveHero({ ready, tint }) {
       const m = mediaRef.current;
       if (!m) return;
       const r = scroller.getBoundingClientRect();
-      m.style.left = "0px";
+      if (isNative()) {
+        m.style.removeProperty("--am-left");
+        m.style.removeProperty("--am-right");
+        return;
+      }
       m.style.setProperty("--am-left", `${Math.max(0, Math.round(r.left))}px`);
-      m.style.right = "0px";
       m.style.setProperty("--am-right", `${Math.max(0, Math.round(window.innerWidth - r.right))}px`);
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };

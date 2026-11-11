@@ -83,6 +83,7 @@ function renderLiveText(text, needle) {
 }
 
 const EMPTY_LIVE = { q: "", suggestions: [], titles: [] };
+const VOICE_BARS = 23;
 
 export function SearchPage() {
   const { authUser, settings, t } = useUI();
@@ -110,6 +111,7 @@ export function SearchPage() {
   const [artistProfiles, setArtistProfiles] = useState({});
   const [genresOpen, setGenresOpen] = useState(false);
   const [listening, setListening] = useState(false);
+  const [heardText, setHeardText] = useState("");
   const [nextCursor, setNextCursor] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef(null);
@@ -390,15 +392,18 @@ export function SearchPage() {
     if (!SR) return;
     const rec = new SR();
     rec.lang = settings.language === "en" ? "en-US" : "id-ID";
-    rec.interimResults = false;
+    rec.interimResults = true;
     rec.maxAlternatives = 1;
-    rec.onstart = () => setListening(true);
+    rec.onstart = () => { setHeardText(""); setListening(true); };
     rec.onresult = (e) => {
-      const heard = e.results?.[0]?.[0]?.transcript;
-      if (heard && heard.trim()) runSearch(heard.trim());
+      const res = e.results?.[0];
+      const heard = res?.[0]?.transcript;
+      if (!heard || !heard.trim()) return;
+      setHeardText(heard.trim());
+      if (res.isFinal) runSearch(heard.trim());
     };
-    rec.onerror = () => setListening(false);
-    rec.onend = () => setListening(false);
+    rec.onerror = () => { setListening(false); setHeardText(""); };
+    rec.onend = () => { setListening(false); setHeardText(""); };
     recognitionRef.current = rec;
     try { rec.start(); } catch { setListening(false); }
   };
@@ -406,6 +411,7 @@ export function SearchPage() {
   const stopVoiceSearch = () => {
     try { recognitionRef.current?.stop(); } catch { }
     setListening(false);
+    setHeardText("");
   };
 
   const showBrowse = !query.trim() && !hasSearched;
@@ -459,7 +465,6 @@ export function SearchPage() {
       topResult?.kind === "artist" ? topResult : null,
       ...artistHits,
     ];
-    // Also extract artists from song results if artistHits is sparse
     for (const r of results.slice(0, 12)) {
       const aObj = r?.artist && typeof r.artist === "object" ? r.artist : (r?.artist ? { name: r.artist } : null);
       if (aObj?.name && isRelevantArtistMatch(aObj.name, searchedQuery)) {
@@ -493,7 +498,6 @@ export function SearchPage() {
   const topArtist = allArtists[0] || null;
   const otherArtists = allArtists.slice(1, 16);
 
-  // Enrich topArtist with full artist profile + Apple Music editorial artwork
   useEffect(() => {
     if (!topArtist) {
       setTopArtistDetail(null);
@@ -523,7 +527,6 @@ export function SearchPage() {
     return () => { cancelled = true; };
   }, [topArtist?.id, topArtist?.name, searchedQuery]);
 
-  // Enrich all artists with profile avatars & audience in the background
   useEffect(() => {
     if (!allArtists.length) return undefined;
     let cancelled = false;
@@ -1025,12 +1028,20 @@ export function SearchPage() {
             <div className="aivy-voice-lang"><Globe size={14} /><span>{settings.language === "en" ? "English (United States)" : "Bahasa Indonesia (Indonesia)"}</span></div>
             <div className="aivy-voice-title">{tt("Dengerin, ya…", "Listening…")}</div>
             <div className="aivy-voice-stage">
-              <span className="aivy-voice-ring r1" />
-              <span className="aivy-voice-ring r2" />
-              <span className="aivy-voice-ring r3" />
-              <button className="aivy-voice-mic" onClick={stopVoiceSearch} aria-label={tt("Batalkan", "Cancel")}><Mic size={24} /></button>
+              <div className="aivy-voice-wave" aria-hidden="true">
+                {Array.from({ length: VOICE_BARS }, (_, i) => {
+                  const mid = (VOICE_BARS - 1) / 2;
+                  const amp = 0.28 + 0.72 * Math.cos(((i - mid) / mid) * (Math.PI / 2.2));
+                  return <i key={i} style={{ "--amp": amp.toFixed(2), "--d": `${(0.7 + ((i * 37) % 9) * 0.07).toFixed(2)}s`, "--dl": `${(-((i * 53) % 10) * 0.11).toFixed(2)}s` }} />;
+                })}
+              </div>
+              <button className="aivy-voice-orb" onClick={stopVoiceSearch} aria-label={tt("Batalkan", "Cancel")}>
+                <span className="blob" /><span className="blob b2" /><Mic size={26} />
+              </button>
             </div>
-            <span className="aivy-voice-hint">{tt("Ketuk mic buat berhenti", "Tap the mic to stop")}</span>
+            {heardText
+              ? <div className="aivy-voice-heard">{heardText}</div>
+              : <span className="aivy-voice-hint">{tt("Ketuk mic buat berhenti", "Tap the mic to stop")}</span>}
           </div>
         </div>
       )}

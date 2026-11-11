@@ -1,11 +1,5 @@
 import React from "react";
 
-// Pipeline SVG filter yang mereplikasi shader FS_GLASS dari @ybouane/liquidglass (https://liquid-glass.ybouane.com/):
-// - Regular Glass (#glass-fp1): blur stdDeviation = 0 (blurAmount: 0)
-// - Frosted Glass (#glass-fp2): blur stdDeviation = 5 (blurAmount: 0.5) + alpha normalization agar sudut tetap utuh
-// - dispR / dispG / dispB: biconvex rounded-rect SDF refraction (refraction: 0.69, cornerRadius: 40, zRadius: 40, bevelMode: 0)
-//   + chromatic aberration per-channel sepanjang normal permukaan N.xy (chromAberration: 0.05)
-// - shineMap: Fresnel (fresnel: 1) + edgeHighlight (0.05) + innerStroke + innerGlow + envRefl
 export const LiquidFilter = React.memo(function LiquidFilter({ id }) {
   return (
     <filter

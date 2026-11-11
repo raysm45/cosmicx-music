@@ -257,7 +257,6 @@ export function ServerDownPage({ eta = "± 5 jam", updatedAt = "13:30:00 WIB" } 
       margin: 0 auto;
     }
 
-    /* Titik putih: statis, tidak ada animasi */
     .dot {
       width: 8px;
       height: 8px;
@@ -265,7 +264,6 @@ export function ServerDownPage({ eta = "± 5 jam", updatedAt = "13:30:00 WIB" } 
       background: #ffffff;
     }
 
-    /* Titik merah: berkedip cepat */
     .dot.error {
       animation: dot-blink 0.6s steps(1, end) infinite;
     }
