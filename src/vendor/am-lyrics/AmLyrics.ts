@@ -149,7 +149,7 @@ export class AmLyrics extends LitElement {
       --lyplus-font-size-base-grow: 24.5;
       --lyplus-font-size-subtext: 0.6em;
       --am-lyrics-line-height: 1.2;
-      --am-lyrics-line-spacing: 25px;
+      --am-lyrics-line-spacing: 12px;
       --am-lyrics-background-vocal-spacing: 15px;
       --am-lyrics-background-vocal-font-size: 0.65em;
       --am-lyrics-background-vocal-stack-shift: 7.5px;
@@ -1892,7 +1892,7 @@ export class AmLyrics extends LitElement {
     @container (max-width: 519px) {
       .lyrics-container {
         --lyplus-font-size-base: var(--am-lyrics-compact-font-size, 28px);
-        --am-lyrics-line-spacing: var(--am-lyrics-compact-line-spacing, 20px);
+        --am-lyrics-line-spacing: var(--am-lyrics-compact-line-spacing, 10px);
         --am-lyrics-background-vocal-font-size: var(
           --am-lyrics-compact-background-vocal-font-size,
           0.857em
@@ -1909,7 +1909,7 @@ export class AmLyrics extends LitElement {
       .lyrics-container {
         --lyplus-font-size-base: var(--am-lyrics-wide-font-size, 48px);
         --am-lyrics-line-height: 1.17;
-        --am-lyrics-line-spacing: var(--am-lyrics-wide-line-spacing, 32px);
+        --am-lyrics-line-spacing: var(--am-lyrics-wide-line-spacing, 16px);
         --am-lyrics-background-vocal-font-size: var(
           --am-lyrics-wide-background-vocal-font-size,
           0.667em
@@ -2328,6 +2328,31 @@ export class AmLyrics extends LitElement {
 
   private preActiveLineElements: HTMLElement[] = [];
 
+  /* Timers that release a finished line's persist-highlight (sharp + white)
+     shortly after the line stops being active, so it re-blurs once the
+     scroll to the next line has settled. */
+  private persistReleaseTimeouts = new Map<HTMLElement, number>();
+
+  private _cancelPersistRelease(lineElement: HTMLElement): void {
+    const id = this.persistReleaseTimeouts.get(lineElement);
+    if (id !== undefined) {
+      clearTimeout(id);
+      this.persistReleaseTimeouts.delete(lineElement);
+    }
+  }
+
+  private _schedulePersistRelease(lineElement: HTMLElement): void {
+    this._cancelPersistRelease(lineElement);
+    const id = window.setTimeout(() => {
+      this.persistReleaseTimeouts.delete(lineElement);
+      const idx = AmLyrics.getLineIndexFromElement(lineElement);
+      if (idx !== null && this.activeLineIndices.includes(idx)) return;
+      if (lineElement.classList.contains('active')) return;
+      AmLyrics.unfinishSyllables(lineElement);
+    }, SCROLL_ANIMATION_DURATION_MS + 150);
+    this.persistReleaseTimeouts.set(lineElement, id);
+  }
+
   private positionedLineElements: HTMLElement[] = [];
 
   private activeGapLineElements: HTMLElement[] = [];
@@ -2367,6 +2392,10 @@ export class AmLyrics extends LitElement {
       clearTimeout(timeoutId);
     }
     this.backgroundCollapseTimeouts.clear();
+    for (const timeoutId of this.persistReleaseTimeouts.values()) {
+      clearTimeout(timeoutId);
+    }
+    this.persistReleaseTimeouts.clear();
     if (this.backgroundExpandFrameId !== undefined) {
       cancelAnimationFrame(this.backgroundExpandFrameId);
       this.backgroundExpandFrameId = undefined;
@@ -4614,6 +4643,10 @@ export class AmLyrics extends LitElement {
               lineElement.classList.remove('active', 'scroll-exiting');
               lineElement.removeAttribute('aria-current');
 
+              if (lineElement.classList.contains('persist-highlight')) {
+                this._schedulePersistRelease(lineElement);
+              }
+
               if (lineElement.classList.contains('pre-active')) {
                 lineElement.classList.remove('pre-active');
               }
@@ -4627,6 +4660,7 @@ export class AmLyrics extends LitElement {
           if (!oldActiveLines.includes(lineIndex)) {
             const lineElement = this._getLineElement(lineIndex);
             if (lineElement) {
+              this._cancelPersistRelease(lineElement);
               lineElement.classList.add('active');
               lineElement.setAttribute('aria-current', 'true');
               lineElement.classList.remove('pre-active', 'scroll-exiting');
@@ -5893,7 +5927,8 @@ export class AmLyrics extends LitElement {
         !isActive &&
         minActive !== -1 &&
         idx !== null &&
-        idx < minActive - 1
+        idx < minActive &&
+        !this.persistReleaseTimeouts.has(el)
       ) {
         AmLyrics.unfinishSyllables(el);
       }
