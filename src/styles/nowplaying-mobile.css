@@ -513,3 +513,27 @@
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality{ border: 0; font-family: inherit; cursor: pointer; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: transform .15s ease, background .2s ease; }
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality:active{ transform: scale(.95); background: rgba(255,255,255,.28); }
 .aivy-quality .q-ico{ flex: 0 0 auto; width: 1.55em; height: auto; margin-right: -2px; color: rgba(255,255,255,.88); }
+
+.aivy-sheet.npx-v2 .npx-lyr-btn.npx-lyr-lang{
+  left: 0; right: 0; margin: 0 auto; width: max-content; min-width: calc(var(--u) * 48); max-width: calc(var(--u) * 200);
+  padding: 0 calc(var(--u) * 22); border-radius: calc(var(--u) * 24);
+}
+.aivy-sheet.npx-v2 .npx-lyr-lang span{ font-size: calc(var(--u) * 19); font-weight: 600; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aivy-sheet.npx-v2 .npx-lang-scrim{ position: absolute; inset: 0; z-index: 5; background: transparent; border: 0; padding: 0; }
+.aivy-sheet.npx-v2 .npx-lang-menu{
+  position: absolute; left: 0; right: 0; margin: 0 auto; bottom: calc(var(--u) * 644); z-index: 6;
+  width: calc(var(--u) * 270); max-height: calc(var(--u) * 360); overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 2px; padding: calc(var(--u) * 8);
+  border-radius: calc(var(--u) * 26); background: rgba(44,44,48,.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: 0 16px 40px rgba(0,0,0,.35);
+  animation: npx-lang-in .18s ease backwards;
+}
+.aivy-sheet.npx-v2 .npx-lang-item{
+  width: 100%; text-align: left; padding: calc(var(--u) * 14) calc(var(--u) * 18); border-radius: calc(var(--u) * 16);
+  font-size: calc(var(--u) * 21); color: rgba(255,255,255,.88); flex-shrink: 0;
+}
+.aivy-sheet.npx-v2 .npx-lang-item:active{ background: rgba(255,255,255,.12); }
+.aivy-sheet.npx-v2 .npx-lang-item.on{ background: rgba(255,255,255,.2); color: #fff; font-weight: 700; }
+@keyframes npx-lang-in{ from{ opacity: 0; transform: translateY(calc(var(--u) * 8)); } to{ opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce){ .aivy-sheet.npx-v2 .npx-lang-menu{ animation: none; } }

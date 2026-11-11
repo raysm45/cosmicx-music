@@ -2083,9 +2083,19 @@ function NpxHandleIcon() {
 
 /* Polling ringan ke elemen <am-lyrics>: baris aktif, sumber lirik, status romanisasi/terjemahan. */
 const LYR_CTRL_IDLE_MS = 5000;
+const NPX_FALLBACK_LANGS = [
+  { code: "en", label: "English" },
+  { code: "id", label: "Indonesia" },
+  { code: "ja", label: "日本語" },
+  { code: "ko", label: "한국어" },
+  { code: "zh-CN", label: "中文 (简体)" },
+  { code: "es", label: "Español" },
+  { code: "fr", label: "Français" },
+  { code: "de", label: "Deutsch" },
+];
 
 function useNpxLyricsInfo(enabled, trackKey) {
-  const [info, setInfo] = useState({ line: "", source: "", has: false, roman: false, trans: false });
+  const [info, setInfo] = useState({ line: "", source: "", has: false, roman: false, trans: false, lang: "en" });
   const read = useCallback(() => {
     const el = typeof document !== "undefined" ? document.getElementById("aivy-am-lyrics-mobile") : null;
     if (!el) return null;
@@ -2102,7 +2112,7 @@ function useNpxLyricsInfo(enabled, trackKey) {
     return {
       line, source,
       has: Array.isArray(el.lyrics) ? el.lyrics.length > 0 : false,
-      roman: !!el.showRomanization, trans: !!el.showTranslation,
+      roman: !!el.showRomanization, trans: !!el.showTranslation, lang: el.translationLang || "en",
     };
   }, []);
   useEffect(() => {
@@ -2110,7 +2120,7 @@ function useNpxLyricsInfo(enabled, trackKey) {
     const tick = () => {
       const next = read();
       if (!next) return;
-      setInfo((prev) => (prev.line === next.line && prev.source === next.source && prev.has === next.has && prev.roman === next.roman && prev.trans === next.trans ? prev : next));
+      setInfo((prev) => (prev.line === next.line && prev.source === next.source && prev.has === next.has && prev.roman === next.roman && prev.trans === next.trans && prev.lang === next.lang ? prev : next));
     };
     tick();
     const id = setInterval(tick, 450);
@@ -2541,6 +2551,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const [queueMode, setQueueMode] = useState(false);
   const [qCollapsed, setQCollapsed] = useState(false);
   const [lyrCtrlOpen, setLyrCtrlOpen] = useState(true);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   const playingFrom = playSource?.label ? `${t("npPlayingFrom")} ${playSource.label}` : (playSource?.type === "search" ? `${t("npPlayingFrom")} ${t("search", "Search")}` : t("nowPlaying"));
   const tilt = useTilt({ enabled: !!settings.tiltCover, distance: Number(settings.tiltDistance) || 10, speed: Number(settings.tiltSpeed) || 240 });
@@ -2625,7 +2636,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   // Auto-hide kontrol bawah di mode lirik: sembunyi setelah 5 dtk tanpa aktivitas, muncul lagi saat lirik di-scroll ke bawah
   // atau area bawah diketuk, lalu sembunyi lagi setelah 5 dtk (berulang).
   useEffect(() => {
-    if (!lyricsMode || !lyrCtrlOpen) return undefined;
+    if (!lyricsMode || !lyrCtrlOpen || langMenuOpen) return undefined;
     const ctrl = controlsRef.current;
     const wrap = lyricsWrapRef.current;
     let timer = null;
@@ -2654,7 +2665,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
       });
       ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach((ev) => window.removeEventListener(ev, release, true));
     };
-  }, [lyricsMode, lyrCtrlOpen, currentTrack?.id]);
+  }, [lyricsMode, lyrCtrlOpen, langMenuOpen, currentTrack?.id]);
 
   // Scroll lirik ke bawah (jari geser ke atas / roda ke bawah) -> kontrol muncul lagi. Scroll otomatis tidak dihitung.
   useEffect(() => {
@@ -2737,6 +2748,23 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
       if (res && typeof res.then === "function") res.then(lyricsPoll.refresh, lyricsPoll.refresh); else lyricsPoll.refresh();
     } catch { /* abaikan */ }
   };
+  const lyricsLangs = useMemo(() => {
+    const ctor = typeof customElements !== "undefined" ? customElements.get("am-lyrics") : null;
+    return ctor && Array.isArray(ctor.TRANSLATION_LANGUAGES) ? ctor.TRANSLATION_LANGUAGES : NPX_FALLBACK_LANGS;
+  }, []);
+  const currentLangLabel = (lyricsLangs.find((l) => l.code === lyricsInfo.lang) || lyricsLangs[0] || { label: "" }).label;
+  const pickLyricsLang = (code) => {
+    const el = document.getElementById("aivy-am-lyrics-mobile");
+    setLangMenuOpen(false);
+    if (!el || typeof el.changeTranslationLang !== "function") return;
+    try {
+      const res = el.changeTranslationLang(code);
+      if (res && typeof res.then === "function") res.then(lyricsPoll.refresh, lyricsPoll.refresh); else lyricsPoll.refresh();
+    } catch { lyricsPoll.refresh(); }
+  };
+  useEffect(() => {
+    if (langMenuOpen && !(lyricsMode && lyricsInfo.trans)) setLangMenuOpen(false);
+  }, [langMenuOpen, lyricsMode, lyricsInfo.trans]);
   const deviceName = (() => {
     const raw = String(authUser?.name || authUser?.username || authUser?.displayName || "").trim();
     return raw ? `${raw.split(/\s+/)[0]}${t("npPhoneSuffix")}` : t("npThisPhone");
@@ -2889,6 +2917,23 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               <>
                 <button type="button" className={`npx-lyr-btn is-left ${lyricsInfo.roman ? "on" : ""}`} onClick={() => toggleLyricsLayer("roman")} aria-label={t("npRomanize")} aria-pressed={lyricsInfo.roman}><Globe aria-hidden="true" /></button>
                 <button type="button" className={`npx-lyr-btn is-right ${lyricsInfo.trans ? "on" : ""}`} onClick={() => toggleLyricsLayer("trans")} aria-label={t("npTranslate")} aria-pressed={lyricsInfo.trans}><Languages aria-hidden="true" /></button>
+                {lyricsInfo.trans && (
+                  <button type="button" className={`npx-lyr-btn npx-lyr-lang ${langMenuOpen ? "on" : ""}`} onClick={() => setLangMenuOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={langMenuOpen} aria-label={t("npTranslateLang")}>
+                    <span>{currentLangLabel}</span>
+                  </button>
+                )}
+                {langMenuOpen && lyricsInfo.trans && (
+                  <>
+                    <button type="button" className="npx-lang-scrim" onClick={() => setLangMenuOpen(false)} aria-label={t("close")} />
+                    <div className="npx-lang-menu" role="listbox" aria-label={t("npTranslateLang")}>
+                      {lyricsLangs.map((l) => (
+                        <button key={l.code} type="button" role="option" aria-selected={l.code === lyricsInfo.lang} className={`npx-lang-item ${l.code === lyricsInfo.lang ? "on" : ""}`} onClick={() => pickLyricsLang(l.code)}>
+                          {l.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </>
             )}
 

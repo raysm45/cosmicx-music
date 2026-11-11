@@ -4658,6 +4658,7 @@ export class AmLyrics extends LitElement {
     if (linesChanged || isSeek) {
       this.clearPastLineHighlights();
     }
+    this._reconcileLineClasses(linesChanged || isSeek);
 
     if (this.lyricsContainer) {
       for (const lineIndex of this.activeLineIndices) {
@@ -5842,6 +5843,61 @@ export class AmLyrics extends LitElement {
     if (this.activeLineIndices.length > 0) {
       this._handleActiveLineScroll([], true);
     }
+  }
+
+  private lastClassSweepAt = 0;
+
+  private _reconcileLineClasses(forceSweep: boolean): void {
+    if (!this.lyricsContainer) return;
+    const primary = this.currentPrimaryActiveLine;
+    const activeSet = new Set(this.activeLineIndices);
+
+    const keptPreActive: HTMLElement[] = [];
+    for (const el of this.preActiveLineElements) {
+      const idx = AmLyrics.getLineIndexFromElement(el);
+      const isActive = idx !== null && activeSet.has(idx);
+      if (el === primary && !isActive) {
+        keptPreActive.push(el);
+      } else {
+        el.classList.remove('pre-active');
+      }
+    }
+    this.preActiveLineElements = keptPreActive;
+
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!forceSweep && now - this.lastClassSweepAt < 600) return;
+    this.lastClassSweepAt = now;
+
+    const minActive = this.activeLineIndices.length
+      ? Math.min(...this.activeLineIndices)
+      : -1;
+    const marked = this.lyricsContainer.querySelectorAll(
+      '.lyrics-line.active:not(.lyrics-gap), .lyrics-line.pre-active:not(.lyrics-gap), .lyrics-line.persist-highlight:not(.lyrics-gap)',
+    );
+    marked.forEach(node => {
+      const el = node as HTMLElement;
+      const idx = AmLyrics.getLineIndexFromElement(el);
+      const isActive = idx !== null && activeSet.has(idx);
+
+      if (el.classList.contains('active') && !isActive) {
+        el.classList.remove('active', 'scroll-exiting');
+        el.removeAttribute('aria-current');
+      }
+      if (el.classList.contains('pre-active') && !isActive && el !== primary) {
+        el.classList.remove('pre-active');
+        const preIdx = this.preActiveLineElements.indexOf(el);
+        if (preIdx !== -1) this.preActiveLineElements.splice(preIdx, 1);
+      }
+      if (
+        el.classList.contains('persist-highlight') &&
+        !isActive &&
+        minActive !== -1 &&
+        idx !== null &&
+        idx < minActive - 1
+      ) {
+        AmLyrics.unfinishSyllables(el);
+      }
+    });
   }
 
   private clearPastLineHighlights() {
