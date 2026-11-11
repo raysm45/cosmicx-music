@@ -1,14 +1,3 @@
-/* =====================================================================================================================
-   refine.css  —  dimuat TERAKHIR (lihat main.jsx), jadi menang atas global.css / spotify-shell.css / cover-theme.css.
-
-   1. Shell MENYATU & DATAR: sidebar dan area tengah berada di satu permukaan yang sama (tanpa panel kotak, tanpa
-      border/radius/blur kaca). Panel kanan dan player tetap seperti aslinya.
-   2. Skala jarak tunggal (--page-x, --r-card, --r-art, --r-ctl): semua halaman memakai gutter dan radius yang sama.
-   3. Warna dinamis (mode penuh): latar tenang dari cover (lihat cover-theme.css). Kartu/baris memakai token
-      --bg-elev* yang transparan, jadi warnanya menyatu dengan latar.
-   Aturan khusus Warna dinamis dipagari :root[data-cover-dyn]; aturan shell dipagari :not(.is-mobile).
-   (Versi bergaya kaca sebelumnya disimpan terpisah: refine.glass.css.)
-   ===================================================================================================================== */
 
 :root{
   --page-x: 28px;        /* gutter kiri/kanan semua halaman (topbar, konten, hero) */
@@ -16,7 +5,6 @@
   --r-art: 10px;         /* sampul di dalam kartu */
   --r-ctl: 10px;         /* baris, tombol kotak, input */
 
-  /* token kaca: tetap didefinisikan karena coverTheme.js mengisinya & popover memakai --pop-bg */
   --glass-fill:   color-mix(in srgb, var(--ink) 6%, transparent);
   --glass-fill-2: color-mix(in srgb, var(--ink) 11%, transparent);
   --glass-edge:   color-mix(in srgb, var(--ink) 11%, transparent);
@@ -24,9 +12,6 @@
   --pop-bg:       var(--bg-elev-2);
 }
 
-/* =====================================================================================================================
-   1. SIDEBAR + AREA TENGAH MENYATU
-   ===================================================================================================================== */
 .aivy-shell:not(.is-mobile) .sp-panel{
   background: transparent;
   border: 0;
@@ -34,11 +19,10 @@
   box-shadow: none;
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-/* satu garis tipis memisahkan menu atas dan koleksi (bukan kotak terpisah) */
+
 .aivy-shell:not(.is-mobile) .sp-nav-panel{ border-bottom: 1px solid var(--line-soft); padding-bottom: 8px; }
 .aivy-shell:not(.is-mobile) .sp-side-foot{ border-top: 1px solid var(--line-soft); }
 
-/* panel kanan menyatu dengan area tengah (tanpa latar sendiri); kiri & kanan dipisah garis pembatas yang sama */
 :root{ --shell-divider: var(--line); }
 .aivy-shell:not(.is-mobile) .aivy-sidebar.sp-side{ border-right: 1px solid var(--shell-divider); }
 .aivy-shell:not(.is-mobile) .aivy-rightpanel{
@@ -49,12 +33,9 @@
 .aivy-shell:not(.is-mobile) .aivy-rightpanel-rail{ background: transparent; border-left: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:hover,
 .aivy-shell:not(.is-mobile) .aivy-rightpanel-rail:focus-visible{ background: var(--bg-elev); }
-/* halaman artis imersif: garis tetap tipis putih seperti sebelumnya (di atas hero gelap) */
+
 body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-mix(in srgb, #fff 8%, transparent); }
 
-/* =====================================================================================================================
-   2. TOPBAR + GUTTER HALAMAN — semua kiri-kanan sama (--page-x)
-   ===================================================================================================================== */
 .aivy-shell:not(.is-mobile) .aivy-topbar{ padding: 14px var(--page-x) 6px; }
 .aivy-shell:not(.is-mobile) .aivy-topbar.scrolled{ background: transparent; border-bottom-color: var(--line-soft); }
 
@@ -78,9 +59,6 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
 .aivy-hrow{ gap: 16px; padding: 2px 2px 12px; }
 .aivy-songlist-grid{ gap: 6px 20px; }
 
-/* =====================================================================================================================
-   3. KARTU & BARIS — datar, satu radius (tanpa border/highlight kaca)
-   ===================================================================================================================== */
 .aivy-card{ padding: 10px 10px 12px; border-radius: var(--r-card); background: var(--bg-elev); border: 0; box-shadow: none; }
 .aivy-card:hover{ background: var(--bg-elev-2); box-shadow: none; }
 .aivy-card .art-wrap{ border-radius: var(--r-art); margin-bottom: 10px; }
@@ -90,10 +68,6 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
 .aivy-songlist-row, .aivy-row{ border-radius: var(--r-ctl); }
 .aivy-parties-cta{ border-radius: var(--r-card); padding: 20px; }
 
-/* =====================================================================================================================
-   4. PLAYER PC — Regular Glass (data-glass="full", blurAmount: 0) & Frosted Glass (data-glass="blur", blurAmount: 0.5)
-      persis seperti @ybouane/liquidglass (https://liquid-glass.ybouane.com/)
-   ===================================================================================================================== */
 :root[data-glass="full"] :is(.aivy-player, .npd),
 :root[data-glass="blur"] :is(.aivy-player, .npd){
   --lg-blur: 0px;
@@ -143,15 +117,8 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
   filter: none;
 }
 
-/* =====================================================================================================================
-   5. WARNA DINAMIS (mode penuh)
-   ===================================================================================================================== */
-
-/* gambar cover blur milik halaman Home menambah warna LAIN di atas latar dan membuat garis pemisah di bawah topbar. */
 :root[data-cover-dyn] .aivy-home-bg{ display: none; }
 
-/* latar fluid ala Now Playing desktop di belakang seluruh shell (App.jsx -> AppFluidBackdrop).
-   Hanya untuk nada gelap: warna fluid selalu gelap-sedang, jadi di theme terang teks gelap tidak terbaca. */
 .aivy-shell.has-app-fluid{ isolation: isolate; }
 .aivy-app-fluid{ position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: var(--bg); }
 .aivy-app-fluid .npd-fluid{ animation-duration: 1.2s; }
@@ -162,13 +129,12 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
     linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.3));
 }
 :root:not([data-cover-dyn][data-cover-tone="dark"]) .aivy-app-fluid{ display: none; }
-/* bar pencarian sticky memakai latar solid --bg -> jadikan kaca supaya tidak jadi blok di atas fluid */
+
 :root[data-cover-dyn][data-cover-tone="dark"] .has-app-fluid .sp-search-head{
   background: color-mix(in srgb, var(--bg) 45%, transparent);
   -webkit-backdrop-filter: blur(24px) saturate(1.2); backdrop-filter: blur(24px) saturate(1.2);
 }
 
-/* popover/menu/modal/sheet: tetap SOLID (kalau transparan, teks di belakangnya tembus) */
 :root[data-cover-dyn] :is(.aivy-ctxmenu, .aivy-trackmenu, .aivy-modal, .aivy-cselect-menu, .aivy-emoji-pop, .aivy-ai-panel,
   .aivy-song-panel, .aivy-actionsheet, .aivy-detailsheet, .aivy-voice-sheet, .aivy-optsheet-list, .aivy-detailsheet-list){
   background: var(--pop-bg);
@@ -183,20 +149,10 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
   border-color: var(--glass-edge);
 }
 
-/* =====================================================================================================================
-   6. AKSESIBILITAS
-   ===================================================================================================================== */
 @media (prefers-reduced-transparency: reduce){
   :root, :root[data-cover-dyn]{ --glass-fill: var(--bg-elev); --glass-fill-2: var(--bg-elev-2); --glass-edge: var(--line); --glass-hi: transparent; }
 }
 :root[data-contrast="high"]{ --glass-edge: var(--ink-faint); --glass-hi: transparent; }
-
-/* =====================================================================================================================
-   MOBILE: Home (& halaman feed) harus full lebar layar.
-   Sebelumnya .aivy-home-inner memakai gutter desktop (--page-x: 28px) juga di mobile, sehingga konten menyempit dan
-   carousel (Recommended Artists, Continue listening, dll) terpotong 28px sebelum tepi layar.
-   Sekarang: gutter 16px (sama dengan halaman mobile lain) + carousel "bleed" sampai tepi layar kiri-kanan.
-   ===================================================================================================================== */
 @media (max-width: 860px){
   .aivy-home-inner{ padding-left: 16px; padding-right: 16px; }
   .aivy-home-inner .aivy-hoverrail{ margin-left: -16px; margin-right: -16px; }
