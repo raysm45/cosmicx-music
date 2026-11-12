@@ -4687,7 +4687,7 @@ export class AmLyrics extends LitElement {
           },
           {
             root: this.lyricsContainer,
-            rootMargin: '200px',
+            rootMargin: this.hasAttribute('data-lite') ? '80px' : '200px',
             threshold: 0,
           },
         );
@@ -6337,9 +6337,10 @@ export class AmLyrics extends LitElement {
       450,
       scrollDuration ?? SCROLL_ANIMATION_DURATION_MS,
     );
+    const lite = this.hasAttribute('data-lite');
     const delayIncrement = duration * 0.1;
-    const maxStaggerSteps = 4;
-    const lookAhead = 20;
+    const maxStaggerSteps = lite ? 2 : 4;
+    const lookAhead = lite ? 7 : 20;
     const len = lineArray.length;
 
     const start = Math.max(0, referenceIndex - lookAhead);
@@ -6994,6 +6995,12 @@ export class AmLyrics extends LitElement {
       const finalDuration = wordDurationMs;
       const baseDelayPerChar = finalDuration * 0.09;
       const growDurationMs = finalDuration * 1.5;
+      const hostEl = (syllable.getRootNode() as ShadowRoot).host as
+        | HTMLElement
+        | undefined;
+      const growName = hostEl?.hasAttribute?.('data-lite')
+        ? 'grow-dynamic-lite'
+        : 'grow-dynamic';
 
       allWordCharSpans.forEach(span => {
         const matrixScale = span.dataset.matrixScale || '1.1';
@@ -7008,7 +7015,7 @@ export class AmLyrics extends LitElement {
 
         charAnimationsMap.set(
           span,
-          `grow-dynamic ${growDurationMs}ms ease-in-out ${growDelay}ms forwards`,
+          `${growName} ${growDurationMs}ms ease-in-out ${growDelay}ms forwards`,
         );
 
         styleUpdates.push({

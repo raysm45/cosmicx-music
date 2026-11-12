@@ -53,7 +53,7 @@ function subscribePlaybackTime(fn) {
   playbackTimeStore.subs.add(fn);
   return () => playbackTimeStore.subs.delete(fn);
 }
-const getPlaybackTime = () => playbackTimeStore.value;
+export const getPlaybackTime = () => playbackTimeStore.value;
 export function usePlayerTime() {
   return useSyncExternalStore(subscribePlaybackTime, getPlaybackTime, getPlaybackTime);
 }

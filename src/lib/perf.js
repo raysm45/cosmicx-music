@@ -46,6 +46,21 @@ export function isLowEndDevice() {
   return lowEndCache;
 }
 
+let lyricsLiteCache = null;
+export function isLyricsLite() {
+  if (lyricsLiteCache != null) return lyricsLiteCache;
+  if (typeof window === "undefined") return false;
+  try {
+    const pref = localStorage.getItem("aivy_lyrics_fx");
+    if (pref === "full") return (lyricsLiteCache = false);
+    if (pref === "lite") return (lyricsLiteCache = true);
+  } catch {}
+  let coarse = false;
+  try { coarse = !!window.matchMedia?.("(pointer: coarse)").matches; } catch {}
+  lyricsLiteCache = !!(isLowEndDevice() || (coarse && window.innerWidth <= 900));
+  return lyricsLiteCache;
+}
+
 import { supportsRefraction } from "./liquidGlass.js";
 
 const SETTINGS_CACHE_KEY = "aivy_settings_cache_v1";

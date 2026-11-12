@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, Component } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo, Component } from "react";
 import { createPortal } from "react-dom";
 import {
   Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Volume2, Volume1,
@@ -13,7 +13,7 @@ import {
   Download,
 } from "lucide-react";
 import {
-  usePlayer, usePlayerTime, useUI,
+  usePlayer, usePlayerTime, getPlaybackTime, useUI,
   SIDEBAR_MIN_W, SIDEBAR_MAX_W, RIGHTPANEL_MIN_W, RIGHTPANEL_MAX_W,
 } from "./context.jsx";
 import { useRouter, Link } from "./router.jsx";
@@ -24,7 +24,7 @@ import { runAiAssistantTurn } from "./lib/aiAssistant.js";
 import { Api } from "./lib/api.js";
 import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
 import { LiquidFilter } from "./lib/LiquidFilter.jsx";
-import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice } from "./lib/perf.js";
+import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice, isLyricsLite } from "./lib/perf.js";
 import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled, qualityDialogInfo } from "./lib/audioFormat.js";
 import { QualityDialog, LyricsProviderMobileSheet, LosslessGlyph } from "./NpxDialogs.jsx";
 import { openDownload } from "./DownloadSheet.jsx";
@@ -383,6 +383,40 @@ export function useScrubberBinding() {
   const getRatio = useCallback(() => (duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0), [currentTime, duration]);
   return { registerFill, registerThumb, getRatio, onSeekRatio: seekRatio, currentTime, duration };
 }
+
+export function useScrubberBindingStatic() {
+  const { duration, seekRatio, registerProgressEl } = usePlayer();
+  const fillCleanupRef = useRef(null);
+  const thumbCleanupRef = useRef(null);
+  const registerFill = useCallback((el) => {
+    fillCleanupRef.current?.();
+    fillCleanupRef.current = el ? registerProgressEl(el, "width") : null;
+  }, [registerProgressEl]);
+  const registerThumb = useCallback((el) => {
+    thumbCleanupRef.current?.();
+    thumbCleanupRef.current = el ? registerProgressEl(el, "left") : null;
+  }, [registerProgressEl]);
+  const getRatio = useCallback(() => (duration > 0 ? Math.max(0, Math.min(1, getPlaybackTime() / duration)) : 0), [duration]);
+  return { registerFill, registerThumb, getRatio, onSeekRatio: seekRatio, duration };
+}
+
+const NpxElapsed = memo(function NpxElapsed({ loading }) {
+  const t = usePlayerTime();
+  return <span className="aivy-time">{loading ? "\u2013\u2013" : formatTime(t)}</span>;
+});
+
+const NpxRemaining = memo(function NpxRemaining({ loading, duration }) {
+  const t = usePlayerTime();
+  const remaining = Math.max(0, (duration || 0) - (t || 0));
+  return <span className="aivy-time right">{loading ? "\u2013\u2013" : `-${formatTime(remaining)}`}</span>;
+});
+
+const NpxLyricsTimed = memo(function NpxLyricsTimed({ open, ...rest }) {
+  const t = usePlayerTime();
+  const frozen = useRef(0);
+  if (open) frozen.current = t;
+  return <AppleLyricsPane {...rest} currentTime={open ? t : frozen.current} />;
+});
 
 function useArtistProfile(artist) {
   const [data, setData] = useState(() => { const c = peekArtistProfile(artist); return c === undefined ? null : c; });
@@ -2093,7 +2127,7 @@ function useNpxLyricsInfo(enabled, trackKey) {
       setInfo((prev) => (prev.line === next.line && prev.source === next.source && prev.has === next.has && prev.roman === next.roman && prev.trans === next.trans && prev.lang === next.lang ? prev : next));
     };
     tick();
-    const id = setInterval(tick, 450);
+    const id = setInterval(tick, isLyricsLite() ? 900 : 450);
     return () => clearInterval(id);
   }, [enabled, trackKey, read]);
   return { info, refresh: () => { const n = read(); if (n) setInfo(n); } };
@@ -2135,7 +2169,7 @@ function useNpxLyricLines(enabled, trackKey) {
       setLines(raw && raw.length ? raw.map(toInlineLine).filter(Boolean).sort((a, b) => a.t0 - b.t0) : []);
     };
     read();
-    const id = setInterval(read, 700);
+    const id = setInterval(read, isLyricsLite() ? 1200 : 700);
     return () => clearInterval(id);
   }, [enabled, trackKey]);
   return lines;
@@ -2494,10 +2528,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
     currentTrack, seekTo, isPreviewClip, audioFormat,
     liked, toggleLike, loadingAudio, currentTrackHasLyrics, isPlaying, togglePlay, next, prev, playSource,
   } = usePlayer();
-  const playerTime = usePlayerTime();
   const { navigate } = useRouter();
   const { t, settings, updateSettings, lyricsOpen, toggleLyrics, pushToast, authUser } = useUI();
-  const { registerFill, registerThumb, getRatio, onSeekRatio, currentTime, duration } = useScrubberBinding();
+  const { registerFill, registerThumb, getRatio, onSeekRatio, duration } = useScrubberBindingStatic();
   const clientDynamicColor = useDominantColor(settings.dynamicColors ? currentTrack?.cover : null);
   const [serverDominantColor, setServerDominantColor] = useState(null);
   useEffect(() => { setServerDominantColor(null); }, [currentTrack?.id]);
@@ -2759,10 +2792,6 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
     };
   }, [lyricsMounted, trackKey]);
 
-  const remaining = Math.max(0, (duration || 0) - (currentTime || 0));
-  const frozenLyricsTimeRef = useRef(0);
-  if (open) frozenLyricsTimeRef.current = playerTime;
-  const sheetLyricsTime = open ? playerTime : frozenLyricsTimeRef.current;
   const coverArt = useMemo(() => (
     <AnimatedCover
       src={currentTrack?.cover} seed={(currentTrack?.id || "") + (currentTrack?.title || "")} size={320} radius={10}
@@ -2849,10 +2878,10 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
             <div ref={lyricsWrapRef} className={`npx-lyrics-wrap ${lyricsMode ? "is-active" : ""}`}>
               {lyricsMounted && (
                 <>
-                  <AppleLyricsPane
+                  <NpxLyricsTimed
+                    open={open}
                     id="aivy-am-lyrics-mobile"
                     track={currentTrack}
-                    currentTime={sheetLyricsTime}
                     onSeek={seekTo}
                     highlightColor="#f5f5f5"
                     fontSize={normLyricsFontSize(settings.lyricsFontSize)}
@@ -2905,12 +2934,12 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
                 <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} onOpenProviders={() => setProvidersOpen(true)} />
               )}
               <div className="aivy-scrubber-row">
-                <span className="aivy-time">{loadingAudio ? "\u2013\u2013" : formatTime(currentTime)}</span>
+                <NpxElapsed loading={loadingAudio} />
                 <Scrubber
                   getRatio={getRatio} onSeekRatio={onSeekRatio} registerFill={registerFill} registerThumb={registerThumb} loading={loadingAudio}
                   waveformSeed={settings.waveformSeekbar && currentTrack ? String(currentTrack.id || currentTrack.title || "") : null}
                 />
-                <span className="aivy-time right">{loadingAudio ? "\u2013\u2013" : `-${formatTime(remaining)}`}</span>
+                <NpxRemaining loading={loadingAudio} duration={duration} />
                 {!isPreviewClip && <QualityPill track={currentTrack} fallbackLabel={formatLabel} onClick={() => setQualityOpen(true)} />}
               </div>
               <NpxTransport />
@@ -4699,8 +4728,21 @@ const AM_LYRICS_FONT_SIZES = {
   xl: { "--am-lyrics-compact-font-size": "40px", "--lyplus-font-size-base": "52px", "--am-lyrics-wide-font-size": "72px" },
   max: { "--am-lyrics-compact-font-size": "max(36px, 5.5vh)", "--lyplus-font-size-base": "max(44px, 7.5vh)", "--am-lyrics-wide-font-size": "max(48px, 9vh)" },
 };
+const LYRICS_LITE_CSS = `
+  .lyrics-line, .lyrics-line-container, .background-vocal-wrap { will-change: auto !important; }
+  .lyrics-line { text-rendering: auto !important; filter: none !important; transition-property: opacity, transform !important; }
+  .lyrics-container .lyrics-line { filter: none !important; }
+  .lyrics-syllable span.char { backface-visibility: visible !important; }
+  @keyframes grow-dynamic-lite {
+    0% { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
+    30% { transform: translate3d(var(--char-offset-x, 0px), var(--translate-y-peak, -2px), 0) scale3d(var(--matrix-scale, 1.1), var(--matrix-scale, 1.1), 1); }
+    100% { transform: translate3d(0, var(--char-rise-y, -1.12px), 0) scale3d(1, 1, 1); }
+  }
+`;
+
 export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fontSize, id, suppressBlur, hideChrome = false }) {
   const elRef = useRef(null);
+  const lite = useMemo(() => isLyricsLite(), []);
 
   useEffect(() => {
     let tries = 0;
@@ -4714,7 +4756,9 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       if (el.shadowRoot.querySelector("style[data-perf-layer]")) return;
       const st = document.createElement("style");
       st.setAttribute("data-perf-layer", "");
-      st.textContent = ".lyrics-line-container{ will-change: transform; } .lyrics-line{ will-change: filter; }";
+      st.textContent = lite
+        ? LYRICS_LITE_CSS
+        : ".lyrics-line-container{ will-change: transform; } .lyrics-line{ will-change: filter; }";
       if (el.closest(".npx-lyrics-wrap")) {
         st.textContent += " .lyrics-line.active,.lyrics-line.pre-active,.lyrics-line.persist-highlight{ z-index: 3; filter: none !important; }";
       }
@@ -4813,9 +4857,9 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
 
   const style = useMemo(() => {
     const base = AM_LYRICS_FONT_SIZES[normLyricsFontSize(fontSize)];
-    if (!suppressBlur) return base;
+    if (!suppressBlur && !lite) return base;
     return { ...base, "--lyplus-blur-amount": "0em", "--lyplus-blur-amount-near": "0em" };
-  }, [fontSize, suppressBlur]);
+  }, [fontSize, suppressBlur, lite]);
 
   return (
     <am-lyrics
@@ -4823,6 +4867,7 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       class="aivy-am-lyrics"
       id={id || undefined}
       style={style}
+      data-lite={lite ? "" : undefined}
     />
   );
 }
