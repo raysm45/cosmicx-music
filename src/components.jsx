@@ -2127,7 +2127,7 @@ function useNpxLyricsInfo(enabled, trackKey) {
       setInfo((prev) => (prev.line === next.line && prev.source === next.source && prev.has === next.has && prev.roman === next.roman && prev.trans === next.trans && prev.lang === next.lang ? prev : next));
     };
     tick();
-    const id = setInterval(tick, isLyricsLite() ? 900 : 450);
+    const id = setInterval(tick, 450);
     return () => clearInterval(id);
   }, [enabled, trackKey, read]);
   return { info, refresh: () => { const n = read(); if (n) setInfo(n); } };
@@ -2169,7 +2169,7 @@ function useNpxLyricLines(enabled, trackKey) {
       setLines(raw && raw.length ? raw.map(toInlineLine).filter(Boolean).sort((a, b) => a.t0 - b.t0) : []);
     };
     read();
-    const id = setInterval(read, isLyricsLite() ? 1200 : 700);
+    const id = setInterval(read, 700);
     return () => clearInterval(id);
   }, [enabled, trackKey]);
   return lines;
@@ -4729,8 +4729,12 @@ const AM_LYRICS_FONT_SIZES = {
   max: { "--am-lyrics-compact-font-size": "max(36px, 5.5vh)", "--lyplus-font-size-base": "max(44px, 7.5vh)", "--am-lyrics-wide-font-size": "max(48px, 9vh)" },
 };
 const LYRICS_LITE_CSS = `
-  .lyrics-line, .lyrics-line-container, .background-vocal-wrap { will-change: auto !important; }
-  .lyrics-line { text-rendering: auto !important; filter: none !important; transition-property: opacity, transform !important; }
+  .lyrics-line-container, .background-vocal-wrap { will-change: auto !important; }
+  .lyrics-line:not(.far-line) { will-change: transform; }
+  .lyrics-line { text-rendering: auto !important; filter: none !important; }
+  .lyrics-line, .lyrics-line.scroll-animate, .lyrics-line.scroll-exiting {
+    transition: opacity 0.7s ease, transform 0.4s cubic-bezier(0.41, 0, 0.12, 0.99) var(--lyrics-line-delay, 0ms) !important;
+  }
   .lyrics-container .lyrics-line { filter: none !important; }
   .lyrics-syllable span.char { backface-visibility: visible !important; }
   @keyframes grow-dynamic-lite {

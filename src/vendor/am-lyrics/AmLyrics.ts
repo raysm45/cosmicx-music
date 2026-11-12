@@ -6339,8 +6339,8 @@ export class AmLyrics extends LitElement {
     );
     const lite = this.hasAttribute('data-lite');
     const delayIncrement = duration * 0.1;
-    const maxStaggerSteps = lite ? 2 : 4;
-    const lookAhead = lite ? 7 : 20;
+    const maxStaggerSteps = 4;
+    const lookAhead = lite ? 10 : 20;
     const len = lineArray.length;
 
     const start = Math.max(0, referenceIndex - lookAhead);
