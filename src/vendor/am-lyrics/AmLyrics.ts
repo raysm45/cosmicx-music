@@ -560,6 +560,9 @@ export class AmLyrics extends LitElement {
     .lyrics-line.far-line {
       filter: none !important;
       will-change: auto !important;
+    }
+
+    .lyrics-line.far-line:not(.scroll-animate) {
       animation: none !important;
     }
 
@@ -6351,8 +6354,25 @@ export class AmLyrics extends LitElement {
     const lookAhead = lite ? 10 : 20;
     const len = lineArray.length;
 
-    const start = Math.max(0, referenceIndex - lookAhead);
-    const end = Math.min(len, referenceIndex + lookAhead);
+    let start = Math.max(0, referenceIndex - lookAhead);
+    let end = Math.min(len, referenceIndex + lookAhead);
+
+    // The fixed index window can stop short of the bottom of the viewport
+    // (short lines, instrumental gaps, footer), leaving those lines to jump
+    // instead of following the scroll. Extend the window by geometry.
+    const visibleMargin = Math.abs(delta) + 200;
+    const viewportBottom = targetTop + parent.clientHeight + visibleMargin;
+    const viewportTop = targetTop - visibleMargin;
+    while (end < len && lineArray[end].offsetTop < viewportBottom) {
+      end += 1;
+    }
+    while (
+      start > 0 &&
+      lineArray[start - 1].offsetTop + lineArray[start - 1].offsetHeight >
+        viewportTop
+    ) {
+      start -= 1;
+    }
 
     let maxAnimationDuration = 0;
     const newAnimatingLines: HTMLElement[] = [];
