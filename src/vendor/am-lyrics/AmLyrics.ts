@@ -558,7 +558,6 @@ export class AmLyrics extends LitElement {
     }
 
     .lyrics-line.far-line:not(.scroll-animate) {
-      filter: none !important;
       will-change: auto !important;
       animation: none !important;
     }
