@@ -6308,6 +6308,14 @@ export class AmLyrics extends LitElement {
       return;
     }
 
+    // Lines still mid-animation are visually offset from their layout position.
+    // Capture that offset first (read pass), so the new animation continues from
+    // where the line actually is instead of snapping to its final position.
+    const carryOffsets = new Map<HTMLElement, number>();
+    for (const line of animatingLines) {
+      const currentY = AmLyrics.getCurrentTranslateY(line);
+      if (Math.abs(currentY) > 0.5) carryOffsets.set(line, currentY);
+    }
     for (const line of animatingLines) {
       line.classList.remove('scroll-animate');
       line.style.removeProperty('--scroll-delta');
@@ -6364,7 +6372,10 @@ export class AmLyrics extends LitElement {
           delayCounter += 1;
         }
 
-        line.style.setProperty('--scroll-delta', `${delta}px`);
+        line.style.setProperty(
+          '--scroll-delta',
+          `${delta + (carryOffsets.get(line) ?? 0)}px`,
+        );
         line.style.setProperty('--lyrics-line-delay', `${delay}ms`);
         lineDelays.set(line, delay);
 
@@ -6388,7 +6399,10 @@ export class AmLyrics extends LitElement {
           delayCounter += 1;
         }
 
-        line.style.setProperty('--scroll-delta', `${delta}px`);
+        line.style.setProperty(
+          '--scroll-delta',
+          `${delta + (carryOffsets.get(line) ?? 0)}px`,
+        );
         line.style.setProperty('--lyrics-line-delay', `${delay}ms`);
         lineDelays.set(line, delay);
 
@@ -6550,6 +6564,16 @@ export class AmLyrics extends LitElement {
     }, duration + 160);
 
     this.animateScrollYouLy(targetTranslateY, forceScroll, scrollDuration);
+  }
+
+  private static getCurrentTranslateY(element: HTMLElement): number {
+    const { transform } = getComputedStyle(element);
+    if (!transform || transform === 'none') return 0;
+    try {
+      return new DOMMatrixReadOnly(transform).m42;
+    } catch {
+      return 0;
+    }
   }
 
   private static clamp(value: number, min: number, max: number): number {
