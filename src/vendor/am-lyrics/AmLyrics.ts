@@ -557,12 +557,9 @@ export class AmLyrics extends LitElement {
       filter: blur(var(--lyplus-blur-amount));
     }
 
-    .lyrics-line.far-line {
+    .lyrics-line.far-line:not(.scroll-animate) {
       filter: none !important;
       will-change: auto !important;
-    }
-
-    .lyrics-line.far-line:not(.scroll-animate) {
       animation: none !important;
     }
 
