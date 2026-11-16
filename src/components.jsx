@@ -411,11 +411,17 @@ const NpxRemaining = memo(function NpxRemaining({ loading, duration }) {
   return <span className="aivy-time right">{loading ? "\u2013\u2013" : `-${formatTime(remaining)}`}</span>;
 });
 
-const NpxLyricsTimed = memo(function NpxLyricsTimed({ open, ...rest }) {
+const NpxLyricsTimedLive = memo(function NpxLyricsTimedLive(props) {
   const t = usePlayerTime();
-  const frozen = useRef(0);
-  if (open) frozen.current = t;
-  return <AppleLyricsPane {...rest} currentTime={open ? t : frozen.current} />;
+  return <AppleLyricsPane {...props} currentTime={t} />;
+});
+
+const NpxLyricsTimedFrozen = memo(function NpxLyricsTimedFrozen(props) {
+  return <AppleLyricsPane {...props} currentTime={0} />;
+});
+
+const NpxLyricsTimed = memo(function NpxLyricsTimed({ active, ...rest }) {
+  return active ? <NpxLyricsTimedLive {...rest} /> : <NpxLyricsTimedFrozen {...rest} />;
 });
 
 function useArtistProfile(artist) {
@@ -2127,7 +2133,7 @@ function useNpxLyricsInfo(enabled, trackKey) {
       setInfo((prev) => (prev.line === next.line && prev.source === next.source && prev.has === next.has && prev.roman === next.roman && prev.trans === next.trans && prev.lang === next.lang ? prev : next));
     };
     tick();
-    const id = setInterval(tick, 450);
+    const id = setInterval(tick, 650);
     return () => clearInterval(id);
   }, [enabled, trackKey, read]);
   return { info, refresh: () => { const n = read(); if (n) setInfo(n); } };
@@ -2169,7 +2175,7 @@ function useNpxLyricLines(enabled, trackKey) {
       setLines(raw && raw.length ? raw.map(toInlineLine).filter(Boolean).sort((a, b) => a.t0 - b.t0) : []);
     };
     read();
-    const id = setInterval(read, 700);
+    const id = setInterval(read, 900);
     return () => clearInterval(id);
   }, [enabled, trackKey]);
   return lines;
@@ -2695,20 +2701,31 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
     const id = setTimeout(() => setOpening(false), 620);
     return () => clearTimeout(id);
   }, [open]);
-  const lyricsPoll = useNpxLyricsInfo(open && lyricsMounted, trackKey);
+  const lyricsPoll = useNpxLyricsInfo(open && lyricsMounted && (lyricsMode || queueMode), trackKey);
   const lyricsInfo = lyricsPoll.info;
-  const inlineLines = useNpxLyricLines(open && lyricsMounted && !opening, trackKey);
+  const inlineLines = useNpxLyricLines(open && lyricsMounted && !opening && !lyricsMode, trackKey);
   const [hintTick, setHintTick] = useState(0);
   useEffect(() => { setHintTick((n) => n + 1); }, [open, trackKey, mode]);
   useEffect(() => { if (lyricsMode) setLyricsMounted(true); else setLyricsUnsynced(false); }, [lyricsMode]);
+  useEffect(() => {
+    if (!lyricsMode) return;
+    // ensure lyrics pane gets focus on active line ASAP after opening
+    const t = setTimeout(() => {
+      const el = document.getElementById("aivy-am-lyrics-mobile");
+      if (el && typeof el.resumeAutoScroll === "function") {
+        try { el.resumeAutoScroll(); } catch {}
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [lyricsMode, trackKey]);
   useEffect(() => {
     if (!open || lyricsMounted || lyricsDisabled) return undefined;
     let idleId = null;
     const idle = typeof window !== "undefined" && window.requestIdleCallback;
     const timer = setTimeout(() => {
-      if (idle) idleId = window.requestIdleCallback(() => setLyricsMounted(true), { timeout: 2000 });
+      if (idle) idleId = window.requestIdleCallback(() => setLyricsMounted(true), { timeout: 3000 });
       else setLyricsMounted(true);
-    }, 500);
+    }, 900);
     return () => {
       clearTimeout(timer);
       if (idleId != null && window.cancelIdleCallback) window.cancelIdleCallback(idleId);
@@ -2767,7 +2784,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   };
 
   useEffect(() => {
-    if (!lyricsMounted) return undefined;
+    if (!lyricsMounted || !lyricsMode) return undefined;
     let observer;
     let retryTimer;
     let tries = 0;
@@ -2776,7 +2793,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
       const el = document.getElementById("aivy-am-lyrics-mobile");
       const container = el?.lyricsContainer;
       if (!container) {
-        if (tries++ < 25) retryTimer = setTimeout(attach, 200);
+        if (tries++ < 12) retryTimer = setTimeout(attach, 180);
         return;
       }
       const sync = () => setLyricsUnsynced(container.classList.contains("user-scrolling"));
@@ -2789,8 +2806,9 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
     return () => {
       clearTimeout(retryTimer);
       observer?.disconnect();
+      setLyricsUnsynced(false);
     };
-  }, [lyricsMounted, trackKey]);
+  }, [lyricsMounted, lyricsMode, trackKey]);
 
   const coverArt = useMemo(() => (
     <AnimatedCover
@@ -2879,13 +2897,13 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
               {lyricsMounted && (
                 <>
                   <NpxLyricsTimed
-                    open={open}
+                    active={lyricsMode}
                     id="aivy-am-lyrics-mobile"
                     track={currentTrack}
                     onSeek={seekTo}
                     highlightColor="#f5f5f5"
                     fontSize={normLyricsFontSize(settings.lyricsFontSize)}
-                    suppressBlur={suppressLyricsBlur}
+                    suppressBlur={suppressLyricsBlur || !lyricsMode}
                     hideChrome
                   />
                   {lyricsUnsynced && (
@@ -4751,10 +4769,11 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
   useEffect(() => {
     let tries = 0;
     let timer = null;
+    let raf = null;
     const inject = () => {
       const el = elRef.current;
       if (!el || !el.shadowRoot) {
-        if (tries++ < 25) timer = setTimeout(inject, 200);
+        if (tries++ < 12) timer = setTimeout(inject, 120);
         return;
       }
       if (el.shadowRoot.querySelector("style[data-perf-layer]")) return;
@@ -4768,8 +4787,8 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       }
       el.shadowRoot.appendChild(st);
     };
-    inject();
-    return () => clearTimeout(timer);
+    raf = requestAnimationFrame(() => { timer = setTimeout(inject, 0); });
+    return () => { if (raf) cancelAnimationFrame(raf); clearTimeout(timer); };
   }, []);
 
   useEffect(() => {
@@ -4777,6 +4796,7 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
     if (!el || !track) return;
     let cancelled = false;
     let pollId = null;
+    let startTimer = null;
 
     const applyMetadata = (forceRetrigger) => {
       if (cancelled) return;
@@ -4796,7 +4816,7 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
 
     const watchForFailureAndRetryOnce = () => {
       let attempts = 0;
-      const maxAttempts = Math.ceil(9000 / 300);
+      const maxAttempts = Math.ceil(9000 / 500);
       pollId = setInterval(() => {
         attempts++;
         if (cancelled) { clearInterval(pollId); return; }
@@ -4808,24 +4828,29 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
           return;
         }
         if (attempts >= maxAttempts) clearInterval(pollId);
-      }, 300);
+      }, 500);
+    };
+
+    const start = () => {
+      if (cancelled) return;
+      applyMetadata(false);
+      watchForFailureAndRetryOnce();
     };
 
     if (typeof customElements !== "undefined" && customElements.get("am-lyrics")) {
-      applyMetadata(false);
+      startTimer = setTimeout(start, 0);
     } else if (typeof customElements !== "undefined") {
-      customElements.whenDefined("am-lyrics").then(() => applyMetadata(false));
+      customElements.whenDefined("am-lyrics").then(() => { if (!cancelled) startTimer = setTimeout(start, 0); });
     } else {
-      applyMetadata(false);
+      startTimer = setTimeout(start, 0);
     }
-    watchForFailureAndRetryOnce();
 
     let hideDlTimer = null;
     let hideDlTries = 0;
     const injectHideDownload = () => {
       const el = elRef.current;
       if (!el || !el.shadowRoot) {
-        if (hideDlTries++ < 25) hideDlTimer = setTimeout(injectHideDownload, 200);
+        if (hideDlTries++ < 12) hideDlTimer = setTimeout(injectHideDownload, 150);
         return;
       }
       if (el.shadowRoot.querySelector("style[data-hide-download]")) return;
@@ -4834,15 +4859,17 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
       st.textContent = '.download-button[title="Download Lyrics"]{display:none!important}' + (hideChrome ? '.lyrics-header,.lyrics-footer{display:none!important}.lyrics-container{padding-top:0!important}' : '');
       el.shadowRoot.appendChild(st);
     };
-    injectHideDownload();
+    hideDlTimer = setTimeout(injectHideDownload, 60);
 
-    return () => { cancelled = true; if (pollId) clearInterval(pollId); clearTimeout(hideDlTimer); };
+    return () => { cancelled = true; clearTimeout(startTimer); if (pollId) clearInterval(pollId); clearTimeout(hideDlTimer); };
   }, [track?.id]);
 
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
-    el.currentTime = Math.max(0, Math.round((currentTime || 0) * 1000));
+    const next = Math.max(0, Math.round((currentTime || 0) * 1000));
+    if (el.currentTime === next) return;
+    el.currentTime = next;
   }, [currentTime]);
 
   useEffect(() => {
