@@ -60,12 +60,11 @@
 }
 
 @keyframes npx-body-in{
-  from{ transform: scale(.45); opacity: .35; }
-  to{ transform: scale(1); opacity: 1; }
+  from{ opacity: .01; }
+  to{ opacity: 1; }
 }
 .aivy-sheet.npx-v2.is-opening .aivy-sheet-body{
-  animation: npx-body-in .52s cubic-bezier(.16, 1, .3, 1) both;
-  transform-origin: calc(var(--u) * 95) calc(var(--u) * 400);
+  animation: npx-body-in .18s ease-out both;
 }
 @media (prefers-reduced-motion: reduce){ .aivy-sheet.npx-v2.is-opening .aivy-sheet-body{ animation: none; } }
 
@@ -375,7 +374,7 @@
 .aivy-sheet.npx-v2 .npx-inl.is-empty{ pointer-events: none; }
 .aivy-sheet.npx-v2 .npx-inl{ transition: opacity .25s ease; }
 .aivy-sheet.npx-v2:not(.mode-player) .npx-inl{ opacity: 0; pointer-events: none; }
-.aivy-sheet.npx-v2.is-opening .npx-inl{ opacity: 0; transition: none; }
+.aivy-sheet.npx-v2.is-opening .npx-inl{ opacity: .001; transition: none; }
 .aivy-sheet.npx-v2 .npx-inl-line{
   position: absolute; left: 0; right: 0; bottom: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
   font-size: calc(var(--u) * 19); font-weight: 600; line-height: calc(var(--u) * 24); letter-spacing: 0; white-space: pre-wrap; overflow-wrap: anywhere;

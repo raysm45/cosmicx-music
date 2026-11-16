@@ -2601,7 +2601,8 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   };
   useEffect(() => { if (!open) setUiHidden(false); }, [open]);
   useEffect(() => {
-    const end = beginHeavyTransition(500);
+    if (!open) return undefined;
+    const end = beginHeavyTransition(220);
     return end;
   }, [open]);
   useEffect(() => { setUiHidden(false); }, [currentTrack?.id]);
@@ -2698,12 +2699,12 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   useLayoutEffect(() => {
     if (!open) { setOpening(false); return undefined; }
     setOpening(true);
-    const id = setTimeout(() => setOpening(false), 620);
+    const id = setTimeout(() => setOpening(false), 180);
     return () => clearTimeout(id);
   }, [open]);
   const lyricsPoll = useNpxLyricsInfo(open && lyricsMounted && (lyricsMode || queueMode), trackKey);
   const lyricsInfo = lyricsPoll.info;
-  const inlineLines = useNpxLyricLines(open && lyricsMounted && !opening && !lyricsMode, trackKey);
+  const inlineLines = useNpxLyricLines(open && lyricsMounted && !lyricsMode, trackKey);
   const [hintTick, setHintTick] = useState(0);
   useEffect(() => { setHintTick((n) => n + 1); }, [open, trackKey, mode]);
   useEffect(() => { if (lyricsMode) setLyricsMounted(true); else setLyricsUnsynced(false); }, [lyricsMode]);
@@ -2946,7 +2947,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
 
             <div className="npx-top-controls npx-controls" ref={controlsRef}>
               <SoftBoundary resetKey={trackKey} fallback={<div className="npx-inl is-empty" />}>
-                <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled} active={open && !opening} onOpen={handleLyricsToggle} trackKey={trackKey} />
+                <NpxInlineLyrics lines={inlineLines} disabled={lyricsDisabled || lyricsMode} active={open && !lyricsMode} onOpen={handleLyricsToggle} trackKey={trackKey} />
               </SoftBoundary>
               {mode !== "player" && (
                 <NpxSnippetRow mode={mode} info={lyricsInfo} hintKey={hintTick} lyricsDisabled={lyricsDisabled} onOpenLyrics={handleLyricsToggle} onOpenProviders={() => setProvidersOpen(true)} />
