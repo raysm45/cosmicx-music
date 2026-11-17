@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Download, Check, X, Gem, Disc3, Music2, FileAudio } from "lucide-react";
 import { Api } from "./lib/api.js";
+import { getRememberedQuality } from "./lib/qualityMemory.js";
 import { useUI } from "./context.jsx";
 import { SmartCover } from "./lib/brand.jsx";
 import "./styles/download-sheet.css";
@@ -16,19 +17,19 @@ export function openDownload(track) {
 
 export const DOWNLOAD_OPTIONS = [
   {
-    id: "flac", format: "flac", Icon: Gem, badge: "Hi-Res",
-    title: ["Apple Music Hi-Res Lossless", "Apple Music Hi-Res Lossless"],
-    sub: ["FLAC \u00b7 kualitas tertinggi, tanpa kompresi lossy", "FLAC \u00b7 highest quality, no lossy compression"],
+    id: "flac", format: "flac", Icon: Gem, badge: null,
+    title: ["FLAC", "FLAC"],
+    sub: ["Lossless bila tersedia untuk lagu ini, tanpa kompresi lossy", "Lossless when available for this track, no lossy compression"],
   },
   {
     id: "aac", format: "aac", Icon: Disc3, badge: null,
     title: ["AAC", "AAC"],
-    sub: ["M4A \u00b7 128 kbps \u00b7 kecil & kompatibel", "M4A \u00b7 128 kbps \u00b7 small & compatible"],
+    sub: ["M4A \u00b7 kecil & kompatibel", "M4A \u00b7 small & compatible"],
   },
   {
     id: "opus", format: "opus", Icon: FileAudio, badge: null,
     title: ["Opus", "Opus"],
-    sub: ["WebM \u00b7 160 kbps \u00b7 efisien", "WebM \u00b7 160 kbps \u00b7 efficient"],
+    sub: ["WebM \u00b7 efisien", "WebM \u00b7 efficient"],
   },
   {
     id: "mp3", format: "mp3", Icon: Music2, badge: null,
@@ -125,6 +126,9 @@ export function DownloadSheetHost() {
           {DOWNLOAD_OPTIONS.map((opt) => {
             const loading = busy === opt.id;
             const Icon = opt.Icon;
+            // Badge FLAC hanya untuk lagu yang sudah terbukti lossless saat diputar.
+            const rq = opt.id === "flac" ? getRememberedQuality(track) : null;
+            const badge = rq ? (rq.tier === "hires" ? "Hi-Res" : "Lossless") : opt.badge;
             return (
               <button
                 key={opt.id} type="button" disabled={!!busy && !loading}
@@ -135,7 +139,7 @@ export function DownloadSheetHost() {
                 <span className="aivy-dl-txt">
                   <span className="t">
                     {en ? opt.title[1] : opt.title[0]}
-                    {opt.badge && <span className="aivy-dl-badge">{opt.badge}</span>}
+                    {badge && <span className="aivy-dl-badge">{badge}</span>}
                   </span>
                   <span className="s">{en ? opt.sub[1] : opt.sub[0]}</span>
                 </span>

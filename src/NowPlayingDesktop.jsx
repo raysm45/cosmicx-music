@@ -18,10 +18,10 @@ import { COVER_FADE_MS, EASE_CSS } from "./lib/motion.js";
 import {
   Scrubber, VolumeControl, MarqueeText, AppleLyricsPane, normLyricsFontSize,
   QueueUpNextList, QueueTrackMeta, AboutArtistSection, useScrubberBinding,
-  useTrackAudioInfo, useTrackMenuItems, GlassLayers,
+  useReconciledFormat, useTrackMenuItems, GlassLayers,
 } from "./components.jsx";
 import { AudioOutputSheet, AudioPipelineCard, LyricsProviderSheet, NPD_LYRICS_ID } from "./NpdSheets.jsx";
-import { unifyAudioInfoFields, describeQuality, resolveBitrateKbps } from "./lib/audioFormat.js";
+import { describeQuality, resolveBitrateKbps } from "./lib/audioFormat.js";
 import "./styles/nowplaying-desktop.css";
 
 const COVER_STYLE = { width: "100%", height: "100%" };
@@ -589,8 +589,7 @@ function FullPlayer({ shown, onClose }) {
 
 function QualityLine({ track, visible }) {
   const { audioFormat } = usePlayer();
-  const info = useTrackAudioInfo(track);
-  const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
+  const { format } = useReconciledFormat(track);
   const label = audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null;
   const q = describeQuality(format, label);
   if (!q) return null;

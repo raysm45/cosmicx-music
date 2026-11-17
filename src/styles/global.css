@@ -4145,3 +4145,7 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   .aivy-quality.is-lossless::after, .aivy-quality.is-hires::after{ animation: none; display: none; }
 }
 .aivy-dock .aivy-mini-player .aivy-icon-btn{ width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }
+
+/* Badge kualitas di card lagu: hanya untuk lagu yang terbukti lossless saat diputar */
+.aivy-qtag{ display: inline-flex; align-items: center; flex-shrink: 0; margin-left: 6px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--ink-faint); color: var(--ink-dim); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; line-height: 1.35; white-space: nowrap; vertical-align: middle; }
+.aivy-qtag.is-hires{ color: #e0a93b; border-color: rgba(224,169,59,.6); }

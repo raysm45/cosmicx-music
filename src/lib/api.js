@@ -188,8 +188,8 @@ export const Api = {
     return { url, type };
   },
 
-  trackAudioInfo: (videoId) =>
-    apiGet(`/api/track/audio-info?videoId=${encodeURIComponent(videoId || "")}&quality=${getPreferredAudioQuality()}&format=${getPreferredAudioFormat()}`),
+  trackAudioInfo: (videoId, format) =>
+    apiGet(`/api/track/audio-info?videoId=${encodeURIComponent(videoId || "")}&quality=${getPreferredAudioQuality()}&format=${encodeURIComponent(format || getPreferredAudioFormat())}`),
 
   me: () => apiGet("/auth/me"),
   logout: () => {

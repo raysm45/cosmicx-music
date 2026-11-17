@@ -682,12 +682,16 @@ export function SettingsPage() {
         <SelectRow label={tt("Kualitas audio", "Audio quality")}
           value={settings.audioQuality || "full"} onChange={set("audioQuality")}
           options={[{ value: "preview", label: tt("Pratinjau", "Preview") }, { value: "full", label: tt("Penuh", "Full") }]} />
-        <SelectRow label={tt("Format audio", "Audio format")} 
+        <SelectRow label={tt("Format audio", "Audio format")}
+          hint={tt(
+            "Ini preferensi. Jika FLAC tidak tersedia untuk sebuah lagu, pemutaran turun ke kualitas lain dan label kualitas menampilkan format yang benar-benar diputar.",
+            "This is a preference. If FLAC isn\u2019t available for a track, playback falls back to another quality and the quality label shows the format actually playing."
+          )}
           value={settings.audioFormat || "flac"} onChange={set("audioFormat")}
           options={[
-            { value: "aac", label: tt("AAC (m4a \u00b7 128kbps)", "AAC (m4a \u00b7 128kbps)") },
-            { value: "opus", label: tt("MP3 \u00b7 320kbps", "MP3 \u00b7 320kbps") },
-            { value: "flac", label: tt("lossless", "lossless") },
+            { value: "aac", label: tt("AAC (m4a)", "AAC (m4a)") },
+            { value: "opus", label: tt("Opus (webm)", "Opus (webm)") },
+            { value: "flac", label: tt("FLAC (lossless, jika tersedia)", "FLAC (lossless, when available)") },
           ]} />
       </SettingSection>
 

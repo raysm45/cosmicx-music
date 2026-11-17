@@ -4,7 +4,8 @@ import React, { useSyncExternalStore,
 import { io } from "socket.io-client";
 import { Api, SOCKET_ORIGIN, SOCKET_PATH, getAuthToken } from "./lib/api.js";
 import { isImpersonating, exitImpersonate } from "./lib/impersonate.js";
-import { setPreferredAudioFormat, getPreferredAudioFormat, audioLabelFromInfo, unifyAudioInfoFields } from "./lib/audioFormat.js";
+import { setPreferredAudioFormat, getPreferredAudioFormat, audioFormatFromServed, detectAudioFormat } from "./lib/audioFormat.js";
+import { qualityKeys, confirmLossless, forgetQuality } from "./lib/qualityMemory.js";
 import { clamp, uid, debounce, pickBestAudioMatch, trackArtists } from "./lib/utils.js";
 import { makeT } from "./lib/i18n.js";
 import { seoState } from "./lib/seo.js";
@@ -1272,22 +1273,29 @@ export function PlayerProvider({ children }) {
       } else if (resolved.preview) {
         setAudioFormat({ label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" });
       } else if (resolved.videoId) {
-        const served = resolved.format;
-        if (served === "flac") {
-          setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
-        } else if (served === "webm" || served === "opus") {
-          setAudioFormat({ label: "Opus", mimeType: "audio/webm", codec: "opus", container: "WEBM" });
-        } else if (getPreferredAudioFormat() === "flac") {
-          setAudioFormat({ label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" });
-        } else Api.trackAudioInfo(resolved.videoId)
-          .then((info) => {
-            if (cancelled) return;
-            const unified = unifyAudioInfoFields(info);
-            const label = audioLabelFromInfo(info);
-            if (!unified || !label) { setAudioFormat("unavailable"); return; }
-            setAudioFormat({ label, mimeType: unified.mimeType, codec: unified.codec, container: unified.container });
-          })
-          .catch(() => { if (!cancelled) setAudioFormat("unavailable"); });
+        // Label = format yang BENAR-BENAR tersaji (bukan preferensi user). Kalau server tidak
+        // memberi tahu, intip header stream-nya; kalau tetap tidak bisa, jangan menebak.
+        const keys = qualityKeys(currentTrack, resolved.videoId);
+        const applyServed = (fmt) => {
+          setAudioFormat(fmt);
+          if (fmt.codec === "flac") {
+            confirmLossless(resolved.videoId, keys); // simpan badge hanya kalau terbukti lossless
+          } else if (getPreferredAudioFormat() === "flac") {
+            forgetQuality(keys); // minta lossless tapi dapat fallback: cabut badge lama
+          }
+        };
+        const fromServed = audioFormatFromServed(resolved.format);
+        if (fromServed) {
+          applyServed(fromServed);
+        } else {
+          detectAudioFormat(resolved.src)
+            .then((det) => {
+              if (cancelled) return;
+              if (!det || !det.codec || det.codec === "unknown") { setAudioFormat("unavailable"); return; }
+              applyServed({ label: det.label, mimeType: det.mimeType, codec: det.codec, container: det.container });
+            })
+            .catch(() => { if (!cancelled) setAudioFormat("unavailable"); });
+        }
       } else {
         setAudioFormat("unavailable");
       }

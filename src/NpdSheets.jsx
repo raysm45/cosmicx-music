@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Speaker, Check, Search, ChevronRight, AudioLines } from "lucide-react";
 import { StarLoader } from "./lib/brand.jsx";
 import { usePlayer, useUI } from "./context.jsx";
-import { VolumeControl, useTrackAudioInfo } from "./components.jsx";
-import { unifyAudioInfoFields } from "./lib/audioFormat.js";
+import { VolumeControl, useReconciledFormat } from "./components.jsx";
 
 export const NPD_LYRICS_ID = "aivy-am-lyrics-npd";
 const DASH = "\u2014";
@@ -216,8 +215,7 @@ const cap = (v) => (v ? String(v).charAt(0).toUpperCase() + String(v).slice(1) :
 export function AudioPipelineCard({ track, tx, onClose }) {
   const { audioFormat, getAudioContext, outputDevice } = usePlayer();
   const { settings } = useUI();
-  const info = useTrackAudioInfo(track);
-  const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
+  const { format } = useReconciledFormat(track);
   const ctx = getAudioContext();
   const af = audioFormat && audioFormat !== "unavailable" ? audioFormat : null;
 
@@ -231,7 +229,7 @@ export function AudioPipelineCard({ track, tx, onClose }) {
   const xfade = Number(settings.crossfadeSeconds) || 0;
   const latency = ctx ? Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000) : null;
 
-  const sourceName = track?.source === "local" ? tx("File lokal", "Local file") : "Tidal Hi-Fi";
+  const sourceName = track?.source === "local" ? tx("File lokal", "Local file") : (format?.lossless ? "Tidal Hi-Fi" : DASH);
 
   let resampler = DASH;
   if (srcRate && outRate) resampler = srcRate === outRate ? tx("Tanpa konversi", "No conversion") : `${khz(srcRate)} \u2192 ${khz(outRate)}`;

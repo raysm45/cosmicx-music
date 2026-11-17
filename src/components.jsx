@@ -25,7 +25,8 @@ import { Api } from "./lib/api.js";
 import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
 import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice, isLyricsLite } from "./lib/perf.js";
-import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled, qualityDialogInfo } from "./lib/audioFormat.js";
+import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled, qualityDialogInfo, reconcileFormat, servedInfoFormat, getPreferredAudioFormat } from "./lib/audioFormat.js";
+import { useRememberedQuality } from "./lib/qualityMemory.js";
 import { QualityDialog, LyricsProviderMobileSheet, LosslessGlyph } from "./NpxDialogs.jsx";
 import { openDownload } from "./DownloadSheet.jsx";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
@@ -785,6 +786,17 @@ export function filterExplicit(tracks, settings) {
   return tracks.filter((tr) => !tr?.explicit);
 }
 
+// Badge hanya muncul untuk lagu yang SUDAH terbukti lossless saat diputar. Tidak ada badge = tidak diketahui / bukan lossless.
+export function QualityTag({ track }) {
+  const q = useRememberedQuality(track);
+  const { settings } = useUI();
+  if (!q) return null;
+  const en = settings.language === "en";
+  const spec = `${q.bitsPerSample}-bit / ${Number((q.sampleRateHz / 1000).toFixed(1))} kHz`;
+  const title = en ? `FLAC ${spec} \u00b7 verified when last played` : `FLAC ${spec} \u00b7 terverifikasi saat terakhir diputar`;
+  return <span className={`aivy-qtag ${q.tier === "hires" ? "is-hires" : ""}`} title={title}>{q.tier === "hires" ? "Hi-Res" : "Lossless"}</span>;
+}
+
 export function TrackRow({ track, index, list, showIndex = true, showThumb = true, showAlbum = false, onRemove, removeLabel, queueMode = "single", source = null, note = null, shuffleOverride = null }) {
   const { currentTrack, isPlaying, togglePlay, playSingle, playList, playRadio, selectQueuePosition, liked, toggleLike } = usePlayer();
   const { openContextMenu, t } = useUI();
@@ -821,6 +833,7 @@ export function TrackRow({ track, index, list, showIndex = true, showThumb = tru
         <MarqueeText
           as="span" className="t" text={track.title}
           prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+          suffix={<QualityTag track={track} />}
         />
         <span className="a">
           {(track.artists?.length ? track.artists : (track.artist ? [track.artist] : [])).map((a, i, arr) => (
@@ -893,6 +906,7 @@ function CardTrackBase({ track, list }) {
       <MarqueeText
         as="div" className="title" text={track.title}
         prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
+        suffix={<QualityTag track={track} />}
       />
       <div className="sub">{track.artist?.name}</div>
     </div>
@@ -2556,8 +2570,7 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
   const isLiked = currentTrack && liked.has(String(currentTrack.videoId || currentTrack.id));
   const lyricsDisabled = !currentTrack || !currentTrackHasLyrics;
   const formatLabel = audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null;
-  const techInfo = useTrackAudioInfo(currentTrack);
-  const techFormat = unifyAudioInfoFields(techInfo);
+  const { format: techFormat } = useReconciledFormat(currentTrack);
   const formatBadge = formatLabel ? formatBadgeText(formatLabel, techFormat) : null;
   const tx = (idText, enText) => (settings.language === "en" ? enText : idText);
   const qualityInfo = qualityDialogInfo(techFormat, formatLabel, settings.language === "en" ? "en" : "id");
@@ -3225,16 +3238,17 @@ const audioInfoStore = new Map();
 const AUDIO_INFO_RETRY_MS = [1000, 1500, 2500, 4000, 6000, 9000, 12000];
 const AUDIO_INFO_STORE_MAX = 300;
 
-function getAudioInfoEntry(videoId) {
-  let e = audioInfoStore.get(videoId);
+function getAudioInfoEntry(videoId, fmt) {
+  const key = `${videoId}|${fmt}`;
+  let e = audioInfoStore.get(key);
   if (!e) {
     if (audioInfoStore.size >= AUDIO_INFO_STORE_MAX) {
       for (const [k, v] of audioInfoStore) {
         if (!v.listeners.size && !v.running) { audioInfoStore.delete(k); break; }
       }
     }
-    e = { value: null, done: false, attempt: 0, running: false, timer: null, listeners: new Set() };
-    audioInfoStore.set(videoId, e);
+    e = { videoId, fmt, value: null, done: false, attempt: 0, running: false, timer: null, listeners: new Set() };
+    audioInfoStore.set(key, e);
   }
   return e;
 }
@@ -3243,7 +3257,7 @@ function pollAudioInfo(videoId, e) {
   if (e.done || e.running || e.timer) return;
   e.running = true;
   import("./lib/api.js")
-    .then(({ Api }) => Api.trackAudioInfo(videoId))
+    .then(({ Api }) => Api.trackAudioInfo(videoId, e.fmt))
     .catch(() => "unavailable")
     .then((v) => {
       e.running = false;
@@ -3266,12 +3280,13 @@ function pollAudioInfo(videoId, e) {
     });
 }
 
-export function useTrackAudioInfo(track) {
+export function useTrackAudioInfo(track, fmtArg = null) {
   const videoId = track?.videoId || track?.id || null;
+  const fmt = fmtArg || getPreferredAudioFormat();
   const [info, setInfo] = useState(null);
   useEffect(() => {
     if (!videoId) { setInfo("unavailable"); return undefined; }
-    const e = getAudioInfoEntry(videoId);
+    const e = getAudioInfoEntry(videoId, fmt);
     const listener = (v) => setInfo(v);
     setInfo(e.value ?? null);
     e.listeners.add(listener);
@@ -3283,14 +3298,27 @@ export function useTrackAudioInfo(track) {
       e.listeners.delete(listener);
       if (!e.listeners.size && e.timer) { clearTimeout(e.timer); e.timer = null; }
     };
-  }, [videoId]);
+  }, [videoId, fmt]);
   return info;
+}
+
+// Info kualitas yang JUJUR untuk sebuah lagu. Untuk lagu yang sedang diputar, yang dipakai adalah
+// format yang benar-benar tersaji (audioFormat), bukan "rencana" dari preferensi. Jadi kalau user
+// memilih lossless tapi jatuh ke fallback, yang tampil adalah kualitas fallback-nya (codec + kbps asli).
+export function useReconciledFormat(track) {
+  const { audioFormat, currentTrack } = usePlayer();
+  const isCurrent = !!(track && currentTrack && currentTrack.id === track.id);
+  const served = isCurrent && audioFormat && audioFormat !== "unavailable" ? audioFormat : null;
+  const info = useTrackAudioInfo(track, served ? servedInfoFormat(served.codec) : null);
+  const raw = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
+  if (!isCurrent) return { format: raw, loading: info === null };
+  if (!served) return { format: null, loading: audioFormat == null };
+  return { format: reconcileFormat(raw, served), loading: info === null };
 }
 
 export function QualityPill({ track, fallbackLabel = null, className = "", onClick = null }) {
   const { audioFormat } = usePlayer();
-  const info = useTrackAudioInfo(track);
-  const format = unifyAudioInfoFields(info && info !== "unavailable" ? info : null);
+  const { format } = useReconciledFormat(track);
   const label = fallbackLabel || (audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null);
   const q = describeQuality(format, label);
   if (!q) return null;
@@ -3313,10 +3341,7 @@ function TrackDetailTechnicalTab({ track, isPreviewClip }) {
   const { t, pushToast } = useUI();
   const copy = (value) => { if (!value) return; navigator.clipboard?.writeText(String(value)); pushToast(t("copiedToClipboard")); };
 
-  const audioInfo = useTrackAudioInfo(track);
-  const loadingInfo = audioInfo === null;
-  const info = audioInfo && audioInfo !== "unavailable" ? audioInfo : null;
-  const format = unifyAudioInfoFields(info);
+  const { format, loading: loadingInfo } = useReconciledFormat(track);
   const isFlac = !!format?.flac;
 
   const val = (v, suffix = "") => (loadingInfo ? t("loading") : v != null ? `${v}${suffix}` : t("detailNotAvailable"));

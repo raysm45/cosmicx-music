@@ -133,12 +133,15 @@ export function unifyAudioInfoFields(raw) {
       : null;
   if (!f) return null;
   const codec = normCodec(f.codec || f.codecFamily || f.format || f.extension || f.container || f.mimeType);
-  const lossless = f.lossless === true || codec === "flac" || codec === "alac" || codec === "pcm";
+  const transcoded = f.transcoded === true || /transcod/i.test(String(f.source || f.origin || ""));
+  const lossless = !transcoded && (f.lossless === true || codec === "flac" || codec === "alac" || codec === "pcm");
   return {
     codec,
     container: f.container || null,
     mimeType: f.mimeType || f.mime || null,
     lossless,
+    transcoded,
+    source: f.source || f.origin || null,
     sampleRateHz: normSampleRate(f.sampleRateHz ?? f.sampleRate ?? f.sample_rate ?? f.samplingRate),
     bitsPerSample: num(f.bitsPerSample ?? f.bitDepth ?? f.bit_depth ?? f.bits),
     channels: num(f.channels ?? f.channelCount),
@@ -173,7 +176,8 @@ export function describeQuality(format, fallbackLabel) {
   const khz = format && format.sampleRateHz ? `${Number((format.sampleRateHz / 1000).toFixed(1))} kHz` : null;
   const bits = format && format.bitsPerSample ? `${format.bitsPerSample}-bit` : null;
 
-  if ((format && format.lossless) || key === "flac" || key === "alac") {
+  const isLossless = format ? !!format.lossless : (key === "flac" || key === "alac");
+  if (isLossless) {
     const hires = ((format && format.sampleRateHz) || 0) > 48000;
     return {
       main: hires ? "Hi-Res Lossless" : "Lossless",
@@ -183,7 +187,7 @@ export function describeQuality(format, fallbackLabel) {
     };
   }
   const kbps = format && format.bitrateKbps ? `${Math.round(format.bitrateKbps)} kbps` : null;
-  return { main: name, detail: kbps || "", lossless: false, hires: false };
+  return { main: name, detail: (format && format.transcoded) ? "transcode" : (kbps || ""), lossless: false, hires: false };
 }
 
 export function qualityDialogInfo(format, fallbackLabel, lang = "id") {
@@ -230,4 +234,52 @@ export function audioLabelFromInfo(info) {
   if (key && CODEC_NAMES[key]) return CODEC_NAMES[key].toUpperCase();
   const fallback = key || f.container;
   return fallback ? String(fallback).toUpperCase() : null;
+}
+
+const LOSSLESS_CODECS = new Set(["flac", "alac", "pcm"]);
+
+// Peta nilai `format` dari warmStream -> objek audioFormat. null = tidak dikenal (jangan menebak).
+export function audioFormatFromServed(served) {
+  const s = String(served || "").toLowerCase();
+  if (s === "flac") return { label: "FLAC", mimeType: "audio/flac", codec: "flac", container: "FLAC" };
+  if (s === "webm" || s === "opus") return { label: "Opus", mimeType: "audio/webm", codec: "opus", container: "WEBM" };
+  if (s === "m4a" || s === "aac" || s === "mp4") return { label: "AAC", mimeType: "audio/mp4", codec: "aac", container: "MP4" };
+  if (s === "mp3") return { label: "MP3", mimeType: "audio/mpeg", codec: "mp3", container: "MP3" };
+  return null;
+}
+
+// Parameter `format` yang dikenal endpoint audio-info (null = pakai preferensi).
+export function servedInfoFormat(codec) {
+  const c = normCodec(codec);
+  return c === "opus" || c === "aac" || c === "flac" ? c : null;
+}
+
+// Samakan info dari audio-info (yang bisa saja "rencana" FLAC) dengan format yang BENAR-BENAR diputar.
+// Kalau codec-nya beda (mis. minta lossless tapi fallback ke Opus), info rencana dibuang.
+export function reconcileFormat(format, served) {
+  if (!served) return format;
+  const codec = normCodec(served.codec || served.label);
+  if (!codec) return null;
+  if (format && format.codec === codec) return format;
+  const lossless = LOSSLESS_CODECS.has(codec);
+  return {
+    codec,
+    container: served.container || null,
+    mimeType: served.mimeType || null,
+    lossless,
+    transcoded: false,
+    source: null,
+    sampleRateHz: null,
+    bitsPerSample: null,
+    channels: null,
+    durationSec: null,
+    bitrateKbps: null,
+    filesizeBytes: null,
+    filesizeIsEstimate: false,
+    itag: null,
+    sha256: null,
+    status: null,
+    verified: false,
+    flac: lossless,
+  };
 }
