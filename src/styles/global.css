@@ -2530,6 +2530,8 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 .aivy-ai-fab-wrap{ position: fixed; right: 20px; bottom: 20px; z-index: 55; }
 .is-mobile ~ .aivy-ai-fab-wrap, .aivy-shell.is-mobile .aivy-ai-fab-wrap{ bottom: calc(var(--tabbar-h) + var(--player-h-mobile) + var(--safe-b) + 16px); }
 .aivy-ai-fab-wrap .aivy-ai-fab{ position: static; }
+/* AI panel: posisi di sini (offset mobile/desktop ada di aturan lain), tampilan di styles/ai-assistant.css */
+.aivy-ai-panel{ position: fixed; right: 20px; bottom: 76px; z-index: 55; }
 @media (max-width: 1240px){
   .aivy-ai-fab-wrap{ bottom: calc(var(--player-h) + 14px); }
   .aivy-ai-panel{ bottom: calc(var(--player-h) + 70px); }
@@ -2541,69 +2543,11 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
   border: 2px solid var(--bg-app, var(--bg-elev)); pointer-events: none;
 }
 
-.aivy-ai-panel{
-  position: fixed; right: 20px; bottom: 76px; z-index: 55;
-  width: 360px; max-width: calc(100vw - 32px); height: 480px; max-height: 64vh;
-  display: flex; flex-direction: column;
-  background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-lg);
-  box-shadow: none;
-  overflow: hidden;
-  transform-origin: bottom right;
-  animation: aivy-ai-panel-in .24s cubic-bezier(.16,1,.3,1) both;
-}
-.aivy-ai-panel.is-closing{
-  animation: aivy-ai-panel-out .16s cubic-bezier(.4,0,1,1) both;
-  pointer-events: none;
-}
-@keyframes aivy-ai-panel-in{
-  from{ opacity: 0; transform: translateY(18px) scale(.92); }
-  to{ opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes aivy-ai-panel-out{
-  from{ opacity: 1; transform: translateY(0) scale(1); }
-  to{ opacity: 0; transform: translateY(18px) scale(.92); }
-}
 .is-mobile ~ .aivy-ai-panel, .aivy-shell.is-mobile .aivy-ai-panel{ bottom: calc(var(--tabbar-h) + var(--player-h-mobile) + var(--safe-b) + 72px); }
-.aivy-ai-head{ display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); flex-shrink: 0; }
-.aivy-ai-head .t{ display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
-.aivy-ai-head .acts{ display: flex; align-items: center; gap: 4px; }
-.aivy-ai-body{ flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.aivy-ai-empty{ font-size: 13px; color: var(--ink-faint); line-height: 1.5; }
-.aivy-ai-suggest{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.aivy-ai-suggest button{
-  font-size: 12px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line);
-  background: var(--bg-elev-2); color: var(--ink-dim); transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
-}
-.aivy-ai-suggest button:hover{ border-color: var(--accent); color: var(--ink); }
 @keyframes aivy-msg-in{
   from{ opacity: 0; transform: translateY(10px) scale(.96); }
   to{ opacity: 1; transform: translateY(0) scale(1); }
 }
-.aivy-ai-msg-wrap{ display: flex; flex-direction: column; gap: 3px; max-width: 88%; animation: aivy-msg-in .3s cubic-bezier(.16,1,.3,1) both; }
-.aivy-ai-msg-wrap.user{ transform-origin: bottom right; }
-.aivy-ai-msg-wrap.assistant{ transform-origin: bottom left; }
-.aivy-ai-msg.is-typing{ animation: aivy-msg-in .2s ease both; }
-.aivy-ai-msg-wrap.user{ align-self: flex-end; align-items: flex-end; }
-.aivy-ai-msg-wrap.assistant{ align-self: flex-start; align-items: flex-start; }
-.aivy-ai-msg{ padding: 9px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.5; }
-.aivy-ai-msg.user{ background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
-.aivy-ai-msg.assistant{ background: var(--bg-elev-2); color: var(--ink); border-bottom-left-radius: 4px; }
-.aivy-ai-msg.is-typing{ color: var(--ink-faint); font-style: italic; }
-.aivy-ai-msg p{ margin: 0 0 6px; }
-.aivy-ai-msg p:last-child{ margin-bottom: 0; }
-.aivy-ai-msg ul, .aivy-ai-msg ol{ margin: 4px 0 6px; padding-left: 18px; }
-.aivy-ai-msg li{ margin: 2px 0; }
-.aivy-ai-msg strong{ font-weight: 700; }
-.aivy-ai-msg em{ font-style: italic; }
-.aivy-ai-msg code{ background: rgba(127,127,127,.18); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; font-family: var(--font-mono); }
-.aivy-ai-msg a{ color: var(--accent-strong, var(--accent)); text-decoration: underline; }
-.aivy-ai-msg-meta{ display: flex; align-items: center; gap: 6px; padding: 0 2px; }
-.aivy-ai-msg-time{ font-size: 10.5px; color: var(--ink-faint); }
-.aivy-ai-copy-btn{ opacity: .5; transition: opacity var(--dur-fast) var(--ease); }
-.aivy-ai-copy-btn:hover{ opacity: 1; }
-.aivy-ai-input-row{ display: flex; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid var(--line-soft); flex-shrink: 0; }
-.aivy-ai-input{ flex: 1; background: var(--bg-elev-2); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; font-size: 13.5px; color: var(--ink); }
-.aivy-ai-input:focus{ outline: none; border-color: var(--accent); }
 .aivy-hoverrail{ position: relative; min-width: 0; }
 .aivy-hoverrail-track{
   display: flex; gap: 18px; overflow-x: auto; padding: 2px 2px 12px;

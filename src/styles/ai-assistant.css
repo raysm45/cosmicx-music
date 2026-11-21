@@ -1,0 +1,230 @@
+/* =====================================================================
+ *  AI Assistant panel — gaya Claude
+ *  Posisi (right / bottom / z-index / offset mobile) tetap dari global.css
+ *  lewat selector .aivy-ai-panel; file ini mengurus tampilan & animasi.
+ * ===================================================================== */
+
+.aic{
+  --aic-clay: #d97757;
+  --aic-clay-soft: color-mix(in srgb, #d97757 16%, transparent);
+  --aic-ok: var(--success, #3fb950);
+  --aic-serif: "Tiempos Text", "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
+
+  width: 400px; max-width: calc(100vw - 24px);
+  height: 640px; max-height: calc(100vh - 200px); max-height: calc(100dvh - 200px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-elev); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 20px;
+
+  /* Transisi (bukan keyframe) -> kalau panel ditutup di tengah animasi buka,
+     nilainya berbalik mulus dari posisi sekarang, tidak lompat ke opacity 1. */
+  transform-origin: bottom right;
+  opacity: 0; transform: translateY(12px) scale(.97);
+  pointer-events: none;
+  transition: opacity .18s ease, transform .22s cubic-bezier(.2, .8, .2, 1);
+  will-change: opacity, transform;
+}
+.aic.is-open{ opacity: 1; transform: none; pointer-events: auto; }
+
+/* ---------- header ---------- */
+.aic-head{ display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px 16px; flex-shrink: 0; }
+.aic-title{ display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 14px; letter-spacing: -.005em; }
+.aic-title .aic-spark{ color: var(--aic-clay); }
+.aic-head-acts{ display: flex; gap: 2px; }
+.aic-iconbtn{
+  width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent;
+  color: var(--ink-dim); display: grid; place-items: center; cursor: pointer;
+  transition: background var(--dur-fast, .15s) ease, color var(--dur-fast, .15s) ease;
+}
+.aic-iconbtn:hover{ background: var(--bg-elev-2); color: var(--ink); }
+
+/* ---------- area chat ---------- */
+.aic-body{
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 20px;
+}
+
+.aic-empty{ margin: auto 0; padding: 8px 0 4px; text-align: center; }
+.aic-empty-mark{ width: 48px; height: 48px; margin: 0 auto 12px; display: grid; place-items: center; color: var(--aic-clay); }
+.aic-empty-mark .aic-spark{ animation: aic-rot 14s linear infinite; }
+.aic-empty h3{ margin: 0 0 6px; font-family: var(--aic-serif); font-weight: 500; font-size: 22px; letter-spacing: -.01em; }
+.aic-empty p{ margin: 0 auto 16px; max-width: 300px; font-size: 13px; line-height: 1.5; color: var(--ink-dim); }
+.aic-suggest{ display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.aic-suggest button{
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px;
+  background: transparent; border: 1px solid var(--line-soft); border-radius: 12px;
+  color: var(--ink-dim); font-size: 13px; line-height: 1.35; cursor: pointer; text-align: left;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.aic-suggest button svg{ flex-shrink: 0; color: var(--ink-faint); }
+.aic-suggest button:hover:not(:disabled){ background: var(--bg-elev-2); border-color: var(--line); color: var(--ink); }
+.aic-suggest button:disabled{ opacity: .5; cursor: default; }
+
+/* ---------- pesan user ---------- */
+.aic-user{ display: flex; justify-content: flex-end; animation: aic-in .28s cubic-bezier(.16, 1, .3, 1) both; }
+.aic-user-bubble{
+  max-width: 86%; padding: 9px 13px; background: var(--bg-elev-2); border: 1px solid var(--line-soft);
+  border-radius: 16px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+/* ---------- giliran AI ---------- */
+.aic-turn{ display: flex; flex-direction: column; gap: 10px; min-width: 0; animation: aic-in .28s cubic-bezier(.16, 1, .3, 1) both; }
+
+.aic-answer{ font-family: var(--aic-serif); font-size: 14.5px; line-height: 1.62; color: var(--ink); overflow-wrap: anywhere; }
+.aic-answer p{ margin: 0 0 10px; }
+.aic-answer p:last-child{ margin-bottom: 0; }
+.aic-answer .aic-h{ font-weight: 600; margin-top: 4px; }
+.aic-answer ul, .aic-answer ol{ margin: 2px 0 10px; padding-left: 20px; }
+.aic-answer li{ margin: 3px 0; padding-left: 2px; }
+.aic-answer li::marker{ color: var(--ink-faint); }
+.aic-answer strong{ font-weight: 650; }
+.aic-answer code{ font-family: var(--font-mono); font-size: 12.5px; padding: 1px 5px; border-radius: 5px; background: var(--bg-elev-2); border: 1px solid var(--line-soft); }
+.aic-answer a{ color: var(--aic-clay); text-decoration: underline; text-underline-offset: 2px; }
+
+.aic-actions{ display: flex; gap: 2px; margin-top: -4px; }
+.aic-act{
+  width: 26px; height: 26px; border-radius: 7px; border: 0; background: transparent; color: var(--ink-faint);
+  display: grid; place-items: center; cursor: pointer; transition: background .15s ease, color .15s ease;
+}
+.aic-act:hover{ background: var(--bg-elev-2); color: var(--ink); }
+
+.aic-error{
+  display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px;
+  font-size: 13px; line-height: 1.45;
+  background: color-mix(in srgb, var(--danger, #e5484d) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger, #e5484d) 30%, transparent);
+}
+.aic-error svg{ flex-shrink: 0; margin-top: 2px; color: var(--danger, #e5484d); }
+
+/* ---------- blok "berpikir" ---------- */
+.aic-spark{ flex-shrink: 0; }
+.aic-spark.is-spinning{ animation: aic-rot 2.6s linear infinite; }
+
+.aic-think-head{
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 0;
+  background: none; border: 0; color: var(--ink-dim); font: inherit; font-size: 13px;
+  text-align: left; cursor: pointer; transition: color .15s ease;
+}
+.aic-think-head:hover{ color: var(--ink); }
+.aic-stopped{ padding: 4px 0; font-size: 13px; font-style: italic; color: var(--ink-faint); }
+.aic-think-head .aic-spark{ color: var(--aic-clay); }
+.aic-think-label{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aic-think-meta{ flex-shrink: 0; font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.aic-chev{ flex-shrink: 0; color: var(--ink-faint); transition: transform .2s ease; }
+.aic-think.is-open .aic-chev{ transform: rotate(90deg); }
+
+.aic-shimmer{
+  background: linear-gradient(90deg, var(--ink-faint) 0%, var(--ink) 45%, var(--ink-faint) 90%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
+  animation: aic-shimmer 1.8s linear infinite;
+}
+
+.aic-think-body{
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows .26s cubic-bezier(.2, .8, .2, 1), opacity .2s ease;
+}
+.aic-think.is-open .aic-think-body{ grid-template-rows: 1fr; opacity: 1; }
+.aic-think-inner{ overflow: hidden; min-height: 0; }
+
+/* timeline langkah */
+.aic-steps{ list-style: none; margin: 8px 0 2px; padding: 0; display: flex; flex-direction: column; }
+.aic-step{ position: relative; display: flex; gap: 10px; padding-bottom: 14px; min-width: 0; animation: aic-in .25s ease both; }
+.aic-step:last-child{ padding-bottom: 2px; }
+.aic-step::before{ content: ""; position: absolute; left: 9px; top: 21px; bottom: 1px; width: 1px; background: var(--line); }
+.aic-step:last-child::before{ display: none; }
+
+.aic-step .dot{ position: relative; z-index: 1; width: 19px; height: 19px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; }
+.aic-step .dot:not(.ic)::after{ content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); }
+.aic-step .dot.ic{ background: var(--bg-elev-2); border: 1px solid var(--line); color: var(--ink-dim); }
+.aic-step.is-running .dot.ic{ border-color: var(--aic-clay); color: var(--aic-clay); }
+.aic-step.is-error .dot.ic{ border-color: color-mix(in srgb, var(--danger, #e5484d) 55%, transparent); color: var(--danger, #e5484d); }
+.aic-step .spin{ width: 10px; height: 10px; border-radius: 50%; border: 1.6px solid var(--aic-clay-soft); border-top-color: var(--aic-clay); animation: aic-rot .7s linear infinite; }
+
+.aic-thought{ min-width: 0; font-size: 13px; line-height: 1.55; color: var(--ink-dim); padding-top: 1px; overflow-wrap: anywhere; }
+.aic-thought p{ margin: 0 0 6px; }
+.aic-thought p:last-child{ margin-bottom: 0; }
+.aic-thought ul, .aic-thought ol{ margin: 2px 0 6px; padding-left: 18px; }
+.aic-thought.is-idle{ font-style: italic; color: var(--ink-faint); }
+
+.aic-step-main{ min-width: 0; flex: 1; padding-top: 1px; }
+.aic-step-title{ display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--ink); }
+.aic-step.is-error .aic-step-title .lb{ color: var(--ink-dim); }
+.aic-chip{
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 1px 9px; border-radius: 999px; font-size: 12px; color: var(--ink-dim);
+  background: var(--bg-elev-2); border: 1px solid var(--line-soft);
+}
+.aic-step-sum{ margin-top: 2px; font-size: 12px; color: var(--ink-faint); }
+.aic-step.is-error .aic-step-sum{ color: var(--danger, #e5484d); }
+
+.aic-items{ list-style: none; margin: 7px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 196px; overflow-y: auto; scrollbar-width: thin; }
+.aic-items li{ display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; color: var(--ink-dim); }
+.aic-items .mk{ width: 14px; height: 14px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; color: var(--aic-ok); background: color-mix(in srgb, var(--aic-ok) 20%, transparent); }
+.aic-items .tx{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aic-items .sub{ margin-left: auto; padding-left: 8px; flex-shrink: 0; font-size: 11px; color: var(--ink-faint); }
+.aic-items li.miss .mk{ color: var(--ink-faint); background: color-mix(in srgb, var(--ink-faint) 20%, transparent); }
+.aic-items li.miss .tx{ opacity: .65; text-decoration: line-through; }
+.aic-items .bl{ width: 14px; height: 14px; flex-shrink: 0; display: grid; place-items: center; }
+.aic-items .bl::after{ content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-faint); }
+.aic-items li.more{ padding-left: 21px; color: var(--ink-faint); }
+
+/* checklist rencana */
+.aic-plan{ list-style: none; margin: 7px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.aic-plan li{ display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.4; color: var(--ink-dim); }
+.aic-plan .box{ width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; display: grid; place-items: center; border-radius: 4px; border: 1.5px solid var(--line); color: #fff; }
+.aic-plan .pulse{ width: 6px; height: 6px; border-radius: 50%; background: var(--aic-clay); animation: aic-pulse 1.2s ease-in-out infinite; }
+.aic-plan li.is-in_progress .box{ border-color: var(--aic-clay); }
+.aic-plan li.is-in_progress .txt{ color: var(--ink); }
+.aic-plan li.is-done .box{ background: var(--aic-clay); border-color: var(--aic-clay); }
+.aic-plan li.is-done .txt{ color: var(--ink-faint); text-decoration: line-through; }
+
+/* ---------- composer ---------- */
+.aic-composer-wrap{ flex-shrink: 0; padding: 4px 12px 10px; }
+.aic-composer{
+  display: flex; align-items: flex-end; gap: 8px; padding: 7px 7px 7px 14px;
+  background: var(--bg-elev-2); border: 1px solid var(--line); border-radius: 20px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.aic-composer:focus-within{ border-color: color-mix(in srgb, var(--aic-clay) 60%, var(--line)); box-shadow: 0 0 0 3px var(--aic-clay-soft); }
+.aic-input{
+  box-sizing: border-box; flex: 1; min-width: 0; max-height: 120px; padding: 6px 0; resize: none;
+  background: transparent; border: 0; outline: 0; color: var(--ink);
+  font: inherit; font-size: 14px; line-height: 1.45;
+}
+.aic-input::placeholder{ color: var(--ink-faint); }
+.aic-send{
+  width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: var(--aic-clay); color: #fff; cursor: pointer;
+  transition: transform .15s ease, background .15s ease, opacity .15s ease;
+}
+.aic-send:hover:not(:disabled){ transform: scale(1.06); }
+.aic-send:active:not(:disabled){ transform: scale(.94); }
+.aic-send:disabled{ background: var(--line); color: var(--ink-faint); cursor: default; }
+.aic-send.is-stop{ background: var(--ink); color: var(--bg-elev); }
+.aic-foot{ margin-top: 6px; text-align: center; font-size: 11px; color: var(--ink-faint); }
+
+/* ---------- keyframes ---------- */
+@keyframes aic-in{ from{ opacity: 0; transform: translateY(6px); } to{ opacity: 1; transform: none; } }
+@keyframes aic-rot{ to{ transform: rotate(360deg); } }
+@keyframes aic-shimmer{ from{ background-position: 120% 0; } to{ background-position: -100% 0; } }
+@keyframes aic-pulse{ 0%, 100%{ transform: scale(.7); opacity: .6; } 50%{ transform: scale(1.15); opacity: 1; } }
+
+/* ---------- layar kecil ---------- */
+@media (max-width: 520px){
+  .aic{ right: 12px; width: calc(100vw - 24px); height: 620px; max-height: calc(100vh - 230px); max-height: calc(100dvh - 230px); border-radius: 18px; }
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce){
+  .aic{ transform: none; transition: opacity .12s linear; }
+  .aic-think-body{ transition: none; }
+  .aic-spark.is-spinning, .aic-empty-mark .aic-spark, .aic-step .spin, .aic-plan .pulse,
+  .aic-user, .aic-turn, .aic-step{ animation: none; }
+  .aic-shimmer{ animation: none; background: none; color: var(--ink-dim); -webkit-text-fill-color: currentColor; }
+}
+:root[data-reduced-motion="true"] .aic{ transform: none; transition: opacity .12s linear; }
+:root[data-reduced-motion="true"] .aic-think-body{ transition: none; }
+:root[data-reduced-motion="true"] :is(.aic-spark.is-spinning, .aic-empty-mark .aic-spark, .aic-step .spin, .aic-plan .pulse, .aic-user, .aic-turn, .aic-step){ animation: none; }
+:root[data-reduced-motion="true"] .aic-shimmer{ animation: none; background: none; color: var(--ink-dim); -webkit-text-fill-color: currentColor; }

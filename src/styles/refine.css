@@ -129,7 +129,7 @@ body.aivy-artist-immersive .aivy-shell:not(.is-mobile){ --shell-divider: color-m
   background: var(--pop-bg);
   border-color: var(--glass-edge);
 }
-:root[data-cover-dyn] :is(.aivy-ctxmenu, .aivy-trackmenu, .aivy-cselect-menu, .aivy-emoji-pop, .aivy-ai-panel){
+:root[data-cover-dyn] :is(.aivy-ctxmenu, .aivy-trackmenu, .aivy-cselect-menu, .aivy-emoji-pop){
   -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
 }
 :root[data-cover-dyn] :is(.aivy-tabbar, .aivy-mini-player, .aivy-dock .aivy-tabbar, .aivy-dock .aivy-mini-player){
