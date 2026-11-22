@@ -323,6 +323,23 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
   .aivy-row:hover .row-actions, .aivy-row:focus-within .row-actions{ opacity: 1; }
 }
 @media (min-width: 860px){ .aivy-row .col-album{ display: block; } }
+/* Baris artis: [E] [lossless] Nama artis. Badge tidak pernah menyusut, nama artis yang dipotong (ellipsis). */
+.aivy-row .meta .a-line{ display: flex; align-items: center; gap: 6px; min-width: 0; }
+.aivy-row .meta .a-line > .aivy-explicit-badge{ margin-right: 0; }
+.aivy-row .meta .a-line > .a{ flex: 0 1 auto; min-width: 0; }
+
+/* HP: judul dapat lebar maksimal. Nomor dipadatkan, gap diperkecil, hati hanya muncul bila sudah di-like
+   (menyukai lagu tetap bisa lewat menu titik tiga). Hapus aturan ".row-actions:not(.liked)" kalau hati mau selalu tampil. */
+@media (max-width: 600px){
+  .aivy-row{ gap: 10px; padding: 8px 4px; }
+  .aivy-row .idx{ width: 22px; font-size: 11px; letter-spacing: -.02em; }
+  .aivy-row .meta{ gap: 3px; }
+  .aivy-row .meta .t{ font-size: 14.5px; line-height: 1.25; }
+  .aivy-row .meta .a{ font-size: 12.5px; line-height: 1.25; }
+  .aivy-row .right{ gap: 2px; }
+  .aivy-row .dur{ min-width: 32px; font-size: 11.5px; }
+  .aivy-row .row-actions:not(.liked) > button:first-child{ display: none; }
+}
 
 .eq-bars{ display: flex; align-items: flex-end; gap: 2px; height: 13px; width: 100%; justify-content: center; }
 .eq-bars span{ width: 2.5px; background: var(--accent-strong); border-radius: 1px; animation: aivy-eq 900ms ease-in-out infinite; }
@@ -1792,7 +1809,7 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{
 .aivy-eq-slider{ accent-color: var(--accent); width: 22px; height: 150px; writing-mode: vertical-lr; direction: rtl; -webkit-appearance: slider-vertical; appearance: slider-vertical; touch-action: none; }
 @media (max-width: 640px){ .aivy-eq-bands{ overflow-x: auto; } .aivy-eq-band{ flex: 0 0 34px; } }
 
-.aivy-explicit-badge{ display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-right: 6px; border-radius: 3px; background: var(--ink-faint); color: var(--bg); font-size: 9px; font-weight: 800; line-height: 1; vertical-align: middle; }
+.aivy-explicit-badge{ display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: 15px; min-width: 15px; height: 15px; padding: 0; margin-right: 6px; border-radius: 3px; background: var(--ink-faint); color: var(--bg); font-size: 9px; font-weight: 800; line-height: 1; vertical-align: middle; }
 
 :root[data-compact="true"] .aivy-row{ padding-top: 4px; padding-bottom: 4px; }
 :root[data-compact="true"] .aivy-row .thumb{ width: 32px; height: 32px; }
@@ -3820,7 +3837,7 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   mask-image: linear-gradient(90deg, transparent 0, #000 8%, #000 92%, transparent 100%);
 }
 .aivy-explicit-badge.is-hero{
-  width: 20px; height: 20px; font-size: 11px; border-radius: 5px;
+  width: 20px; min-width: 20px; height: 20px; font-size: 11px; border-radius: 5px;
   margin-left: 10px; margin-right: 0; vertical-align: middle;
   background: rgba(255,255,255,.22); color: #fff;
 }

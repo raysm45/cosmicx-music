@@ -806,6 +806,9 @@ export function TrackRow({ track, index, list, showIndex = true, showThumb = tru
   const isCurrent = currentTrack && currentTrack.id === track.id;
   const isLiked = liked.has(String(track.videoId || track.id));
   const items = useTrackMenuItems(track, { onRemove, removeLabel });
+  // Di layar HP judul diberi satu baris penuh; badge Explicit + kualitas pindah ke baris artis (pola Spotify).
+  const compact = useIsMobile(600);
+  const explicitBadge = track.explicit ? <span className="aivy-explicit-badge" title="Explicit" aria-label="Explicit">E</span> : null;
 
   const handlePlay = () => {
     if (isCurrent) { togglePlay(); return; }
@@ -834,10 +837,13 @@ export function TrackRow({ track, index, list, showIndex = true, showThumb = tru
       <div className="meta" onClick={handlePlay} style={{ cursor: "pointer" }}>
         <MarqueeText
           as="span" className="t" text={track.title}
-          prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
-          suffix={<QualityTag track={track} />}
+          prefix={compact ? null : explicitBadge}
+          suffix={compact ? null : <QualityTag track={track} />}
           snug
         />
+        <span className="a-line">
+        {compact && explicitBadge}
+        {compact && <QualityTag track={track} />}
         <span className="a">
           {(track.artists?.length ? track.artists : (track.artist ? [track.artist] : [])).map((a, i, arr) => (
             <React.Fragment key={a.id || a.name || i}>
@@ -851,6 +857,7 @@ export function TrackRow({ track, index, list, showIndex = true, showThumb = tru
             </React.Fragment>
           ))}
           {!track.artists?.length && !track.artist && "\u2014"}
+        </span>
         </span>
         {note && <span className="row-note">{note}</span>}
       </div>

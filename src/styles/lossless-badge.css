@@ -45,6 +45,11 @@
 .aivy-card .lb:not(.lb-md){ width: 15px; padding: 0; }
 .aivy-card .lb:not(.lb-md) .lb-txt{ display: none; }
 
+/* Baris artis (HP): badge jadi glyph ringkas 15x15, sama ukuran dengan badge Explicit.
+   Nama lengkap tetap ada di tooltip & aria-label. */
+.aivy-row .a-line .lb:not(.lb-md){ width: 15px; padding: 0; }
+.aivy-row .a-line .lb:not(.lb-md) .lb-txt{ display: none; }
+
 /* Tema terang: aksen lebih gelap supaya kontras terjaga */
 :root[data-theme="white"] .lb, :root[data-theme="latte"] .lb,
 :root[data-theme="salmon"] .lb, :root[data-theme="premium"] .lb{
