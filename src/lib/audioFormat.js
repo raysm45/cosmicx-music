@@ -1,3 +1,4 @@
+import { GUARANTEED_LOSSLESS } from "./losslessPolicy.js";
 const textDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder("latin1") : null;
 
 function toAsciiWindow(bytes) {
@@ -176,7 +177,9 @@ export function describeQuality(format, fallbackLabel) {
   const khz = format && format.sampleRateHz ? `${Number((format.sampleRateHz / 1000).toFixed(1))} kHz` : null;
   const bits = format && format.bitsPerSample ? `${format.bitsPerSample}-bit` : null;
 
-  const isLossless = format ? !!format.lossless : (key === "flac" || key === "alac");
+  // Provider menjamin lossless: stream FLAC/ALAC selalu dilabeli lossless (flag "transcoded" dari metadata diabaikan).
+  const trusted = GUARANTEED_LOSSLESS && (key === "flac" || key === "alac");
+  const isLossless = trusted || (format ? !!format.lossless : (key === "flac" || key === "alac"));
   if (isLossless) {
     const hires = ((format && format.sampleRateHz) || 0) > 48000;
     return {

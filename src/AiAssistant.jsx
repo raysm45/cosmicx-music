@@ -235,12 +235,30 @@ function ThinkingBlock({ turn, tt }) {
   );
 }
 
-function AssistantTurn({ turn, tt, onCopy, copied }) {
+function AssistantTurn({ turn, tt, onCopy, copied, onRetry, canRetry }) {
+  const meta = turn.errorMeta;
   return (
     <div className="aic-turn">
       <ThinkingBlock turn={turn} tt={tt} />
       {turn.status === "error" && (
-        <div className="aic-error"><AlertTriangle size={14} /><span>{turn.error}</span></div>
+        <div className="aic-error">
+          <AlertTriangle size={14} />
+          <div className="aic-error-main">
+            <div className="aic-error-msg">{turn.error}</div>
+            {meta?.hint && <div className="aic-error-hint">{meta.hint}</div>}
+            {(meta?.status > 0 || meta?.round > 0) && (
+              <div className="aic-error-meta">
+                {meta.status > 0 ? `HTTP ${meta.status}` : tt("jaringan", "network")}
+                {" · "}{tt("ronde", "round")} {(meta.round ?? 0) + 1}
+              </div>
+            )}
+            {canRetry && turn.resume && (
+              <button type="button" className="aic-retry" onClick={() => onRetry(turn)}>
+                {tt("Coba lagi", "Try again")}
+              </button>
+            )}
+          </div>
+        </div>
       )}
       {turn.text && <div className="aic-answer">{renderMarkdown(turn.text)}</div>}
       {turn.text && turn.status === "done" && (
@@ -422,6 +440,11 @@ export function AiAssistantWidget() {
 
     const turnId = uid();
     setChat((c) => [...c, userMsg, { id: turnId, role: "assistant", status: "working", steps: [], text: "", startedAt: now }]);
+    await runTurn(turnId, text, historyRef.current);
+  };
+
+  // Jalankan (atau lanjutkan) satu giliran AI. userText null = lanjutkan dari riwayat parsial.
+  const runTurn = async (turnId, userText, baseHistory) => {
     setSending(true);
     const controller = new AbortController();
     abortRef.current = controller;
@@ -448,13 +471,13 @@ export function AiAssistantWidget() {
     };
 
     try {
-      const { text: reply, history } = await runAiAssistantTurn(text, historyRef.current, ctx, {
+      const { text: reply, history } = await runAiAssistantTurn(userText, baseHistory, ctx, {
         signal: controller.signal,
         lang: en ? "en" : "id",
         onEvent: (ev) => applyEvent(turnId, ev),
       });
       historyRef.current = history;
-      patchTurn(turnId, (m) => ({ ...settleTurn(m, "done"), status: "done", text: reply, endedAt: Date.now() }));
+      patchTurn(turnId, (m) => ({ ...settleTurn(m, "done"), status: "done", text: reply, error: undefined, errorMeta: undefined, resume: undefined, endedAt: Date.now() }));
       if (!openRef.current) setUnread((n) => n + 1);
     } catch (err) {
       if (err?.name === "AbortError") {
@@ -463,6 +486,8 @@ export function AiAssistantWidget() {
         patchTurn(turnId, (m) => ({
           ...settleTurn(m, "stop"), status: "error", endedAt: Date.now(),
           error: err?.message || tt("Terjadi kesalahan.", "Something went wrong."),
+          errorMeta: { status: err?.status || 0, round: err?.round || 0, hint: err?.hint || "" },
+          resume: err?.history || null, // riwayat parsial -> "Coba lagi" melanjutkan, bukan mengulang riset
         }));
         if (!openRef.current) setUnread((n) => n + 1);
       }
@@ -470,6 +495,13 @@ export function AiAssistantWidget() {
       abortRef.current = null;
       setSending(false);
     }
+  };
+
+  const retryTurn = (turn) => {
+    if (sending || !turn.resume) return;
+    stickRef.current = true;
+    patchTurn(turn.id, (m) => ({ ...m, status: "working", error: undefined, errorMeta: undefined, endedAt: undefined, startedAt: Date.now() - (((m.endedAt || Date.now()) - m.startedAt)) }));
+    runTurn(turn.id, null, turn.resume);
   };
 
   const send = () => sendText(input);
@@ -539,7 +571,7 @@ export function AiAssistantWidget() {
               m.role === "user" ? (
                 <div key={m.id} className="aic-user"><div className="aic-user-bubble">{m.text}</div></div>
               ) : (
-                <AssistantTurn key={m.id} turn={m} tt={tt} onCopy={copyTurn} copied={copiedId === m.id} />
+                <AssistantTurn key={m.id} turn={m} tt={tt} onCopy={copyTurn} copied={copiedId === m.id} onRetry={retryTurn} canRetry={!sending} />
               )
             )}
           </div>

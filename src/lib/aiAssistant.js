@@ -565,77 +565,216 @@ export function compactHistory(history) {
   );
 }
 
+/* ---------------------------- error & retry ---------------------------- */
+
+/** Error dengan konteks lengkap + riwayat parsial supaya UI bisa "Coba lagi" tanpa mengulang riset. */
+export class AiError extends Error {
+  constructor(message, { status = 0, round = 0, detail = "", hint = "", history = null } = {}) {
+    super(message);
+    this.name = "AiError";
+    this.status = status;
+    this.round = round;
+    this.detail = detail;
+    this.hint = hint;
+    this.history = history;
+  }
+}
+
+const RETRYABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
+const MAX_RETRIES = 2;
+const SLIM_TOOL_RESULT_MAX = 1200;
+
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => { clearTimeout(t); reject(abortError()); }, { once: true });
+  });
+}
+
+function hintFor(status, serverMsg, lang) {
+  const L = (id, en) => tr(lang, id, en);
+  const m = String(serverMsg || "");
+  if (status === 401 || status === 403) return L("Sesi login habis atau tidak punya akses. Coba login ulang.", "Your session expired or access is denied. Try logging in again.");
+  if (status === 429) return L("Terlalu banyak permintaan (rate limit). Tunggu sebentar lalu coba lagi.", "Rate limited. Wait a moment and retry.");
+  if (status === 504 || status === 502 || status === 503 || status === 408) return L("Server atau proxy timeout / sibuk. Kalau sering terjadi, naikkan timeout proxy dan timeout ke model di backend.", "Server or proxy timed out. If this keeps happening, raise the proxy and upstream model timeouts on the backend.");
+  if (status === 413 || /context|too long|maximum|token/i.test(m)) return L("Konteks terlalu panjang untuk model. Coba obrolan baru.", "The context is too long for the model. Start a new chat.");
+  if (/reasoning/i.test(m)) return L("Provider model mengeluhkan reasoning_content. Cek format pesan di backend.", "The model provider complains about reasoning_content. Check the message format on the backend.");
+  if (status === 0) return L("Tidak bisa menjangkau server. Cek koneksi atau CORS.", "Can't reach the server. Check your connection or CORS.");
+  return "";
+}
+
+function errorText(data, res) {
+  const raw = data?.error?.message || data?.error || data?.message;
+  if (raw) return typeof raw === "string" ? raw : JSON.stringify(raw);
+  return res ? `${res.status} ${res.statusText}`.trim() : "";
+}
+
+const stripHidden = ({ __reasoning, ...m }) => m; // eslint-disable-line no-unused-vars
+
+/** Bentuk payload messages: sembunyikan field internal, opsional sertakan reasoning_content & pangkas hasil tool. */
+function buildMessages(messages, { withReasoning, slim }) {
+  return messages.map((m) => {
+    let out = m;
+    if (slim && m.role === "tool" && typeof m.content === "string" && m.content.length > SLIM_TOOL_RESULT_MAX) {
+      out = { ...m, content: `${m.content.slice(0, SLIM_TOOL_RESULT_MAX)}…[dipangkas]` };
+    }
+    if (withReasoning && out.role === "assistant" && out.__reasoning) out = { ...out, reasoning_content: out.__reasoning };
+    return stripHidden(out);
+  });
+}
+
 /* ---------------------------- satu giliran ---------------------------- */
 
 /**
- * @param {string} userText
- * @param {Array}  history   riwayat pesan format OpenAI (dari giliran sebelumnya)
+ * @param {string|null} userText  teks user; null = LANJUTKAN giliran yang tadi gagal (history sudah memuatnya)
+ * @param {Array}  history   riwayat pesan format OpenAI
  * @param {object} ctx       jembatan ke player/playlist (lihat AiAssistant.jsx)
  * @param {object} opts      { signal, lang, onEvent }
  *   onEvent menerima: round | thought | tool_start | tool_progress | tool_end | plan
+ * Melempar AiError (dengan .history parsial) kalau gagal.
  */
 export async function runAiAssistantTurn(userText, history, ctx, opts = {}) {
   const { signal, lang = "id", onEvent } = opts;
   const emit = (ev) => { try { onEvent?.(ev); } catch { /* UI tidak boleh merusak loop */ } };
   const env = { trackCache: new Map(), signal, lang, emit };
-  let messages = [...compactHistory(history), { role: "user", content: userText }];
+  const L = (id, en) => tr(lang, id, en);
+
+  let messages = userText == null
+    ? [...history]
+    : [...compactHistory(history), { role: "user", content: userText }];
+
+  // keadaan adaptif: diaktifkan hanya kalau backend/provider menolak format default
+  const mode = { withReasoning: false, slim: false };
+  let nudges = 0;
+
+  const fail = (message, extra) => {
+    const err = new AiError(message, { ...extra, history: messages.map(stripHidden) });
+    // eslint-disable-next-line no-console
+    console.error("[AI assistant]", { message, status: err.status, round: err.round, detail: err.detail });
+    return err;
+  };
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     throwIfAborted(signal);
     emit({ type: "round", round });
 
-    let res;
-    try {
-      res = await fetch(AI_ENDPOINT, {
-        method: "POST",
-        credentials: "include",
-        signal,
-        headers: {
-          "content-type": "application/json",
-          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-        },
-        body: JSON.stringify({
-          messages,
-          client: { v: 2, lang, round, max_rounds: MAX_ROUNDS },
-          // ronde terakhir: minta backend melarang tool supaya model wajib menutup dengan jawaban
-          force_final: round === MAX_ROUNDS - 1,
-        }),
+    /* ---- panggil model (dengan retry + perbaikan adaptif) ---- */
+    let data = null;
+    let attempt = 0;
+    for (;;) {
+      throwIfAborted(signal);
+      let res = null;
+      let body = null;
+      let netErr = null;
+      try {
+        res = await fetch(AI_ENDPOINT, {
+          method: "POST",
+          credentials: "include",
+          signal,
+          headers: {
+            "content-type": "application/json",
+            ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+          },
+          body: JSON.stringify({
+            messages: buildMessages(messages, mode),
+            client: { v: 2, lang, round, max_rounds: MAX_ROUNDS },
+            force_final: round === MAX_ROUNDS - 1,
+          }),
+        });
+        try { body = await res.json(); } catch { body = null; }
+      } catch (e) {
+        if (e?.name === "AbortError") throw e;
+        netErr = e;
+      }
+
+      if (!netErr && res.ok) { data = body; break; }
+
+      const status = netErr ? 0 : res.status;
+      const serverMsg = netErr ? (netErr.message || "network error") : errorText(body, res);
+
+      // Perbaikan adaptif untuk penolakan format (sekali saja per jenis)
+      if ((status === 400 || status === 422) && /reasoning/i.test(serverMsg) && !mode.withReasoning) {
+        mode.withReasoning = true;
+        emit({ type: "thought", text: L("Provider minta reasoning disertakan, mencoba lagi dengan format itu…", "The provider needs reasoning included, retrying with that format…") });
+        continue;
+      }
+      if ((status === 400 || status === 413 || status === 422) && !mode.slim) {
+        mode.slim = true;
+        emit({ type: "thought", text: L("Permintaan ditolak, mencoba lagi dengan hasil tool yang dipersingkat…", "Request rejected, retrying with shortened tool results…") });
+        continue;
+      }
+      // Gangguan sementara -> coba lagi dengan jeda
+      if (attempt < MAX_RETRIES && (netErr || RETRYABLE.has(status))) {
+        attempt += 1;
+        const retryAfter = Number(res?.headers?.get?.("retry-after"));
+        const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter, 10) * 1000 : attempt * 1500;
+        emit({ type: "thought", text: L(`Server sedang bermasalah${status ? ` (HTTP ${status})` : ""}, mencoba lagi (${attempt}/${MAX_RETRIES})…`, `Server hiccup${status ? ` (HTTP ${status})` : ""}, retrying (${attempt}/${MAX_RETRIES})…`) });
+        await sleep(wait, signal);
+        continue;
+      }
+
+      throw fail(serverMsg || L("Permintaan ke AI gagal.", "The AI request failed."), {
+        status, round, detail: clip(serverMsg, 300), hint: hintFor(status, serverMsg, lang),
       });
-    } catch (e) {
-      if (e?.name === "AbortError") throw e;
-      throw new Error(tr(lang, "Tidak bisa terhubung ke server AI.", "Can't reach the AI server."));
     }
 
-    let data;
-    try { data = await res.json(); } catch { data = null; }
-
-    if (!res.ok) {
-      const msg = data?.error?.message || data?.error || tr(lang, "Permintaan ke AI gagal.", "The AI request failed.");
-      throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    /* ---- baca balasan ---- */
+    const choice = data?.choices?.[0];
+    if (!choice) {
+      throw fail(L("Respons AI tidak berformat OpenAI (tidak ada choices).", "The AI response has no choices."), {
+        round, detail: clip(JSON.stringify(data), 300),
+        hint: L("Pastikan /api/ai-chat mengembalikan respons mentah provider ({ choices: [{ message }] }).", "Make sure /api/ai-chat returns the raw provider response ({ choices: [{ message }] })."),
+      });
     }
 
-    const raw = data?.choices?.[0]?.message || {};
-    // Beberapa provider menolak reasoning_content kalau dikirim balik -> buang dari riwayat.
-    const { reasoning_content: reasoningA, reasoning: reasoningB, ...message } = raw;
+    const message = choice.message || {};
+    const { reasoning_content: reasoningA, reasoning: reasoningB, ...rest } = message;
     const reasoning = String(reasoningA || reasoningB || data?.reasoning || "").trim();
-    const content = String(message.content || "").trim();
-    const toolCalls = message.tool_calls || [];
-    messages = [...messages, message];
+    const content = String(rest.content || "").trim();
+    const toolCalls = rest.tool_calls || [];
+    const truncated = choice.finish_reason === "length";
 
     if (reasoning) emit({ type: "thought", text: reasoning });
 
+    /* ---- tanpa tool call = jawaban akhir (atau kosong/terpotong) ---- */
     if (!toolCalls.length) {
-      return { text: content || "...", history: messages };
+      if (!content) {
+        if (truncated) {
+          throw fail(L("Balasan AI terpotong sebelum selesai.", "The AI reply was cut off."), {
+            round, hint: L("max_tokens di backend terlalu kecil (model 'berpikir' menghabiskannya). Naikkan ke 4000+.", "max_tokens on the backend is too small (the model spent it thinking). Raise it to 4000+."),
+          });
+        }
+        if (nudges < 1) {
+          nudges += 1;
+          messages.push({ role: "user", content: L("Lanjutkan dan berikan jawaban akhirmu.", "Please continue and give your final answer.") });
+          continue;
+        }
+        throw fail(L("AI mengembalikan balasan kosong.", "The AI returned an empty reply."), {
+          round, hint: L("Cek model/prompt di backend, atau coba lagi.", "Check the model/prompt on the backend, or retry."),
+        });
+      }
+      messages.push({ ...rest, ...(reasoning ? { __reasoning: reasoning } : {}) });
+      return { text: content, history: messages.map(stripHidden) };
     }
+
+    /* ---- ada tool call ---- */
+    const calls = toolCalls.map((call) => {
+      let input = {};
+      let parsed = true;
+      try { input = JSON.parse(call.function?.arguments || "{}"); } catch { input = {}; parsed = false; }
+      return { id: call.id, name: call.function?.name, input, parsed };
+    });
+
+    if (truncated && calls.some((c) => !c.parsed)) {
+      throw fail(L("Argumen tool dari AI terpotong.", "The AI's tool arguments were cut off."), {
+        round, hint: L("max_tokens di backend terlalu kecil. Naikkan ke 4000+.", "max_tokens on the backend is too small. Raise it to 4000+."),
+      });
+    }
+
+    messages.push({ ...rest, ...(reasoning ? { __reasoning: reasoning } : {}) });
 
     // Teks yang menyertai tool_calls = "pikiran" model sebelum bertindak.
     if (content && content !== reasoning) emit({ type: "thought", text: content });
-
-    const calls = toolCalls.map((call) => {
-      let input = {};
-      try { input = JSON.parse(call.function?.arguments || "{}"); } catch { input = {}; }
-      return { id: call.id, name: call.function?.name, input };
-    });
 
     for (const c of calls) {
       if (c.name === "update_plan") continue;
@@ -649,11 +788,17 @@ export async function runAiAssistantTurn(userText, history, ctx, opts = {}) {
     };
 
     let results;
-    if (calls.every((c) => READ_ONLY_TOOLS.has(c.name) || c.name === "update_plan")) {
-      results = await Promise.all(calls.map(runOne));
-    } else {
-      results = [];
-      for (const c of calls) results.push(await runOne(c));
+    try {
+      if (calls.every((c) => READ_ONLY_TOOLS.has(c.name) || c.name === "update_plan")) {
+        results = await Promise.all(calls.map(runOne));
+      } else {
+        results = [];
+        for (const c of calls) results.push(await runOne(c));
+      }
+    } catch (e) {
+      if (e?.name === "AbortError") throw e;
+      // jangan biarkan satu tool yang meledak mematikan seluruh giliran
+      results = calls.map(() => ({ error: e?.message || "Tool gagal." }));
     }
 
     calls.forEach((c, i) => {
@@ -662,7 +807,7 @@ export async function runAiAssistantTurn(userText, history, ctx, opts = {}) {
   }
 
   return {
-    text: tr(lang, "Maaf, prosesnya kelamaan dan dihentikan. Coba minta lagi dengan lebih spesifik ya.", "Sorry, that took too long and was stopped. Try again with a more specific request."),
-    history: messages,
+    text: L("Maaf, prosesnya kelamaan dan dihentikan. Coba minta lagi dengan lebih spesifik ya.", "Sorry, that took too long and was stopped. Try again with a more specific request."),
+    history: messages.map(stripHidden),
   };
 }

@@ -459,7 +459,8 @@
 
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality{ border: 0; font-family: inherit; cursor: pointer; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: transform .15s ease, background .2s ease; }
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality:active{ transform: scale(.95); background: rgba(255,255,255,.28); }
-.aivy-quality .q-ico{ flex: 0 0 auto; width: 1.55em; height: auto; margin-right: -2px; color: rgba(255,255,255,.88); }
+.aivy-quality .q-ico{ color: rgba(255,255,255,.88); }
+.aivy-quality.is-hires .q-ico{ color: #ffd98a; }
 
 .aivy-sheet.npx-v2 .npx-lyr-btn.npx-lyr-lang{
   left: 0; right: 0; margin: 0 auto; width: max-content; min-width: calc(var(--u) * 48); max-width: calc(var(--u) * 200);

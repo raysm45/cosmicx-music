@@ -260,6 +260,8 @@ body.aivy-artist-immersive .aivy-topbar-username{ color: #fff; }
 .aivy-card .title{ font-weight: 600; margin-bottom: .25rem; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aivy-marquee-row{ display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
 .aivy-marquee{ display: block; flex: 1 1 auto; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
+/* snug: judul selebar isinya, sehingga badge (suffix) menempel di judul, bukan terdorong ke tepi kanan */
+.aivy-marquee-row.is-snug > .aivy-marquee{ flex: 0 1 auto; }
 .aivy-marquee .aivy-marquee-track{ display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
 .aivy-marquee .aivy-marquee-seg{ display: inline-block; }
 @media (max-width: 860px){
@@ -4063,6 +4065,8 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
   font-size: 11px; font-weight: 700; letter-spacing: .01em; line-height: 1; white-space: nowrap; pointer-events: none;
   overflow: hidden;
 }
+.aivy-quality.has-ico{ padding-left: 7px; }
+.aivy-quality .q-ico{ flex: none; display: block; width: 1.05em; height: 1.05em; margin: 0; }
 .aivy-quality .d{ font-weight: 600; color: rgba(255,255,255,.62); overflow: hidden; text-overflow: ellipsis; }
 .aivy-quality.is-hires .m{ color: #ffe3a3; }
 
@@ -4090,6 +4094,4 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 }
 .aivy-dock .aivy-mini-player .aivy-icon-btn{ width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }
 
-/* Badge kualitas di card lagu: hanya untuk lagu yang terbukti lossless saat diputar */
-.aivy-qtag{ display: inline-flex; align-items: center; flex-shrink: 0; margin-left: 6px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--ink-faint); color: var(--ink-dim); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; line-height: 1.35; white-space: nowrap; vertical-align: middle; }
-.aivy-qtag.is-hires{ color: #e0a93b; border-color: rgba(224,169,59,.6); }
+/* Badge Lossless / Hi-Res di baris & kartu lagu: lihat styles/lossless-badge.css */

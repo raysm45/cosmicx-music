@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Download, Check, X, Gem, Disc3, Music2, FileAudio } from "lucide-react";
 import { Api } from "./lib/api.js";
 import { getRememberedQuality } from "./lib/qualityMemory.js";
+import { LosslessBadge } from "./LosslessBadge.jsx";
+import { losslessKindForTrack } from "./lib/losslessPolicy.js";
 import { useUI } from "./context.jsx";
 import { SmartCover } from "./lib/brand.jsx";
 import "./styles/download-sheet.css";
@@ -19,7 +21,7 @@ export const DOWNLOAD_OPTIONS = [
   {
     id: "flac", format: "flac", Icon: Gem, badge: null,
     title: ["FLAC", "FLAC"],
-    sub: ["Lossless bila tersedia untuk lagu ini, tanpa kompresi lossy", "Lossless when available for this track, no lossy compression"],
+    sub: ["Lossless asli, tanpa kompresi lossy", "True lossless, no lossy compression"],
   },
   {
     id: "aac", format: "aac", Icon: Disc3, badge: null,
@@ -126,9 +128,10 @@ export function DownloadSheetHost() {
           {DOWNLOAD_OPTIONS.map((opt) => {
             const loading = busy === opt.id;
             const Icon = opt.Icon;
-            // Badge FLAC hanya untuk lagu yang sudah terbukti lossless saat diputar.
+            // Provider menjamin lossless untuk semua lagu remote; Hi-Res hanya kalau pernah terverifikasi.
             const rq = opt.id === "flac" ? getRememberedQuality(track) : null;
-            const badge = rq ? (rq.tier === "hires" ? "Hi-Res" : "Lossless") : opt.badge;
+            const showLossless = opt.id === "flac" && (!!rq || !!losslessKindForTrack(track));
+            const badge = showLossless ? null : opt.badge;
             return (
               <button
                 key={opt.id} type="button" disabled={!!busy && !loading}
@@ -139,6 +142,7 @@ export function DownloadSheetHost() {
                 <span className="aivy-dl-txt">
                   <span className="t">
                     {en ? opt.title[1] : opt.title[0]}
+                    {showLossless && <LosslessBadge tier={rq?.tier === "hires" ? "hires" : "lossless"} size="md" onDark />}
                     {badge && <span className="aivy-dl-badge">{badge}</span>}
                   </span>
                   <span className="s">{en ? opt.sub[1] : opt.sub[0]}</span>

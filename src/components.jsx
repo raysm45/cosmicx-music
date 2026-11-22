@@ -26,7 +26,9 @@ import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice, isLyricsLite } from "./lib/perf.js";
 import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled, qualityDialogInfo, reconcileFormat, servedInfoFormat, getPreferredAudioFormat } from "./lib/audioFormat.js";
 import { useRememberedQuality } from "./lib/qualityMemory.js";
-import { QualityDialog, LyricsProviderMobileSheet, LosslessGlyph } from "./NpxDialogs.jsx";
+import { QualityDialog, LyricsProviderMobileSheet } from "./NpxDialogs.jsx";
+import { LosslessBadge, LosslessMark } from "./LosslessBadge.jsx";
+import { losslessKindForTrack } from "./lib/losslessPolicy.js";
 import { openDownload } from "./DownloadSheet.jsx";
 import { registerNowPlayingSheet, sheetPeekStart, sheetPeekMove, sheetPeekEnd } from "./lib/sheetPeek.js";
 import { MeshGradient, useCoverPalette } from "./lib/MeshGradient.jsx";
@@ -785,15 +787,16 @@ export function filterExplicit(tracks, settings) {
   return tracks.filter((tr) => !tr?.explicit);
 }
 
-// Badge hanya muncul untuk lagu yang SUDAH terbukti lossless saat diputar. Tidak ada badge = tidak diketahui / bukan lossless.
+// Label kualitas di baris/kartu lagu. Provider menjamin semua lagu remote lossless (lib/losslessPolicy.js),
+// jadi badge tampil untuk semuanya. Kalau lagu pernah diputar dan terverifikasi Hi-Res (sample rate > 48 kHz),
+// tier-nya naik jadi Hi-Res. File lokal hanya diberi label kalau formatnya memang lossless.
 export function QualityTag({ track }) {
   const q = useRememberedQuality(track);
-  const { settings } = useUI();
-  if (!q) return null;
-  const en = settings.language === "en";
-  const spec = `${q.bitsPerSample}-bit / ${Number((q.sampleRateHz / 1000).toFixed(1))} kHz`;
-  const title = en ? `FLAC ${spec} \u00b7 verified when last played` : `FLAC ${spec} \u00b7 terverifikasi saat terakhir diputar`;
-  return <span className={`aivy-qtag ${q.tier === "hires" ? "is-hires" : ""}`} title={title}>{q.tier === "hires" ? "Hi-Res" : "Lossless"}</span>;
+  if (!q && !losslessKindForTrack(track)) return null;
+  const tier = q?.tier === "hires" ? "hires" : "lossless";
+  const spec = q ? `${q.bitsPerSample}-bit / ${Number((q.sampleRateHz / 1000).toFixed(1))} kHz` : null;
+  const title = [tier === "hires" ? "Hi-Res Lossless" : "Lossless", "FLAC", spec].filter(Boolean).join(" \u00b7 ");
+  return <LosslessBadge tier={tier} title={title} />;
 }
 
 export function TrackRow({ track, index, list, showIndex = true, showThumb = true, showAlbum = false, onRemove, removeLabel, queueMode = "single", source = null, note = null, shuffleOverride = null }) {
@@ -833,6 +836,7 @@ export function TrackRow({ track, index, list, showIndex = true, showThumb = tru
           as="span" className="t" text={track.title}
           prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
           suffix={<QualityTag track={track} />}
+          snug
         />
         <span className="a">
           {(track.artists?.length ? track.artists : (track.artist ? [track.artist] : [])).map((a, i, arr) => (
@@ -906,6 +910,7 @@ function CardTrackBase({ track, list }) {
         as="div" className="title" text={track.title}
         prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
         suffix={<QualityTag track={track} />}
+          snug
       />
       <div className="sub">{track.artist?.name}</div>
     </div>
@@ -991,7 +996,7 @@ export function FlipList({ items, getKey, renderItem, className, as: Tag = "div"
   );
 }
 
-export function MarqueeText({ text, className = "", as: Tag = "span", prefix = null, suffix = null, gap = 40, pxPerSecond = 42, always = false, onClick, style }) {
+export function MarqueeText({ text, className = "", as: Tag = "span", prefix = null, suffix = null, snug = false, gap = 40, pxPerSecond = 42, always = false, onClick, style }) {
   const isMobile = useIsMobile(860);
   const wrapRef = useRef(null);
   const segRef = useRef(null);
@@ -1030,7 +1035,7 @@ export function MarqueeText({ text, className = "", as: Tag = "span", prefix = n
   const animate = (isMobile || always) && overflow;
 
   return (
-    <Tag className={`aivy-marquee-row ${className}`} onClick={onClick} style={style}>
+    <Tag className={`aivy-marquee-row ${snug ? "is-snug " : ""}${className}`} onClick={onClick} style={style}>
       {prefix}
       <span ref={wrapRef} className="aivy-marquee">
         <span
@@ -3321,11 +3326,11 @@ export function QualityPill({ track, fallbackLabel = null, className = "", onCli
   const label = fallbackLabel || (audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null);
   const q = describeQuality(format, label);
   if (!q) return null;
-  const kind = q.hires ? "is-hires" : q.lossless ? "is-lossless" : "";
+  const kind = q.hires ? "is-hires has-ico" : q.lossless ? "is-lossless has-ico" : "";
   const title = [q.main, q.detail].filter(Boolean).join(" \u00b7 ");
   const inner = (
     <>
-      {q.lossless ? <LosslessGlyph className="q-ico" /> : null}
+      {q.lossless ? <LosslessMark className="q-ico" /> : null}
       <span className="m">{q.main}</span>
       {q.detail && !q.lossless ? <span className="d">{q.detail}</span> : null}
     </>

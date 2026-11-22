@@ -1,0 +1,67 @@
+/* =====================================================================
+ *  Badge Lossless / Hi-Res
+ *  - tinggi fixed (15px sm / 18px md), tanpa border: ring = inset box-shadow
+ *  - teks caps di-center memakai text-box-trim bila didukung (font-agnostic)
+ *  - statis (tanpa animasi) karena muncul di puluhan baris sekaligus
+ * ===================================================================== */
+.lb{
+  --lb-c: #46e2b5;
+  --lb-ink: color-mix(in srgb, var(--lb-c) 80%, #fff);
+  --lb-ring: color-mix(in srgb, var(--lb-c) 38%, transparent);
+
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  box-sizing: border-box; height: 15px; padding: 0 6px 0 5px; gap: 4px;
+  border-radius: 5px;
+  font: 800 9px/1 var(--font-body, system-ui, sans-serif);
+  letter-spacing: .07em; text-transform: uppercase; white-space: nowrap;
+  color: var(--lb-ink);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--lb-c) 22%, transparent),
+    color-mix(in srgb, var(--lb-c) 9%, transparent));
+  box-shadow: inset 0 0 0 1px var(--lb-ring), inset 0 1px 0 rgba(255,255,255,.07);
+  vertical-align: middle; user-select: none; cursor: default;
+  -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+}
+.lb-ico{ display: block; flex: none; width: 9px; height: 9px; }
+.lb-txt{ display: block; }
+@supports (text-box: trim-both cap alphabetic){
+  .lb-txt{ text-box: trim-both cap alphabetic; }
+}
+
+.lb.is-hires{
+  --lb-c: #f2bf4d;
+  --lb-ink: color-mix(in srgb, var(--lb-c) 70%, #fff);
+}
+
+/* ukuran md: sheet download, dialog */
+.lb-md{ height: 18px; padding: 0 8px 0 6px; gap: 5px; border-radius: 6px; font-size: 10px; }
+.lb-md .lb-ico{ width: 11px; height: 11px; }
+
+/* Posisi di baris judul: menempel di judul, jarak seragam (menggantikan margin-left lama) */
+.aivy-marquee-row > .lb{ margin-left: 2px; }
+
+/* Kartu lagu sempit -> selalu glyph ringkas supaya judul tidak terpotong (nama lengkap tetap di tooltip & aria-label).
+   Baris lagu (lebar) memakai label lengkap. */
+.aivy-card .lb:not(.lb-md){ width: 15px; padding: 0; }
+.aivy-card .lb:not(.lb-md) .lb-txt{ display: none; }
+
+/* Tema terang: aksen lebih gelap supaya kontras terjaga */
+:root[data-theme="white"] .lb, :root[data-theme="latte"] .lb,
+:root[data-theme="salmon"] .lb, :root[data-theme="premium"] .lb{
+  --lb-c: #0c9a78;
+  --lb-ink: color-mix(in srgb, var(--lb-c) 86%, #000);
+  --lb-ring: color-mix(in srgb, var(--lb-c) 42%, transparent);
+  box-shadow: inset 0 0 0 1px var(--lb-ring);
+}
+:root[data-theme="white"] .lb.is-hires, :root[data-theme="latte"] .lb.is-hires,
+:root[data-theme="salmon"] .lb.is-hires, :root[data-theme="premium"] .lb.is-hires{
+  --lb-c: #c4880a;
+}
+
+/* Permukaan yang selalu gelap (sheet download) -> palet gelap di semua tema */
+:root:root .lb.lb-dark{ --lb-c: #46e2b5; --lb-ink: color-mix(in srgb, var(--lb-c) 80%, #fff); --lb-ring: color-mix(in srgb, var(--lb-c) 40%, transparent);
+  box-shadow: inset 0 0 0 1px var(--lb-ring), inset 0 1px 0 rgba(255,255,255,.07); }
+:root:root .lb.lb-dark.is-hires{ --lb-c: #f2bf4d; }
+
+/* Kontras tinggi */
+:root[data-contrast="high"] .lb{ --lb-ring: color-mix(in srgb, var(--lb-c) 80%, transparent); }

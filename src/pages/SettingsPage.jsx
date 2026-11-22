@@ -691,7 +691,7 @@ export function SettingsPage() {
           options={[
             { value: "aac", label: tt("AAC (m4a)", "AAC (m4a)") },
             { value: "opus", label: tt("Opus (webm)", "Opus (webm)") },
-            { value: "flac", label: tt("FLAC (lossless, jika tersedia)", "FLAC (lossless, when available)") },
+            { value: "flac", label: tt("FLAC (lossless)", "FLAC (lossless)") },
           ]} />
       </SettingSection>
 
