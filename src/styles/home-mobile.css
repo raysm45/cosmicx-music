@@ -1,0 +1,194 @@
+/* =====================================================================
+ *  Home mobile: campuran Spotify (ubin), Apple Music (deck), Metrolist (kolom cepat),
+ *  tangga lagu, dan rak piringan hitam.
+ *  Aturan main supaya ringan:
+ *   - animasi hanya transform / opacity (jalan di compositor)
+ *   - tanpa blur, backdrop-filter, atau box-shadow beranimasi
+ *   - animasi yang terus berjalan hanya untuk lagu yang sedang diputar
+ *   - bagian di bawah layar memakai content-visibility
+ *   - scroll-driven animation hanya jika browser mendukung (@supports); selain itu statis
+ *  Semua warna dari token tema, kecuali overlay di atas sampul (selalu gelap/terang tetap).
+ * ===================================================================== */
+
+.hm{ --hm-g: var(--home-gutter, 16px); display: flex; flex-direction: column; gap: 34px; margin: 18px 0 30px; min-width: 0; }
+.hm-sec{ min-width: 0; }
+
+.hm-head{ display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; min-height: 34px; }
+.hm-h{ margin: 0; font-family: var(--font-display); color: var(--ink); letter-spacing: -.02em; min-width: 0; }
+.hm-h.xl{ font-size: 28px; font-weight: 800; line-height: 1.05; }
+.hm-h.md{ font-size: 21px; font-weight: 700; line-height: 1.1; }
+.hm-h.sm{ font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.hm-head-acts{ display: inline-flex; align-items: center; gap: 4px; flex: none; }
+
+/* rail yang menembus gutter halaman */
+.hm-bleed{
+  margin-inline: calc(var(--hm-g) * -1); padding-inline: var(--hm-g);
+  scroll-padding-inline: var(--hm-g);
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.hm-bleed::-webkit-scrollbar{ display: none; }
+.hm-defer{ content-visibility: auto; contain-intrinsic-size: auto 220px; }
+
+.hm-refresh.is-spin svg{ animation: hm-turn .6s var(--ease); }
+@keyframes hm-turn{ to{ transform: rotate(360deg); } }
+
+/* equalizer kecil: hanya bergerak saat lagu benar-benar diputar */
+.hm-eq{ display: inline-flex; align-items: flex-end; gap: 2px; width: 14px; height: 14px; flex: none; }
+.hm-eq i{ flex: 1; height: 100%; border-radius: 1px; background: currentColor; transform-origin: bottom; transform: scaleY(.35); }
+.hm-eq.on i{ animation: hm-eq .9s ease-in-out infinite; }
+.hm-eq.on i:nth-child(2){ animation-delay: -.3s; }
+.hm-eq.on i:nth-child(3){ animation-delay: -.6s; }
+@keyframes hm-eq{ 0%, 100%{ transform: scaleY(.3); } 50%{ transform: scaleY(1); } }
+
+@keyframes hm-pop{ from{ opacity: 0; transform: translateY(10px) scale(.96); } to{ opacity: 1; transform: none; } }
+
+/* ---------- 1. Pintasan ---------- */
+.hm-tiles{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hm-tile{
+  display: flex; align-items: center; gap: 10px; min-width: 0; height: 56px; padding: 0 10px 0 0;
+  border-radius: 8px; overflow: hidden; background: var(--bg-elev-2); color: var(--ink); text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  animation: hm-pop .42s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 45ms);
+}
+.hm-tile:active{ transform: scale(.96); background: var(--bg-elev-3); }
+.hm-tile .cv{ width: 56px; height: 56px; flex: none; background: var(--bg-elev-3); }
+.hm-tile .tt{ flex: 1; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hm-tile.is-current{ color: var(--accent-strong); }
+.hm-tile.is-current .hm-eq{ color: var(--accent-strong); }
+
+/* ---------- 2. Deck album ---------- */
+.hm-deck{ display: flex; gap: 12px; scroll-snap-type: x mandatory; padding-block: 4px 6px; }
+.hm-hero{
+  position: relative; flex: none; width: min(76vw, 320px); aspect-ratio: 1; border-radius: 22px; overflow: hidden;
+  background: var(--bg-elev-2); scroll-snap-align: start; cursor: pointer; isolation: isolate;
+  -webkit-tap-highlight-color: transparent; transition: transform var(--dur-base) var(--ease);
+}
+.hm-hero:active{ transform: scale(.975); }
+.hm-hero::after{ content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(180deg, transparent 48%, rgba(0,0,0,.8)); }
+.hm-hero .tx{ position: absolute; z-index: 2; left: 16px; right: 70px; bottom: 15px; color: #fff; min-width: 0; }
+.hm-hero .ti{ font-family: var(--font-display); font-size: 19px; font-weight: 700; line-height: 1.15; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hm-hero .su{ margin-top: 3px; font-size: 12.5px; color: rgba(255,255,255,.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-fab{
+  position: absolute; z-index: 3; right: 13px; bottom: 13px; width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center; background: #fff; color: #000;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.hm-fab:active{ transform: scale(.88); }
+.hm-hero.is-current::before{ content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; box-shadow: inset 0 0 0 2px var(--accent-strong); pointer-events: none; }
+
+/* ---------- 3. Pilihan cepat ---------- */
+.hm-pages{ display: grid; grid-auto-flow: column; grid-auto-columns: 88%; column-gap: 10px; scroll-snap-type: x mandatory; }
+.hm-page{ display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); scroll-snap-align: start; min-width: 0; }
+.hm-qrow{
+  display: flex; align-items: center; gap: 12px; min-width: 0; padding: 6px 0; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: opacity var(--dur-fast) var(--ease);
+  animation: hm-pop .4s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 50ms);
+}
+.hm-qrow:active{ opacity: .6; }
+.hm-qrow .cv{ position: relative; width: 50px; height: 50px; flex: none; border-radius: 8px; overflow: hidden; background: var(--bg-elev-2); }
+.hm-cv-eq, .hm-qrow .cv-eq{ position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.5); color: #fff; }
+.hm-qrow .mt, .hm-crow .mt{ flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hm-qrow .tt, .hm-crow .tt{ font-size: 14.5px; font-weight: 600; line-height: 1.25; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-qrow.is-current .tt, .hm-crow.is-current .tt{ color: var(--accent-strong); }
+
+/* baris artis: [E] [lossless] nama. Badge tidak boleh menyusut. */
+.hm-sub{ display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; line-height: 1.25; color: var(--ink-faint); }
+.hm-sub .nm{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-sub .aivy-explicit-badge{ margin-right: 0; }
+.hm-sub .lb:not(.lb-md){ width: 15px; padding: 0; }
+.hm-sub .lb:not(.lb-md) .lb-txt{ display: none; }
+
+/* ---------- 4. Artis ---------- */
+.hm-artists{ display: flex; gap: 16px; padding-block: 2px 4px; }
+.hm-artist{ flex: none; width: 96px; display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; color: var(--ink); -webkit-tap-highlight-color: transparent; }
+.hm-artist .av{ position: relative; width: 96px; height: 96px; }
+.hm-artist .av::before{
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 200deg, var(--accent-strong), transparent 38%, var(--ink-faint) 68%, var(--accent-strong));
+  transition: transform .7s var(--ease);
+}
+.hm-artist:active .av::before{ transform: rotate(150deg); }
+.hm-artist .im{ position: absolute; inset: 3px; border-radius: 50%; overflow: hidden; background: var(--bg-elev-2); border: 3px solid var(--bg); box-sizing: border-box; transition: transform var(--dur-base) var(--ease); }
+.hm-artist:active .im{ transform: scale(.94); }
+.hm-artist .nm{ font-size: 12.5px; font-weight: 600; line-height: 1.25; max-width: 96px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ---------- 5. Lagi ramai ---------- */
+.hm-chart{ display: flex; flex-direction: column; }
+.hm-crow{ display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hm-crow:active{ opacity: .6; }
+.hm-crow .cv{ width: 52px; height: 52px; flex: none; border-radius: 8px; overflow: hidden; background: var(--bg-elev-2); }
+.hm-rank{
+  width: 46px; flex: none; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 46px; line-height: 1;
+  font-variant-numeric: tabular-nums; color: transparent; -webkit-text-stroke: 1.5px var(--ink-faint);
+  animation: hm-pop .5s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 70ms);
+  transition: color var(--dur-base) var(--ease);
+}
+.hm-crow:first-child .hm-rank{ -webkit-text-stroke-color: var(--ink); }
+.hm-crow.is-current .hm-rank{ color: var(--accent-strong); -webkit-text-stroke-color: var(--accent-strong); }
+.hm-crow > .hm-eq{ color: var(--accent-strong); margin-right: 4px; }
+
+/* ---------- 6. Rak album ---------- */
+.hm-shelf{ display: flex; gap: 14px; padding-block: 6px 4px; }
+.hm-vinyl{ flex: none; width: 160px; -webkit-tap-highlight-color: transparent; }
+.hm-vinyl .box{ position: relative; width: 160px; height: 112px; }
+.hm-vinyl .sleeve{ position: absolute; z-index: 2; top: 0; left: 0; width: 112px; height: 112px; border-radius: 6px; overflow: hidden; background: var(--bg-elev-2); cursor: pointer; box-shadow: 3px 0 10px rgba(0,0,0,.45); transition: transform var(--dur-base) var(--ease); }
+.hm-vinyl .sleeve:active{ transform: scale(.97); }
+.hm-vinyl .slide{
+  position: absolute; z-index: 1; top: 6px; left: 0; width: 100px; height: 100px; padding: 0; border-radius: 50%;
+  transform: translateX(34px); transition: transform .55s var(--ease);
+}
+.hm-vinyl.is-out .slide{ transform: translateX(58px); }
+.hm-vinyl .slide:active{ transform: translateX(62px); }
+.hm-vinyl .rec{
+  display: block; width: 100%; height: 100%; border-radius: 50%; position: relative;
+  background:
+    radial-gradient(circle at center, #0a0a0a 0 7%, transparent 7.5%),
+    repeating-radial-gradient(circle at center, #101010 0 1.5px, #1b1b1b 2px 3px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08);
+}
+.hm-vinyl .rec::before{ content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 20deg, transparent 0 20%, rgba(255,255,255,.1) 25%, transparent 32% 70%, rgba(255,255,255,.08) 75%, transparent 82%); }
+.hm-vinyl .rec::after{ content: ""; position: absolute; inset: 35%; border-radius: 50%; background: var(--lab, var(--bg-elev-3)) center / cover; box-shadow: 0 0 0 2px #0a0a0a; }
+.hm-vinyl.is-spin .rec{ animation: hm-spin 5.5s linear infinite; will-change: transform; }
+@keyframes hm-spin{ to{ transform: rotate(360deg); } }
+.hm-vinyl .ti{ margin-top: 9px; width: 112px; font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-vinyl .su{ width: 112px; margin-top: 1px; font-size: 12px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Listening parties (versi HP) ---------- */
+.aivy-parties-cta.hm-parties{
+  position: relative; overflow: hidden; border-radius: 20px; padding: 20px;
+  background: linear-gradient(135deg, var(--bg-elev-3), var(--bg-elev));
+}
+.hm-party-eq{ position: absolute; top: 20px; right: 20px; display: flex; align-items: flex-end; gap: 3px; height: 24px; color: var(--accent-strong); }
+.hm-party-eq i{ width: 4px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: bottom; animation: hm-eq 1.1s ease-in-out infinite; }
+.hm-party-eq i:nth-child(2){ animation-delay: -.25s; }
+.hm-party-eq i:nth-child(3){ animation-delay: -.5s; }
+.hm-party-eq i:nth-child(4){ animation-delay: -.75s; }
+
+/* ---------- Scroll-driven (hanya jika didukung) ---------- */
+@supports (animation-timeline: view()){
+  /* Deck: kartu di tepi kiri membesar penuh, tetangganya mengecil dan redup */
+  .hm-hero{ animation: hm-deck linear both; animation-timeline: view(inline); }
+  @keyframes hm-deck{
+    0%{ transform: scale(.84); opacity: .6; }
+    57%{ transform: scale(1); opacity: 1; }
+    100%{ transform: scale(.84); opacity: .6; }
+  }
+  /* Artis: muncul membesar saat masuk dari kanan */
+  .hm-artist{ animation: hm-bubble linear both; animation-timeline: view(inline); animation-range: entry 0% entry 100%; }
+  @keyframes hm-bubble{ from{ transform: scale(.7); opacity: 0; } to{ transform: none; opacity: 1; } }
+  /* Judul bagian: naik pelan saat masuk layar */
+  .hm-head{ animation: hm-rise linear both; animation-timeline: view(); animation-range: entry 0% entry 70%; }
+  @keyframes hm-rise{ from{ transform: translateY(14px); opacity: 0; } to{ transform: none; opacity: 1; } }
+  /* Piringan keluar sedikit saat sampul masuk dari kanan */
+  .hm-vinyl:not(.is-out) .slide{ animation: hm-peek linear both; animation-timeline: view(inline); animation-range: entry 20% entry 100%; }
+  @keyframes hm-peek{ from{ transform: translateX(10px); } to{ transform: translateX(34px); } }
+}
+
+/* Hormati preferensi gerak: matikan semua animasi dekoratif */
+@media (prefers-reduced-motion: reduce){
+  .hm *, .hm-parties *{ animation: none !important; }
+}
+:root[data-reduced-motion="true"] .hm *,
+:root[data-reduced-motion="true"] .hm-parties *{ animation: none !important; }

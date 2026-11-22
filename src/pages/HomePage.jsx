@@ -8,6 +8,7 @@ import { FeedTabs } from "./FeedPages.jsx";
 import { ExploreFeed } from "./ExploreFeed.jsx";
 import { SmartCover, sizedThumb } from "../lib/brand.jsx";
 import { DonationBanner } from "../DonationBanner.jsx";
+import { HomeMobileSections, useIsPhone } from "./HomeMobile.jsx";
 
 import { formatDuration } from "../lib/utils.js";
 
@@ -218,6 +219,12 @@ export function HomePage() {
     return fillTo(own, moodCalm);
   }, [forYouArtistsRaw, moodCalm]);
 
+  const isPhone = useIsPhone(860);
+  const chart = useMemo(() => {
+    if (trending === null) return null;
+    return filterExplicit(trending, settings).filter(isCompleteTrack).slice(0, 5);
+  }, [trending, settings]);
+
   const bgCover = currentTrack?.cover || (!nothingPlayed && playedHistory[0]?.cover) || null;
 
   const recoLoading = recoTracks === null;
@@ -241,6 +248,18 @@ export function HomePage() {
           </div>
         )}
 
+        {isPhone ? (
+          <HomeMobileSections
+            history={playedHistory}
+            recoTracks={recoTracks}
+            recoAlbums={recoAlbums}
+            recoArtists={recoArtists}
+            chart={chart}
+            startRadio={startRadio}
+            onRefreshSongs={() => { setRecoNonce((n) => n + 1); setTrendingSeed("trending-" + Date.now()); }}
+            onRefreshAlbums={() => { setAlbumSeed("fresh-" + Date.now()); setAlbumNonce((n) => n + 1); }}
+          />
+        ) : (<>
         {settings.showRecommendedSongs !== false && (
           <section className="aivy-section" style={{ marginTop: 0 }}>
             <div className="aivy-section-head">
@@ -290,10 +309,12 @@ export function HomePage() {
         {settings.showJumpBackIn !== false && (playedHistory === null || playedHistory.length > 0) ? (
           <Row scroll title={t("rowContinueListening")} items={playedHistory === null ? null : playedHistory.slice(0, 12)} render={(tr) => <CardTrack key={tr.id} track={tr} list={playedHistory} />} />
         ) : null}
+        </>)}
 
         <section className="aivy-section">
           <div className="aivy-section-head"><h2 className="aivy-section-title">{t("listeningParties")}</h2></div>
-          <div className="aivy-parties-cta">
+          <div className={`aivy-parties-cta${isPhone ? " hm-parties" : ""}`}>
+            {isPhone && <span className="hm-party-eq" aria-hidden="true"><i /><i /><i /><i /></span>}
             <p>{t("partiesSub")}</p>
             <div className="acts">
               <button className="aivy-btn-primary" onClick={() => navigate("roomLobby")}>{t("createRoom")}</button>
