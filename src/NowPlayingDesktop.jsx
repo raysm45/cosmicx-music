@@ -461,13 +461,15 @@ function FullPlayer({ shown, onClose }) {
   useEffect(() => { if (view === "lyrics" && lyricsDisabled) setView("controls"); }, [view, lyricsDisabled]);
   useEffect(() => { if (rootRef.current) rootRef.current.focus({ preventScroll: true }); }, []);
 
+  // Lyrics/queue: sampul jadi gambar diam supaya render panel lain tetap lancar. Saat lagu di-pause, animasinya ikut berhenti.
+  const stillArt = view === "lyrics" || view === "queue";
   const cover = useMemo(() => (
     <AnimatedCover
       src={coverTrack.cover} seed={(coverTrack.id || "") + (coverTrack.title || "")} size={COVER_PX} radius={8}
       style={COVER_STYLE} song={coverTrack.title} artist={coverTrack.artist}
-      animated={!!settings.animatedArtwork} reduceMotion={reduceMotion} active={shown}
+      animated={!!settings.animatedArtwork} reduceMotion={reduceMotion} active={shown && isPlaying} still={stillArt}
     />
-  ), [coverTrack, settings.animatedArtwork, reduceMotion, shown]);
+  ), [coverTrack, settings.animatedArtwork, reduceMotion, shown, isPlaying, stillArt]);
 
   if (!currentTrack) return null;
 

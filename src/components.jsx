@@ -2844,9 +2844,10 @@ export function NowPlayingSheet({ open, onClose, onOpenQueue }) {
       onColor={setServerDominantColor}
       reloadToken={artworkReloadToken}
       onReloadResult={onReloadResultStable}
-      active={open}
+      active={open && isPlaying}
+      still={compact}
     />
-  ), [currentTrack?.cover, currentTrack?.id, currentTrack?.title, currentTrack?.artist?.name, settings.animatedArtwork, reduceMotion, artworkReloadToken, onReloadResultStable, open]);
+  ), [currentTrack?.cover, currentTrack?.id, currentTrack?.title, currentTrack?.artist?.name, settings.animatedArtwork, reduceMotion, artworkReloadToken, onReloadResultStable, open, isPlaying, compact]);
 
   const showSheetVisualizer = !!settings.visualizerEnabled && settings.visualizerMode === "solid";
   const showCoverVisualizer = !!settings.visualizerEnabled && settings.visualizerMode === "blended";
@@ -3491,6 +3492,7 @@ export function AlwaysOnDisplay({ open, track, onClose, animated = false, reduce
           src={track.cover} seed={track.id + track.title} size={28} radius={6} style={{ width: 28, height: 28 }}
           song={track.title} artist={track.artist?.name}
           animated={animated && open} reduceMotion={reduceMotion} reloadToken={reloadToken}
+          active={isPlaying}
         />
         <div className="aivy-aod-meta">
           <MarqueeText
@@ -4114,7 +4116,7 @@ export function QueueHistoryBody() {
 }
 
 function NowPlayingPane() {
-  const { currentTrack, isPreviewClip } = usePlayer();
+  const { currentTrack, isPreviewClip, isPlaying } = usePlayer();
   const { t, settings } = useUI();
   const { name: routeName } = useRouter();
   const isArtistView = routeName === "artist";
@@ -4127,6 +4129,7 @@ function NowPlayingPane() {
         style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }}
         song={currentTrack.title} artist={currentTrack.artist?.name}
         animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+        active={isPlaying}
       />
       <MarqueeText
         as="div"
@@ -5261,6 +5264,7 @@ export function LyricsOverlay() {
                   style={{ width: "100%", height: "100%" }}
                   song={currentTrack.title} artist={currentTrack.artist?.name}
                   animated={!!settings.animatedArtwork} reduceMotion={reduceMotion}
+                  still
                 />
               </div>
               <div className="row">

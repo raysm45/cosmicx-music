@@ -288,6 +288,9 @@ function loadHlsJs() {
 }
 
 function useHlsSource(videoEl, src, isM3u8, onError) {
+  // onError dibuat ulang tiap render; lewat ref supaya efek ini TIDAK jalan ulang (yang me-reset video / membuat ulang Hls).
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   useEffect(() => {
     if (!videoEl || !src) return undefined;
     if (!isM3u8 || supportsNativeHls()) {
@@ -338,7 +341,7 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
         hls.currentLevel = top;
       });
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data?.fatal) onError?.(data);
+        if (data?.fatal) onErrorRef.current?.(data);
       });
       hls.loadSource(src);
       hls.attachMedia(videoEl);
@@ -347,7 +350,7 @@ function useHlsSource(videoEl, src, isM3u8, onError) {
     });
 
     return () => { cancelled = true; hls?.destroy(); };
-  }, [videoEl, src, isM3u8, onError]);
+  }, [videoEl, src, isM3u8]);
 }
 
 function useAnimatedArtwork(song, artist, enabled, reloadToken = 0, onReloadResult) {
@@ -403,7 +406,7 @@ function useAnimatedArtwork(song, artist, enabled, reloadToken = 0, onReloadResu
 export function AnimatedCover({
   src, seed, size = 160, radius = 14, style = {}, alt = "",
   song, artist, animated = false, reduceMotion = false, onColor, reloadToken = 0, onReloadResult,
-  active = true,
+  active = true, still = false,
 }) {
   const [videoReady, setVideoReady] = useState(false);
   const [videoEl, setVideoEl] = useState(null);
@@ -412,14 +415,17 @@ export function AnimatedCover({
   const [errorDetail, setErrorDetail] = useState("");
   const [showErrorDetail, setShowErrorDetail] = useState(false);
   const needArtwork = (animated && !reduceMotion) || !src;
+  // still: tampilkan gambar saja (video tidak di-mount, decoder bebas). Metadata artwork tetap diambil
+  // supaya warna dominan server tetap tersedia dan video cepat kembali saat still dimatikan.
+  const wantVideo = animated && !reduceMotion && !still;
   const { artwork, status } = useAnimatedArtwork(song, artist, needArtwork, reloadToken, onReloadResult);
   const onColorRef = useRef(onColor);
   onColorRef.current = onColor;
 
   useEffect(() => { setUseAltSource(false); }, [artwork]);
 
-  const primarySrc = animated && !reduceMotion ? pickVideoSrc(artwork) : null;
-  const altSrc = animated && !reduceMotion
+  const primarySrc = wantVideo ? pickVideoSrc(artwork) : null;
+  const altSrc = wantVideo
     ? (primarySrc === artwork?.video ? artwork?.animated : artwork?.video) || null
     : null;
   const videoSrc = useAltSource && altSrc ? altSrc : primarySrc;
@@ -508,7 +514,7 @@ export function AnimatedCover({
         src={coverSrc} seed={seed} size={size} radius={radius} alt={alt}
         style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}
       />
-      {animated && !reduceMotion && (status === "loading" || (videoSrc && !videoReady && !playbackFailed)) && (
+      {wantVideo && (status === "loading" || (videoSrc && !videoReady && !playbackFailed)) && (
         <div className="aivy-animated-cover-loading" aria-hidden="true">
           <StarLoader size={20} color="#fff" />
         </div>
