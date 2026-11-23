@@ -50,8 +50,9 @@ export const lyricsStyles = css`
     --char-rise-y: -3px;
     --am-lyrics-character-rise-peak: -1.25px;
 
-    --lyplus-blur-amount: 0.07em;
+    --lyplus-blur-amount: 0.16em;
     --lyplus-blur-amount-near: 0.035em;
+    --lyplus-blur-step: 0.02em;
     --lyplus-fade-gap-timing-function: ease-out;
     --wipe-gradient-width: var(--am-lyrics-progression-feather);
     --wipe-gradient-half: calc(var(--am-lyrics-progression-feather) / 2);
@@ -444,12 +445,30 @@ export const lyricsStyles = css`
 
   .lyrics-line[data-focus-distance='2'] {
     --lyric-distance-opacity: 0.7;
-    --lyric-distance-blur: 0.043em;
+    --lyric-distance-blur: calc(var(--lyplus-blur-step) * 2);
   }
 
   .lyrics-line[data-focus-distance='3'] {
     --lyric-distance-opacity: 0.58;
-    --lyric-distance-blur: 0.057em;
+    --lyric-distance-blur: calc(var(--lyplus-blur-step) * 3);
+  }
+
+  .lyrics-line[data-focus-distance='4'] {
+    --lyric-distance-opacity: 0.52;
+    --lyric-distance-blur: calc(var(--lyplus-blur-step) * 4);
+  }
+
+  .lyrics-line[data-focus-distance='5'] {
+    --lyric-distance-opacity: 0.49;
+    --lyric-distance-blur: calc(var(--lyplus-blur-step) * 5);
+  }
+
+  .lyrics-line[data-focus-distance='6'] {
+    --lyric-distance-blur: calc(var(--lyplus-blur-step) * 6);
+  }
+
+  .lyrics-line[data-focus-distance='7'] {
+    --lyric-distance-blur: calc(var(--lyplus-blur-step) * 7);
   }
 
   .lyrics-container:not(.is-unsynced):not(.not-focused)

@@ -5186,8 +5186,20 @@ export class AmLyrics extends LitElement {
   private getLayoutScrollHeight(): number {
     const parent = this.lyricsContainer;
     if (!parent) return 0;
-    const last =
-      this.footerElement || (parent.lastElementChild as HTMLElement | null);
+    // The footer can be hidden by the host app (display: none), which makes
+    // its offsets 0 and collapses the scroll range. Fall back to the last
+    // child that is actually laid out.
+    let last: HTMLElement | null = this.footerElement ?? null;
+    if (!last || last.offsetHeight === 0) {
+      last = null;
+      for (let i = parent.children.length - 1; i >= 0; i -= 1) {
+        const child = parent.children[i] as HTMLElement;
+        if (child.offsetHeight > 0) {
+          last = child;
+          break;
+        }
+      }
+    }
     if (!last) return parent.scrollHeight;
     return Math.max(
       parent.clientHeight,
@@ -5380,7 +5392,7 @@ export class AmLyrics extends LitElement {
         let distance = 1;
         for (
           let i = index + direction;
-          i >= 0 && i < this.cachedLineArray.length && distance < 4;
+          i >= 0 && i < this.cachedLineArray.length && distance < 8;
           i += direction
         ) {
           const line = this.cachedLineArray[i];

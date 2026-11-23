@@ -4804,11 +4804,10 @@ const AM_LYRICS_FONT_SIZES = {
 const LYRICS_LITE_CSS = `
   .lyrics-line-container, .background-vocal-wrap { will-change: auto !important; }
   .lyrics-line:not(.far-line) { will-change: transform; }
-  .lyrics-line { text-rendering: auto !important; filter: none !important; }
+  .lyrics-line { text-rendering: auto !important; }
   .lyrics-line, .lyrics-line.scroll-animate, .lyrics-line.scroll-exiting {
-    transition: opacity 0.7s ease, transform 0.4s cubic-bezier(0.41, 0, 0.12, 0.99) var(--lyrics-line-delay, 0ms) !important;
+    transition: opacity 0.7s ease, transform 0.4s cubic-bezier(0.41, 0, 0.12, 0.99) var(--lyrics-line-delay, 0ms), filter 0.4s ease !important;
   }
-  .lyrics-container .lyrics-line { filter: none !important; }
   .lyrics-syllable span.char { backface-visibility: visible !important; }
   @keyframes grow-dynamic-lite {
     0% { transform: translate3d(0, 0, 0) scale3d(1, 1, 1); }
@@ -4943,9 +4942,9 @@ export function AppleLyricsPane({ track, currentTime, onSeek, highlightColor, fo
 
   const style = useMemo(() => {
     const base = AM_LYRICS_FONT_SIZES[normLyricsFontSize(fontSize)];
-    if (!suppressBlur && !lite) return base;
-    return { ...base, "--lyplus-blur-amount": "0em", "--lyplus-blur-amount-near": "0em" };
-  }, [fontSize, suppressBlur, lite]);
+    if (!suppressBlur) return base;
+    return { ...base, "--lyplus-blur-amount": "0em", "--lyplus-blur-amount-near": "0em", "--lyplus-blur-step": "0em" };
+  }, [fontSize, suppressBlur]);
 
   return (
     <am-lyrics
