@@ -160,7 +160,7 @@
 
 .aic-step-main{ min-width: 0; flex: 1; padding-top: 1px; }
 .aic-step-title{ display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--ink); }
-.aic-step.is-error .aic-step-title .lb{ color: var(--ink-dim); }
+.aic-step.is-error .aic-step-title .lbl{ color: var(--ink-dim); }
 .aic-chip{
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   padding: 1px 9px; border-radius: 999px; font-size: 12px; color: var(--ink-dim);

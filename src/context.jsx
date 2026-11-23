@@ -24,6 +24,123 @@ export const EQ_PRESETS = {
 };
 const DEFAULT_EQ = { enabled: false, preset: "flat", preamp: 0, bands: [...EQ_PRESETS.flat] };
 
+/* ---------- Tempo & Pitch ----------
+ * Tempo: HTMLMediaElement.playbackRate dengan preservesPitch (time-stretch bawaan browser).
+ * Pitch: AudioWorklet pitch-shifter granular (dua grain bertukar dengan jendela sin^2, jumlah gain = 1).
+ * Node worklet hanya disambungkan ke grafik saat pitch != 0, jadi biaya CPU nol saat tidak dipakai. */
+export const TEMPO_MIN = 0.5;
+export const TEMPO_MAX = 2;
+export const PITCH_MIN = -6;
+export const PITCH_MAX = 6;
+export const PITCH_WORKLET_NAME = "cx-pitch-shifter";
+export const PITCH_WORKLET_SRC = `
+class CxPitchShifter extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [{ name: "ratio", defaultValue: 1, minValue: 0.25, maxValue: 4, automationRate: "k-rate" }];
+  }
+  constructor() {
+    super();
+    this.size = 1 << 15;
+    this.mask = this.size - 1;
+    this.W = Math.min(Math.round(sampleRate * 0.09), this.size - 8);
+    this.bufs = [];
+    this.w = 0;
+    this.phase = 0;
+  }
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output || !output.length) return true;
+    const ratio = parameters.ratio[0];
+    const chans = output.length;
+    while (this.bufs.length < chans) this.bufs.push(new Float32Array(this.size));
+    const n = output[0].length;
+    const mask = this.mask;
+    const W = this.W;
+    const step = (1 - ratio) / W;
+    for (let i = 0; i < n; i++) {
+      this.phase += step;
+      if (this.phase >= 1) this.phase -= 1; else if (this.phase < 0) this.phase += 1;
+      const p1 = this.phase;
+      const p2 = p1 >= 0.5 ? p1 - 0.5 : p1 + 0.5;
+      const s1 = Math.sin(Math.PI * p1);
+      const s2 = Math.sin(Math.PI * p2);
+      const g1 = s1 * s1;
+      const g2 = s2 * s2;
+      const r1 = this.w - (p1 * W + 1);
+      const r2 = this.w - (p2 * W + 1);
+      const a1 = Math.floor(r1); const f1 = r1 - a1;
+      const a2 = Math.floor(r2); const f2 = r2 - a2;
+      for (let c = 0; c < chans; c++) {
+        const buf = this.bufs[c];
+        const src = input && input.length ? (input[c] || input[0]) : null;
+        buf[this.w] = src ? src[i] : 0;
+        const x1 = buf[a1 & mask] + (buf[(a1 + 1) & mask] - buf[a1 & mask]) * f1;
+        const x2 = buf[a2 & mask] + (buf[(a2 + 1) & mask] - buf[a2 & mask]) * f2;
+        output[c][i] = x1 * g1 + x2 * g2;
+      }
+      this.w = (this.w + 1) & mask;
+    }
+    return true;
+  }
+}
+registerProcessor("${PITCH_WORKLET_NAME}", CxPitchShifter);
+`;
+
+export function pitchSupported() {
+  return typeof window !== "undefined" && !!window.isSecureContext && typeof window.AudioWorkletNode !== "undefined";
+}
+
+async function ensurePitchNode(graph) {
+  if (graph.pitchNode) return graph.pitchNode;
+  if (graph.pitchFailed || !pitchSupported() || !graph.ctx.audioWorklet) return null;
+  if (!graph.pitchLoading) {
+    graph.pitchLoading = (async () => {
+      let url = null;
+      try {
+        url = URL.createObjectURL(new Blob([PITCH_WORKLET_SRC], { type: "application/javascript" }));
+        await graph.ctx.audioWorklet.addModule(url);
+        graph.pitchNode = new AudioWorkletNode(graph.ctx, PITCH_WORKLET_NAME, {
+          numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: "explicit",
+        });
+      } catch {
+        graph.pitchFailed = true;
+      } finally {
+        if (url) URL.revokeObjectURL(url);
+        graph.pitchLoading = null;
+      }
+      return graph.pitchNode || null;
+    })();
+  }
+  return graph.pitchLoading;
+}
+
+/** Atur pitch (semiton). Aman dipanggil berulang; hasil akhir selalu mengikuti nilai terbaru. */
+export async function applyPitchToGraph(graph, semitones) {
+  graph.pitchTarget = semitones;
+  const settle = (node) => {
+    const want = graph.pitchTarget;
+    if (want !== 0 && node) {
+      node.parameters.get("ratio").value = Math.pow(2, want / 12);
+      if (!graph.pitchOn) {
+        graph.pitchBus.disconnect();
+        graph.pitchBus.connect(node);
+        node.connect(graph.preamp);
+        graph.pitchOn = true;
+      }
+    } else if (graph.pitchOn) {
+      graph.pitchBus.disconnect();
+      try { graph.pitchNode?.disconnect(); } catch { /* sudah terlepas */ }
+      graph.pitchBus.connect(graph.preamp);
+      graph.pitchOn = false;
+    }
+  };
+  if (semitones === 0) { settle(graph.pitchNode || null); return true; }
+  const node = await ensurePitchNode(graph);
+  settle(node);
+  return !!node;
+}
+
 export const FONT_STACKS = {
   default: null,
   inter: "'Inter', -apple-system, sans-serif",
@@ -155,6 +272,8 @@ const DEFAULT_SETTINGS = {
   normalizeVolume: true,
   explicitContent: true,
   equalizer: DEFAULT_EQ,
+  tempo: 1,
+  pitch: 0,
 
   theme: defaultThemeForSeason(),
   customThemeCss: "",
@@ -841,6 +960,8 @@ export function PlayerProvider({ children }) {
       const savedOut = readSavedOutputDevice();
       if (savedOut && typeof ctx.setSinkId === "function") ctx.setSinkId(savedOut.id).catch(() => {});
       const preamp = ctx.createGain();
+      const pitchBus = ctx.createGain();
+      pitchBus.connect(preamp);
       const bands = EQ_BANDS_HZ.map((freq) => {
         const f = ctx.createBiquadFilter();
         f.type = "peaking";
@@ -868,7 +989,7 @@ export function PlayerProvider({ children }) {
         const gain = ctx.createGain();
         gain.gain.value = 1;
         src.connect(gain);
-        gain.connect(preamp);
+        gain.connect(pitchBus);
         inputs.set(el, { source: src, gain });
       });
       const source = inputs.get(audio).source;
@@ -879,7 +1000,7 @@ export function PlayerProvider({ children }) {
       fadeGain.connect(ctx.destination);
       fadeGain.connect(analyser);
 
-      const graph = { ctx, source, inputs, preamp, bands, compressor, fadeGain, analyser };
+      const graph = { ctx, source, inputs, preamp, pitchBus, bands, compressor, fadeGain, analyser };
       audioGraphRef.current = graph;
       ctx.addEventListener("statechange", () => {
         if (ctx.state !== "running" && isPlayingRef.current) ctx.resume().catch(() => {});
@@ -905,6 +1026,26 @@ export function PlayerProvider({ children }) {
     graph.compressor.threshold.value = settings.normalizeVolume ? -24 : 0;
     graph.compressor.ratio.value = settings.normalizeVolume ? 8 : 1;
   }, [settings.normalizeVolume, ensureAudioGraph]);
+
+  // Tempo: pitch tetap terjaga. Dikunci 1x saat Listening Party supaya posisi putar tidak melenceng dari room.
+  useEffect(() => {
+    const tempo = room ? 1 : Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Number(settings.tempo) || 1));
+    [audioRef.current, altAudioRef.current].forEach((a) => {
+      if (!a) return;
+      a.defaultPlaybackRate = tempo;
+      a.playbackRate = tempo;
+      a.preservesPitch = true;
+      a.mozPreservesPitch = true;
+      a.webkitPreservesPitch = true;
+    });
+  }, [settings.tempo, room]);
+
+  useEffect(() => {
+    const graph = ensureAudioGraph();
+    if (!graph) return;
+    const semis = room ? 0 : Math.min(PITCH_MAX, Math.max(PITCH_MIN, Math.round(Number(settings.pitch) || 0)));
+    applyPitchToGraph(graph, semis);
+  }, [settings.pitch, room, ensureAudioGraph]);
 
   const getAnalyser = useCallback(() => {
     const graph = ensureAudioGraph();

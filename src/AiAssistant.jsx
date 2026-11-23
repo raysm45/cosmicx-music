@@ -216,7 +216,7 @@ function ThinkingBlock({ turn, tt }) {
                   </span>
                   <div className="aic-step-main">
                     <div className="aic-step-title">
-                      <span className="lb">{s.label}</span>
+                      <span className="lbl">{s.label}</span>
                       {s.detail && <span className="aic-chip" title={s.detail}>{s.detail}</span>}
                     </div>
                     {s.summary && <div className="aic-step-sum">{s.summary}</div>}

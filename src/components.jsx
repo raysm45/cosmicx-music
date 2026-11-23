@@ -17,6 +17,7 @@ import {
   SIDEBAR_MIN_W, SIDEBAR_MAX_W, RIGHTPANEL_MIN_W, RIGHTPANEL_MAX_W,
 } from "./context.jsx";
 import { useRouter, Link } from "./router.jsx";
+import { EqualizerPage, TempoPitchPage, fxSummary } from "./AudioFxPages.jsx";
 import { CoverArt, SmartCover, AnimatedCover, StarMark, StarLoader, AnimatedLogo, prefetchAnimatedArtwork } from "./lib/brand.jsx";
 import { peekArtistProfile, loadArtistProfile, loadTrackArtists, menuArtists } from "./lib/artistProfile.js";
 import { formatTime, formatDuration, relativeTime, formatClockTime, clamp, isRelevantArtistMatch, cleanTrackTitleForLyrics } from "./lib/utils.js";
@@ -3039,15 +3040,22 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
   const sheetRef = useRef(null);
   const [resolvingArtist, setResolvingArtist] = useState(false);
   const [resolvingAlbum, setResolvingAlbum] = useState(false);
+  const [page, setPage] = useState("main");
+  const { settings } = useUI();
   const closeAll = onNavigate || onClose;
   const volumePct = Math.round((muted ? 0 : volume) * 100);
 
+  useEffect(() => { if (!open) setPage("main"); }, [open]);
+
   useEffect(() => {
     if (!open) return undefined;
-    function onKey(e) { if (e.key === "Escape") onClose(); }
+    function onKey(e) {
+      if (e.key !== "Escape") return;
+      if (page !== "main") setPage("main"); else onClose();
+    }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, page]);
 
   if (!track) return null;
 
@@ -3132,10 +3140,12 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
     (track.album?.id || track.album?.title) && { key: "album", icon: <Music2 size={18} />, label: t("npViewAlbum"), onSelect: handleAlbum, busy: resolvingAlbum },
   ].filter(Boolean);
 
+  const fxTt = (id, en) => (settings.language === "en" ? en : id);
+  const fx = fxSummary(settings, fxTt);
   const infoItems = [
     { key: "detail", icon: <Info size={18} />, label: t("npDetail"), onSelect: onOpenDetail },
-    { key: "eq", icon: <SlidersHorizontal size={18} />, label: t("npEqualizer"), disabled: true },
-    { key: "tempo", icon: <Gauge size={18} />, label: t("npTempoPitch"), disabled: true },
+    { key: "eq", icon: <SlidersHorizontal size={18} />, label: t("npEqualizer"), onSelect: () => setPage("eq"), meta: fx.eq },
+    { key: "tempo", icon: <Gauge size={18} />, label: t("npTempoPitch"), onSelect: () => setPage("tempo"), meta: fx.tempo },
   ];
 
   return (
@@ -3144,6 +3154,9 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
       <div ref={sheetRef} className={`aivy-actionsheet aivy-optsheet ${open ? "open" : ""}`} aria-hidden={!open}>
         <div className="aivy-actionsheet-grabber" onClick={onClose} />
 
+        {page === "eq" && <EqualizerPage onBack={() => setPage("main")} />}
+        {page === "tempo" && <TempoPitchPage onBack={() => setPage("main")} />}
+        {page === "main" && (<>
         <div className="aivy-optsheet-track">
           <SmartCover src={track.cover} seed={track.id + track.title} size={44} radius={8} style={{ width: 44, height: 44 }} />
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -3151,7 +3164,8 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
             <MarqueeText
               as="div" className="t" text={track.title}
               prefix={track.explicit ? <span className="aivy-explicit-badge" title="Explicit">E</span> : null}
-              suffix={formatLabel ? <span className="badge badge-opus" style={{ marginLeft: 6 }}>{formatLabel}</span> : null}
+              suffix={formatLabel ? <span className="badge badge-opus">{formatLabel}</span> : null}
+              snug
             />
             <div className="a">{track.artist?.name || "\u2014"}</div>
           </div>
@@ -3166,7 +3180,7 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
           {gridItems.map((item) => (
             <button key={item.key} type="button" className="aivy-optsheet-gridbtn" onClick={item.onSelect}>
               <span className="ic">{item.icon}</span>
-              <span className="lb">{item.label}</span>
+              <span className="lbl">{item.label}</span>
             </button>
           ))}
         </div>
@@ -3193,10 +3207,11 @@ export function TrackOptionsSheet({ open, track, formatLabel, onClose, onOpenDet
               className="aivy-optsheet-listrow" onClick={item.onSelect} disabled={item.disabled}
             >
               {item.icon}<span>{item.label}</span>
-              {item.disabled && <span className="aivy-optsheet-badge">{t("comingSoon")}</span>}
+              {item.meta ? <span className="aivy-optsheet-badge is-on">{item.meta}</span> : null}
             </button>
           ))}
         </div>
+        </>)}
       </div>
     </>
   );

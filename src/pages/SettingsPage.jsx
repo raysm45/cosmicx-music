@@ -1,9 +1,9 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   Palette, LayoutPanelLeft, Speaker, Cog,
-  LogOut, RotateCcw, SlidersHorizontal, Check, FileUp, FileDown, Cookie,
+  LogOut, RotateCcw, SlidersHorizontal, Gauge, Check, FileUp, FileDown, Cookie,
 } from "lucide-react";
-import { useUI, usePlayer, EQ_BANDS_HZ, EQ_PRESETS } from "../context.jsx";
+import { useUI, usePlayer, EQ_BANDS_HZ, EQ_PRESETS, TEMPO_MIN, TEMPO_MAX, PITCH_MIN, PITCH_MAX, pitchSupported } from "../context.jsx";
 import { Api } from "../lib/api.js";
 import { CustomSelect } from "../components.jsx";
 import { useCookieConsent, openCookieSettings } from "../lib/cookieConsent.js";
@@ -709,6 +709,16 @@ export function SettingsPage() {
 
       <SettingSection title={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><SlidersHorizontal size={16} />{tt("Equalizer", "Equalizer")}</span>}>
         <EqualizerPanel eq={eq} onChange={(next) => updateSettings({ equalizer: next })} tt={tt} />
+      </SettingSection>
+
+      <SettingSection title={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Gauge size={16} />{tt("Tempo dan Pitch", "Tempo & Pitch")}</span>}>
+        <SliderRow label="Tempo" hint={tt("Kecepatan berubah, nada tetap", "Speed changes, pitch stays")}
+          value={Number(settings.tempo) || 1} min={TEMPO_MIN} max={TEMPO_MAX} step={0.05} onChange={set("tempo")} format={(v) => `${v.toFixed(2)}\u00d7`} />
+        <SliderRow label="Pitch" hint={pitchSupported() ? tt("Nada berubah, kecepatan tetap", "Pitch changes, speed stays") : tt("Butuh AudioWorklet dan HTTPS", "Needs AudioWorklet and HTTPS")}
+          value={Math.round(Number(settings.pitch) || 0)} min={PITCH_MIN} max={PITCH_MAX} step={1} onChange={set("pitch")} format={(v) => `${v > 0 ? "+" : ""}${v} st`} />
+        <ActionRow label={tt("Kembalikan ke normal", "Reset to normal")} buttonText={tt("Reset", "Reset")} icon={RotateCcw}
+          disabled={!((Number(settings.tempo) || 1) !== 1 || Math.round(Number(settings.pitch) || 0) !== 0)}
+          onAction={() => updateSettings({ tempo: 1, pitch: 0 })} />
       </SettingSection>
     </>
   );
