@@ -26,7 +26,7 @@ import { applyLiquidFilter, supportsRefraction } from "./lib/liquidGlass.js";
 import { LiquidFilter } from "./lib/LiquidFilter.jsx";
 import { beginHeavyTransition, subscribeHeavyTransition, isHeavyTransition, isLowEndDevice, isLyricsLite } from "./lib/perf.js";
 import { unifyAudioInfoFields, formatBadgeText, describeQuality, isAudioInfoSettled, qualityDialogInfo, reconcileFormat, servedInfoFormat, getPreferredAudioFormat } from "./lib/audioFormat.js";
-import { useRememberedQuality } from "./lib/qualityMemory.js";
+import { useRememberedQuality, useAtmos, probeAtmos } from "./lib/qualityMemory.js";
 import { QualityDialog, LyricsProviderMobileSheet } from "./NpxDialogs.jsx";
 import { LosslessBadge, LosslessMark } from "./LosslessBadge.jsx";
 import { losslessKindForTrack } from "./lib/losslessPolicy.js";
@@ -790,18 +790,32 @@ export function filterExplicit(tracks, settings) {
 
 // Label kualitas di baris/kartu lagu. Provider menjamin semua lagu remote lossless (lib/losslessPolicy.js),
 // jadi badge tampil untuk semuanya. Kalau lagu pernah diputar dan terverifikasi Hi-Res (sample rate > 48 kHz),
-// tier-nya naik jadi Hi-Res. Kalau audio-info lagu itu melaporkan master Dolby Atmos, tier-nya jadi Atmos
-// (menang atas Lossless/Hi-Res, sama seperti di QualityPill). File lokal hanya diberi label kalau formatnya memang lossless.
+// tier-nya naik jadi Hi-Res. Dolby Atmos menang atas keduanya: begitu baris lagu terlihat di layar, audio-info-nya
+// dicek sekali di latar belakang (probeAtmos) dan badge langsung berubah jadi Atmos tanpa lagunya diputar.
+// File lokal hanya diberi label kalau formatnya memang lossless.
 export function QualityTag({ track }) {
   const q = useRememberedQuality(track);
-  if (!q && !losslessKindForTrack(track)) return null;
-  const tier = q?.atmos ? "atmos" : q?.tier === "hires" ? "hires" : "lossless";
-  const spec = q && q.sampleRateHz && q.bitsPerSample ? `${q.bitsPerSample}-bit / ${Number((q.sampleRateHz / 1000).toFixed(1))} kHz` : null;
+  const atmos = useAtmos(track);
+  const badgeRef = useRef(null);
+  const idKey = track ? `${track.videoId || ""}|${track.id || ""}` : "";
+  useEffect(() => {
+    if (atmos || !track || track.source === "local") return undefined;
+    const el = badgeRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") { probeAtmos(track); return undefined; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((en) => en.isIntersecting)) { io.disconnect(); probeAtmos(track); }
+    }, { rootMargin: "200px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [idKey, atmos]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!q && !atmos && !losslessKindForTrack(track)) return null;
+  const tier = atmos ? "atmos" : q?.tier === "hires" ? "hires" : "lossless";
+  const spec = q ? `${q.bitsPerSample}-bit / ${Number((q.sampleRateHz / 1000).toFixed(1))} kHz` : null;
   const title = (tier === "atmos"
     ? ["Dolby Atmos", "E-AC-3"]
     : [tier === "hires" ? "Hi-Res Lossless" : "Lossless", "FLAC", spec]
   ).filter(Boolean).join(" \u00b7 ");
-  return <LosslessBadge tier={tier} title={title} />;
+  return <LosslessBadge tier={tier} title={title} badgeRef={badgeRef} />;
 }
 
 export function TrackRow({ track, index, list, showIndex = true, showThumb = true, showAlbum = false, onRemove, removeLabel, queueMode = "single", source = null, note = null, shuffleOverride = null }) {

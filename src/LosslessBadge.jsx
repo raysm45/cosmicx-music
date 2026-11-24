@@ -21,16 +21,18 @@ export function LosslessMark({ className = "", ...rest }) {
  *   tier : "lossless" | "hires" | "atmos"
  *   size : "sm" (baris/kartu, 15px — sama tinggi dengan badge Explicit) | "md" (sheet/dialog, 18px)
  *   onDark : untuk permukaan yang SELALU gelap (mis. sheet download) walau tema terang
+ *   badgeRef : (opsional) ref ke elemen <span> badge, mis. untuk IntersectionObserver
  * Tinggi FIXED + ring lewat inset box-shadow (bukan border) supaya ukurannya tidak pernah pecahan.
  * Atmos memakai anatomi yang sama persis dengan dua tier lain, cuma beda warna (--lb-c).
  */
-export function LosslessBadge({ tier = "lossless", size = "sm", title, className = "", onDark = false }) {
+export function LosslessBadge({ tier = "lossless", size = "sm", title, className = "", onDark = false, badgeRef = null }) {
   const hires = tier === "hires";
   const atmos = tier === "atmos";
   const label = atmos ? "Dolby Atmos" : hires ? "Hi-Res" : "Lossless";
   const fallbackTitle = atmos ? "Dolby Atmos" : hires ? "Hi-Res Lossless" : "Lossless";
   return (
     <span
+      ref={badgeRef}
       className={`lb lb-${size}${atmos ? " is-atmos" : ""}${hires ? " is-hires" : ""}${onDark ? " lb-dark" : ""}${className ? ` ${className}` : ""}`}
       title={title || fallbackTitle}
       role="img"
