@@ -790,13 +790,17 @@ export function filterExplicit(tracks, settings) {
 
 // Label kualitas di baris/kartu lagu. Provider menjamin semua lagu remote lossless (lib/losslessPolicy.js),
 // jadi badge tampil untuk semuanya. Kalau lagu pernah diputar dan terverifikasi Hi-Res (sample rate > 48 kHz),
-// tier-nya naik jadi Hi-Res. File lokal hanya diberi label kalau formatnya memang lossless.
+// tier-nya naik jadi Hi-Res. Kalau audio-info lagu itu melaporkan master Dolby Atmos, tier-nya jadi Atmos
+// (menang atas Lossless/Hi-Res, sama seperti di QualityPill). File lokal hanya diberi label kalau formatnya memang lossless.
 export function QualityTag({ track }) {
   const q = useRememberedQuality(track);
   if (!q && !losslessKindForTrack(track)) return null;
-  const tier = q?.tier === "hires" ? "hires" : "lossless";
-  const spec = q ? `${q.bitsPerSample}-bit / ${Number((q.sampleRateHz / 1000).toFixed(1))} kHz` : null;
-  const title = [tier === "hires" ? "Hi-Res Lossless" : "Lossless", "FLAC", spec].filter(Boolean).join(" \u00b7 ");
+  const tier = q?.atmos ? "atmos" : q?.tier === "hires" ? "hires" : "lossless";
+  const spec = q && q.sampleRateHz && q.bitsPerSample ? `${q.bitsPerSample}-bit / ${Number((q.sampleRateHz / 1000).toFixed(1))} kHz` : null;
+  const title = (tier === "atmos"
+    ? ["Dolby Atmos", "E-AC-3"]
+    : [tier === "hires" ? "Hi-Res Lossless" : "Lossless", "FLAC", spec]
+  ).filter(Boolean).join(" \u00b7 ");
   return <LosslessBadge tier={tier} title={title} />;
 }
 

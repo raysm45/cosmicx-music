@@ -10,7 +10,7 @@ const MAX_ENTRIES = 1500;
 const BAD_STATUS = new Set(["invalid", "not-cached", "preparing", "running"]);
 const CONFIRM_DELAYS_MS = [0, 1200, 2200, 3500];
 
-let mem = null; // Map<key, [sampleRateHz, bitsPerSample, ts]>
+let mem = null; // Map<key, [sampleRateHz, bitsPerSample, ts, atmos(0|1)]>  (entri lama tanpa elemen ke-4 = bukan Atmos)
 let saveTimer = null;
 const listeners = new Set();
 
@@ -57,11 +57,13 @@ export function isPositiveLossless(f) {
 
 export function rememberQuality(keys, f) {
   const m = load();
-  const entry = [Math.round(f.sampleRateHz), Math.round(f.bitsPerSample), Date.now()];
+  // Atmos ikut dicatat dari audio-info yang sama (f.atmos = master Dolby Atmos tersedia). Kalau info
+  // terbaru bilang tidak ada, flag-nya ikut turun jadi 0.
+  const entry = [Math.round(f.sampleRateHz), Math.round(f.bitsPerSample), Date.now(), f.atmos ? 1 : 0];
   let changed = false;
   for (const k of keys) {
     const prev = m.get(k);
-    if (!prev || prev[0] !== entry[0] || prev[1] !== entry[1]) changed = true;
+    if (!prev || prev[0] !== entry[0] || prev[1] !== entry[1] || (prev[3] === 1) !== (entry[3] === 1)) changed = true;
     m.set(k, entry);
   }
   save();
@@ -75,12 +77,14 @@ export function forgetQuality(keys) {
   if (changed) { save(); emit(); }
 }
 
-// -> { tier: "lossless" | "hires", sampleRateHz, bitsPerSample } atau null
+// -> { tier: "lossless" | "hires", sampleRateHz, bitsPerSample, atmos: boolean } atau null
+// `tier` tetap hanya soal lossless/hires; Atmos dibawa terpisah lewat `atmos` supaya pemakai
+// lain (mis. DownloadSheet, yang mengunduh FLAC) tidak salah menampilkan Atmos pada baris FLAC.
 export function getRememberedQuality(track) {
   const m = load();
   for (const k of qualityKeys(track)) {
     const v = m.get(k);
-    if (v) return { tier: v[0] > 48000 ? "hires" : "lossless", sampleRateHz: v[0], bitsPerSample: v[1] };
+    if (v) return { tier: v[0] > 48000 ? "hires" : "lossless", sampleRateHz: v[0], bitsPerSample: v[1], atmos: v[3] === 1 };
   }
   return null;
 }
@@ -108,7 +112,7 @@ export function useRememberedQuality(track) {
   useEffect(() => {
     const read = () => setQ((prev) => {
       const n = getRememberedQuality(track);
-      return (prev && n && prev.tier === n.tier && prev.sampleRateHz === n.sampleRateHz && prev.bitsPerSample === n.bitsPerSample) || (!prev && !n) ? prev : n;
+      return (prev && n && prev.tier === n.tier && prev.sampleRateHz === n.sampleRateHz && prev.bitsPerSample === n.bitsPerSample && prev.atmos === n.atmos) || (!prev && !n) ? prev : n;
     });
     read();
     return subscribeQuality(read);
