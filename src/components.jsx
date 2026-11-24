@@ -3349,11 +3349,11 @@ export function QualityPill({ track, fallbackLabel = null, className = "", onCli
   const label = fallbackLabel || (audioFormat && audioFormat !== "unavailable" ? audioFormat.label : null);
   const q = describeQuality(format, label);
   if (!q) return null;
-  const kind = q.hires ? "is-hires has-ico" : q.lossless ? "is-lossless has-ico" : "";
+  const kind = q.atmos ? "is-atmos has-ico" : q.hires ? "is-hires has-ico" : q.lossless ? "is-lossless has-ico" : "";
   const title = [q.main, q.detail].filter(Boolean).join(" \u00b7 ");
   const inner = (
     <>
-      {q.lossless ? <LosslessMark className="q-ico" /> : null}
+      {q.lossless || q.atmos ? <LosslessMark className="q-ico" /> : null}
       <span className="m">{q.main}</span>
       {q.detail && !q.lossless ? <span className="d">{q.detail}</span> : null}
     </>

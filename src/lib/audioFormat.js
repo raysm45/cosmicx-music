@@ -127,6 +127,27 @@ function normCodec(v) {
   return s.trim() || null;
 }
 
+/**
+ * Descriptor Dolby Atmos dari backend:
+ *   { codec:"ec-3", profile:"Dolby Atmos", container:"MP4", mimeType:"audio/mp4",
+ *     sampleRate:48000, channels:6, channelLayout:"5.1" }
+ * Hanya diteruskan kalau bentuknya memang objek; `null` = lagu ini tidak punya master Atmos.
+ */
+function normAtmos(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const sampleRate = normSampleRate(v.sampleRate ?? v.sample_rate);
+  const channels = num(v.channels ?? v.channelCount) || 6;
+  return {
+    codec: v.codec || "ec-3",
+    profile: v.profile || "Dolby Atmos",
+    container: v.container || "MP4",
+    mimeType: v.mimeType || "audio/mp4",
+    sampleRate: sampleRate || 48000,
+    channels,
+    channelLayout: v.channelLayout || `${channels}.1`,
+  };
+}
+
 export function unifyAudioInfoFields(raw) {
   const f =
     raw && typeof raw === "object"
@@ -136,6 +157,8 @@ export function unifyAudioInfoFields(raw) {
   const codec = normCodec(f.codec || f.codecFamily || f.format || f.extension || f.container || f.mimeType);
   const transcoded = f.transcoded === true || /transcod/i.test(String(f.source || f.origin || ""));
   const lossless = !transcoded && (f.lossless === true || codec === "flac" || codec === "alac" || codec === "pcm");
+  // `atmos` bisa datang di dalam format maupun di root audio-info.
+  const atmos = normAtmos(f.atmos ?? (raw && raw.atmos));
   return {
     codec,
     container: f.container || null,
@@ -154,6 +177,7 @@ export function unifyAudioInfoFields(raw) {
     sha256: f.sha256 || null,
     status: f.status || null,
     verified: f.verified === true,
+    atmos,
     flac: lossless,
   };
 }
@@ -177,6 +201,21 @@ export function describeQuality(format, fallbackLabel) {
   const khz = format && format.sampleRateHz ? `${Number((format.sampleRateHz / 1000).toFixed(1))} kHz` : null;
   const bits = format && format.bitsPerSample ? `${format.bitsPerSample}-bit` : null;
 
+  // Tier ketiga: Dolby Atmos. Menang atas label Lossless selama master Atmos-nya ada.
+  // `lossless: false` disengaja — pill memakai flag itu sebagai gerbang render `detail`.
+  const atmos = format && format.atmos;
+  if (atmos) {
+    const sr = Number(((atmos.sampleRate || 48000) / 1000).toFixed(1));
+    const layout = atmos.channelLayout || `${atmos.channels || 6}.1`;
+    return {
+      main: "Dolby Atmos",
+      detail: ["E-AC-3", `${sr} kHz`, layout].filter(Boolean).join(" \u00b7 "),
+      lossless: false,
+      hires: false,
+      atmos: true,
+    };
+  }
+
   // Provider menjamin lossless: stream FLAC/ALAC selalu dilabeli lossless (flag "transcoded" dari metadata diabaikan).
   const trusted = GUARANTEED_LOSSLESS && (key === "flac" || key === "alac");
   const isLossless = trusted || (format ? !!format.lossless : (key === "flac" || key === "alac"));
@@ -187,10 +226,17 @@ export function describeQuality(format, fallbackLabel) {
       detail: [name, khz, bits].filter(Boolean).join(" \u00b7 "),
       lossless: true,
       hires,
+      atmos: false,
     };
   }
   const kbps = format && format.bitrateKbps ? `${Math.round(format.bitrateKbps)} kbps` : null;
-  return { main: name, detail: (format && format.transcoded) ? "transcode" : (kbps || ""), lossless: false, hires: false };
+  return {
+    main: name,
+    detail: (format && format.transcoded) ? "transcode" : (kbps || ""),
+    lossless: false,
+    hires: false,
+    atmos: false,
+  };
 }
 
 export function qualityDialogInfo(format, fallbackLabel, lang = "id") {
@@ -200,6 +246,17 @@ export function qualityDialogInfo(format, fallbackLabel, lang = "id") {
   const codec = CODEC_NAMES[raw] || (raw ? raw.toUpperCase() : "FLAC");
   const decimal = (n) => { const s = String(Number(n.toFixed(1))); return lang === "en" ? s : s.replace(".", ","); };
   const parts = [];
+  if (q.atmos) {
+    const at = format.atmos;
+    const sr = decimal((at.sampleRate || 48000) / 1000);
+    return {
+      title: "Dolby Atmos",
+      line: ["E-AC-3", `${sr} kHz`, at.channelLayout || `${at.channels || 6}.1`].filter(Boolean).join(" "),
+      lossless: false,
+      hires: false,
+      atmos: true,
+    };
+  }
   if (q.lossless) {
     if (format && format.bitsPerSample) parts.push(`${format.bitsPerSample} bit`);
     if (format && format.sampleRateHz) parts.push(`${decimal(format.sampleRateHz / 1000)} kHz`);

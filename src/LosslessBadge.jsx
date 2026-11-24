@@ -18,18 +18,21 @@ export function LosslessMark({ className = "", ...rest }) {
 
 /**
  * Badge kualitas audio.
- *   tier : "lossless" | "hires"
+ *   tier : "lossless" | "hires" | "atmos"
  *   size : "sm" (baris/kartu, 15px — sama tinggi dengan badge Explicit) | "md" (sheet/dialog, 18px)
  *   onDark : untuk permukaan yang SELALU gelap (mis. sheet download) walau tema terang
  * Tinggi FIXED + ring lewat inset box-shadow (bukan border) supaya ukurannya tidak pernah pecahan.
+ * Atmos memakai anatomi yang sama persis dengan dua tier lain, cuma beda warna (--lb-c).
  */
 export function LosslessBadge({ tier = "lossless", size = "sm", title, className = "", onDark = false }) {
   const hires = tier === "hires";
-  const label = hires ? "Hi-Res" : "Lossless";
+  const atmos = tier === "atmos";
+  const label = atmos ? "Dolby Atmos" : hires ? "Hi-Res" : "Lossless";
+  const fallbackTitle = atmos ? "Dolby Atmos" : hires ? "Hi-Res Lossless" : "Lossless";
   return (
     <span
-      className={`lb lb-${size}${hires ? " is-hires" : ""}${onDark ? " lb-dark" : ""}${className ? ` ${className}` : ""}`}
-      title={title || (hires ? "Hi-Res Lossless" : "Lossless")}
+      className={`lb lb-${size}${atmos ? " is-atmos" : ""}${hires ? " is-hires" : ""}${onDark ? " lb-dark" : ""}${className ? ` ${className}` : ""}`}
+      title={title || fallbackTitle}
       role="img"
       aria-label={title || label}
     >

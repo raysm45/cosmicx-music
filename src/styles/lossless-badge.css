@@ -33,6 +33,12 @@
   --lb-ink: color-mix(in srgb, var(--lb-c) 70%, #fff);
 }
 
+/* Tier ketiga: Dolby Atmos — anatomi .lb yang sama, aksen biru-violet */
+.lb.is-atmos{
+  --lb-c: #8fa7ff;
+  --lb-ink: color-mix(in srgb, var(--lb-c) 70%, #fff);
+}
+
 /* ukuran md: sheet download, dialog */
 .lb-md{ height: 18px; padding: 0 8px 0 6px; gap: 5px; border-radius: 6px; font-size: 10px; }
 .lb-md .lb-ico{ width: 11px; height: 11px; }
@@ -62,11 +68,16 @@
 :root[data-theme="salmon"] .lb.is-hires, :root[data-theme="premium"] .lb.is-hires{
   --lb-c: #c4880a;
 }
+:root[data-theme="white"] .lb.is-atmos, :root[data-theme="latte"] .lb.is-atmos,
+:root[data-theme="salmon"] .lb.is-atmos, :root[data-theme="premium"] .lb.is-atmos{
+  --lb-c: #4d63d8;
+}
 
 /* Permukaan yang selalu gelap (sheet download) -> palet gelap di semua tema */
 :root:root .lb.lb-dark{ --lb-c: #46e2b5; --lb-ink: color-mix(in srgb, var(--lb-c) 80%, #fff); --lb-ring: color-mix(in srgb, var(--lb-c) 40%, transparent);
   box-shadow: inset 0 0 0 1px var(--lb-ring), inset 0 1px 0 rgba(255,255,255,.07); }
 :root:root .lb.lb-dark.is-hires{ --lb-c: #f2bf4d; }
+:root:root .lb.lb-dark.is-atmos{ --lb-c: #8fa7ff; }
 
 /* Kontras tinggi */
 :root[data-contrast="high"] .lb{ --lb-ring: color-mix(in srgb, var(--lb-c) 80%, transparent); }

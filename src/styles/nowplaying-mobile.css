@@ -461,6 +461,7 @@
 .aivy-sheet.npx-v2 .aivy-scrubber-row button.aivy-quality:active{ transform: scale(.95); background: rgba(255,255,255,.28); }
 .aivy-quality .q-ico{ color: rgba(255,255,255,.88); }
 .aivy-quality.is-hires .q-ico{ color: #ffd98a; }
+.aivy-quality.is-atmos .q-ico{ color: #b9c6ff; }
 
 .aivy-sheet.npx-v2 .npx-lyr-btn.npx-lyr-lang{
   left: 0; right: 0; margin: 0 auto; width: max-content; min-width: calc(var(--u) * 48); max-width: calc(var(--u) * 200);

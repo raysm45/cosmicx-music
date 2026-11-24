@@ -4107,9 +4107,27 @@ body.aivy-artist-immersive .aivy-rightpanel-rail{ border-left: 1px solid color-m
 }
 @keyframes aivy-quality-text-shine{ from{ background-position: 0% 0; } to{ background-position: 200% 0; } }
 @keyframes aivy-quality-sweep{ 0%, 55%{ transform: translateX(-120%); } 100%{ transform: translateX(120%); } }
+
+/* Tier ketiga: Dolby Atmos — anatomi sama dengan is-lossless / is-hires, warnanya sendiri. */
+.aivy-quality.is-atmos{ position: relative; }
+.aivy-quality.is-atmos .m{
+  --q-base: #b9c6ff; --q-glint: #fff;
+  background: linear-gradient(100deg, var(--q-base) 0%, var(--q-base) 38%, var(--q-glint) 50%, var(--q-base) 62%, var(--q-base) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: aivy-quality-text-shine 2.8s linear infinite;
+}
+.aivy-quality.is-atmos .q-ico{ color: #b9c6ff; }
+.aivy-quality.is-atmos::after{
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.34) 50%, transparent 62%);
+  transform: translateX(-120%);
+  animation: aivy-quality-sweep 3.4s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce){
-  .aivy-quality.is-lossless .m, .aivy-quality.is-hires .m{ animation: none; background: none; -webkit-text-fill-color: var(--q-base); color: var(--q-base); }
-  .aivy-quality.is-lossless::after, .aivy-quality.is-hires::after{ animation: none; display: none; }
+  .aivy-quality.is-lossless .m, .aivy-quality.is-hires .m, .aivy-quality.is-atmos .m{ animation: none; background: none; -webkit-text-fill-color: var(--q-base); color: var(--q-base); }
+  .aivy-quality.is-lossless::after, .aivy-quality.is-hires::after, .aivy-quality.is-atmos::after{ animation: none; display: none; }
 }
 .aivy-dock .aivy-mini-player .aivy-icon-btn{ width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }
 
