@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Heart, MoreHorizontal, Check } from "lucide-react";
+import { Heart, MoreHorizontal, Check } from "lucide-react";
 import { Api } from "../lib/api.js";
 import { usePlayer, useUI } from "../context.jsx";
 import { useRouter } from "../router.jsx";
@@ -7,12 +7,11 @@ import { useTrackMenuItems, HoverRail } from "../components.jsx";
 import { SmartCover } from "../lib/brand.jsx";
 import { loadTrackArtists } from "../lib/artistProfile.js";
 import { uid, formatDuration } from "../lib/utils.js";
+import { ShowcaseBlock, pickShowcases } from "./ExploreShowcases.jsx";
 
 const N_TRENDING = 5;
-const N_COVERS = 3;
 const N_DISCOVER = 6;
 const N_ARTISTS = 8;
-const TRACKS_PER_CYCLE = N_TRENDING + N_COVERS + N_DISCOVER;
 const PAGE = 24;
 
 function newSource() {
@@ -68,19 +67,26 @@ function useExploreFeed() {
     setLoading(true);
     setStalled(false);
     const s = src.current;
+    // Layout showcase untuk siklus ini dipilih dulu, supaya tahu berapa lagu yang perlu diambil.
+    const defs = pickShowcases(counter.current);
+    const need = N_TRENDING + defs.reduce((sum, d) => sum + d.need, 0) + N_DISCOVER;
     await Promise.all([
-      fillPool(s.track, "track", TRACKS_PER_CYCLE, allowExplicit.current),
+      fillPool(s.track, "track", need, allowExplicit.current),
       fillPool(s.artist, "artist", N_ARTISTS, true),
     ]);
     if (!alive.current) { busy.current = false; return; }
     const trending = s.track.pool.splice(0, N_TRENDING);
-    const covers = s.track.pool.splice(0, N_COVERS);
+    const blocks = [];
+    for (const def of defs) {
+      const tracks = s.track.pool.splice(0, def.need);
+      if (tracks.length >= def.min) blocks.push({ def, tracks });
+    }
     const discover = s.track.pool.splice(0, N_DISCOVER);
     const artists = s.artist.pool.splice(0, N_ARTISTS);
-    if (!trending.length && !covers.length && !discover.length && !artists.length) {
+    if (!trending.length && !blocks.length && !discover.length && !artists.length) {
       setStalled(true);
     } else {
-      setCycles((prev) => [...prev, { id: ++counter.current, trending, covers, discover, artists }]);
+      setCycles((prev) => [...prev, { id: ++counter.current, trending, blocks, discover, artists }]);
     }
     setLoading(false);
     busy.current = false;
@@ -146,35 +152,6 @@ function ExploreTrackRow({ track, list }) {
   );
 }
 
-function ExploreCoverCard({ track, list }) {
-  const { openContextMenu, t } = useUI();
-  const { isCurrent, isPlaying, play } = usePlayTrack(track, list);
-  const items = useTrackMenuItems(track);
-  const openMenu = (e) => { e.preventDefault(); e.stopPropagation(); openContextMenu(e.clientX, e.clientY, items); };
-  return (
-    <div
-      className={`aivy-xcover ${isCurrent ? "current" : ""}`}
-      role="button"
-      tabIndex={0}
-      onClick={play}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); play(); } }}
-      onContextMenu={openMenu}
-    >
-      {track.cover && <span className="bg" style={{ backgroundImage: `url(${JSON.stringify(track.cover)})` }} />}
-      <span className="shade" />
-      <span className="play" aria-hidden="true">{isCurrent && isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: 2 }} />}</span>
-      <span className="t">
-        {track.explicit && <span className="aivy-explicit-badge" title="Explicit">E</span>}
-        {track.title}
-      </span>
-      <span className="a">{artistNames(track) || "\u2014"}</span>
-      <button type="button" className="more" onClick={openMenu} aria-label={t("menuMore")}>
-        <MoreHorizontal size={18} />
-      </button>
-    </div>
-  );
-}
-
 function FeaturedArtistCard({ artist }) {
   const { navigate } = useRouter();
   const { t } = useUI();
@@ -205,6 +182,16 @@ function BlockHead({ children }) {
 
 function ExploreCycle({ cycle }) {
   const { t } = useUI();
+  const artistsBlock = cycle.artists.length > 0 && (
+    <section key="artists">
+      <BlockHead>{t("exploreFeaturedArtists")}</BlockHead>
+      <div className="aivy-xartists">
+        <HoverRail>
+          {cycle.artists.map((a) => <FeaturedArtistCard key={a.id} artist={a} />)}
+        </HoverRail>
+      </div>
+    </section>
+  );
   return (
     <div className="aivy-explore-cycle">
       {cycle.trending.length > 0 && (
@@ -216,22 +203,13 @@ function ExploreCycle({ cycle }) {
         </section>
       )}
 
-      {cycle.artists.length > 0 && (
-        <section>
-          <BlockHead>{t("exploreFeaturedArtists")}</BlockHead>
-          <div className="aivy-xartists">
-            <HoverRail>
-              {cycle.artists.map((a) => <FeaturedArtistCard key={a.id} artist={a} />)}
-            </HoverRail>
-          </div>
-        </section>
-      )}
-
-      {cycle.covers.length > 0 && (
-        <section className="aivy-xcovers">
-          {cycle.covers.map((tr) => <ExploreCoverCard key={tr.id} track={tr} list={cycle.covers} />)}
-        </section>
-      )}
+      {cycle.blocks.map((b, i) => (
+        <React.Fragment key={b.def.kind}>
+          <ShowcaseBlock def={b.def} tracks={b.tracks} />
+          {i === 0 ? artistsBlock : null}
+        </React.Fragment>
+      ))}
+      {cycle.blocks.length === 0 ? artistsBlock : null}
 
       {cycle.discover.length > 0 && (
         <section>
