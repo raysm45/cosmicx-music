@@ -5,6 +5,7 @@ import { useTrackMenuItems, HoverRail } from "../components.jsx";
 import { SmartCover, sizedThumb } from "../lib/brand.jsx";
 import { loadTrackArtists } from "../lib/artistProfile.js";
 import { formatDuration } from "../lib/utils.js";
+import { SZ } from "../lib/exploreThumbs.js";
 
 /* ──────────────────────────────────────────────────────────────
    Helpers bersama
@@ -173,7 +174,7 @@ function SpotMini({ track, list, i }) {
   return (
     <div className={`xs-spot-mini${a.isCurrent ? " current" : ""}`} style={{ "--i": i }} onContextMenu={a.openMenu} onPointerEnter={a.warm} {...pressable(a.play)}>
       <span className="cv">
-        {cover(track, 120, 10)}
+        {cover(track, SZ.spotMini, 10)}
         <span className="ov">{a.playing ? <EqBars /> : <Play size={18} fill="currentColor" />}</span>
       </span>
       <span className="tx"><b>{track.title}</b><em>{artistNames(track) || "\u2014"}</em></span>
@@ -198,9 +199,9 @@ function SpotlightShow({ tracks }) {
         onContextMenu={a.openMenu}
         onPointerEnter={a.warm}
       >
-        <span className="xs-spot-bg" style={{ backgroundImage: bgUrl(hero.cover, 220) }} />
+        <span className="xs-spot-bg" style={{ backgroundImage: bgUrl(hero.cover, SZ.spotBg) }} />
         <span className="xs-spot-grain" />
-        <span className="xs-spot-art">{cover(hero, 420, 14)}</span>
+        <span className="xs-spot-art">{cover(hero, SZ.spotHero, 14)}</span>
         <span className="xs-spot-body">
           <span className="xs-eyebrow">{t("xsSpotlightTag")}</span>
           <span className="xs-spot-title">{hero.title}</span>
@@ -237,11 +238,11 @@ function ShelfBook({ track, list, i }) {
       {...pressable(a.play)}
     >
       <span className="xs-book-body">
-        <span className="face spine" style={{ backgroundImage: bgUrl(track.cover, 120) }}>
+        <span className="face spine" style={{ backgroundImage: bgUrl(track.cover, SZ.shelfSpine) }}>
           <span className="spine-t">{track.title}</span>
           {a.playing ? <span className="spine-eq"><EqBars /></span> : null}
         </span>
-        <span className="face front">{cover(track, 200)}</span>
+        <span className="face front">{cover(track, SZ.shelfFront)}</span>
       </span>
     </div>
   );
@@ -279,7 +280,7 @@ function BookCoverFace({ total }) {
 function BookArtPage({ track, no }) {
   return (
     <div className="xs-pg xs-pg-art">
-      {cover(track, 520)}
+      {cover(track, SZ.bookArt)}
       <span className="xs-pg-vig" />
       <span className="xs-pg-tag">{pad2(no)}</span>
     </div>
@@ -392,7 +393,7 @@ function CFItem({ track, list, o, onSelect }) {
       tabIndex={hidden ? -1 : 0}
     >
       <span className="xs-cf-art">
-        {cover(track, 320, 6)}
+        {cover(track, SZ.coverflow, 6)}
         {center && a.playing ? <span className="xs-cf-eq"><EqBars /></span> : null}
       </span>
     </div>
@@ -450,11 +451,11 @@ function VinylItem({ track, list, i }) {
       <span className="xs-vinyl-art">
         <span className="xs-vinyl-disc">
           <span className="xs-vinyl-spin">
-            <span className="xs-vinyl-label" style={{ backgroundImage: bgUrl(track.cover, 100) }} />
+            <span className="xs-vinyl-label" style={{ backgroundImage: bgUrl(track.cover, SZ.vinylLabel) }} />
           </span>
         </span>
         <span className="xs-vinyl-sleeve">
-          {cover(track, 260, 4)}
+          {cover(track, SZ.vinyl, 4)}
           <span className="xs-vinyl-shine" />
         </span>
       </span>
@@ -559,7 +560,7 @@ const StackCard = forwardRef(function StackCard({ track, list, pos, total, onCom
       onContextMenu={a.openMenu}
       aria-hidden={top ? undefined : true}
     >
-      {cover(track, 420, 18)}
+      {cover(track, SZ.stack, 18)}
       <span className="xs-stack-shade" />
       <span className="xs-stack-txt"><b>{track.title}</b><em>{artistNames(track) || "\u2014"}</em></span>
       {a.playing ? <span className="xs-stack-eq"><EqBars /></span> : null}
@@ -634,7 +635,7 @@ function BentoTile({ track, list, i, shape }) {
       onPointerEnter={a.warm}
       {...pressable(a.play)}
     >
-      <span className="img">{cover(track, shape === "big" ? 560 : 320)}</span>
+      <span className="img">{cover(track, shape === "big" ? SZ.bentoBig : SZ.bento)}</span>
       <span className="shade" />
       <span className="txt"><b>{track.title}</b><em>{artistNames(track) || "\u2014"}</em></span>
       <span className="go">{a.playing ? <EqBars /> : <Play size={18} fill="currentColor" style={{ marginLeft: 2 }} />}</span>
@@ -668,7 +669,7 @@ function PolaroidItem({ track, list, i }) {
     >
       <span className="xs-pola-tape" aria-hidden="true" />
       <span className="xs-pola-photo">
-        {cover(track, 280)}
+        {cover(track, SZ.polaroid)}
         {a.playing ? <span className="xs-pola-eq"><EqBars /></span> : null}
       </span>
       <span className="xs-pola-cap">{track.title}</span>
@@ -700,7 +701,7 @@ function MarqueeChip({ track, list, hidden }) {
       tabIndex={hidden ? -1 : 0}
     >
       <span className="cv">
-        {cover(track, 112, 999)}
+        {cover(track, SZ.marquee, 999)}
         {a.playing ? <span className="ov"><EqBars /></span> : null}
       </span>
       <span className="tx"><b>{track.title}</b><em>{artistNames(track) || "\u2014"}</em></span>
@@ -748,7 +749,7 @@ function AccPanel({ track, list, i, active, onActivate }) {
       onContextMenu={a.openMenu}
       {...pressable(() => (active ? a.play() : onActivate()))}
     >
-      <span className="bg" style={{ backgroundImage: bgUrl(track.cover, 480) }} />
+      <span className="bg" style={{ backgroundImage: bgUrl(track.cover, SZ.accordion) }} />
       <span className="shade" />
       <span className="no">{pad2(i + 1)}</span>
       <span className="vt">{track.title}</span>
@@ -791,7 +792,7 @@ function ChartRow({ track, list, rank, i }) {
     >
       <span className="rk">{rank}</span>
       <span className="cv">
-        {cover(track, 112, 6)}
+        {cover(track, SZ.chart, 6)}
         <span className="ov">{a.playing ? <EqBars /> : <Play size={16} fill="currentColor" />}</span>
       </span>
       <span className="tx"><b>{track.title}</b><em>{artistNames(track) || "\u2014"}</em></span>
@@ -835,7 +836,7 @@ function PickCard({ track, list, i }) {
       onPointerEnter={a.warm}
       {...pressable(a.play)}
     >
-      <span className="img">{cover(track, 420)}</span>
+      <span className="img">{cover(track, SZ.pick)}</span>
       <span className="shade" />
       <span className="glare" />
       <span className="top">{t("xsPick")} {pad2(i + 1)}</span>
@@ -873,7 +874,7 @@ function OrbitNode({ track, list, i, n, focused, onFocus }) {
         aria-label={track.title}
         {...pressable(click)}
       >
-        {cover(track, 160, 999)}
+        {cover(track, SZ.orbitNode, 999)}
       </div>
     </div>
   );
@@ -906,7 +907,7 @@ function OrbitShow({ tracks }) {
         </div>
         <div className="xs-orbit-core" key={cur.id}>
           <button type="button" className={`disc${a.playing ? " playing" : ""}`} onClick={a.play} aria-label={a.playing ? t("xsPause") : t("xsPlay")}>
-            {cover(cur, 300, 999)}
+            {cover(cur, SZ.orbitCore, 999)}
             <span className="hole" />
             <span className="go"><PlayGlyph playing={a.playing} size={22} /></span>
           </button>
@@ -941,6 +942,8 @@ export const SHOWCASES = [
 ];
 
 export const SHOWCASES_PER_CYCLE = 5;
+
+export const showcaseByKind = (kind) => SHOWCASES.find((d) => d.kind === kind) || null;
 
 // Siklus ke-n mengambil 5 layout berurutan (melingkar) dari registry.
 export function pickShowcases(cycleIndex) {

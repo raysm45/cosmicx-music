@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useId, useSyncExternalStore } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useId, useSyncExternalStore } from "react";
 import { hashStr } from "./utils.js";
+import { isThumbLoaded, markThumbLoaded } from "./imagePreload.js";
 import { Api } from "./api.js";
 import CosmicLoader from "./CosmicLoader.jsx";
 
@@ -171,12 +172,43 @@ export function sizedThumb(src, px = 256) {
 
 export function SmartCover({ src, seed, size = 160, radius = 14, style = {}, alt = "", priority = false }) {
   const [failed, setFailed] = useState(false);
+  const ref = useRef(null);
+  const url = src && typeof src === "string" ? sizedThumb(src, size) : null;
+  // Sudah dipreload / pernah dimuat → langsung tampil, tanpa lazy-load dan tanpa fade.
+  const warm = isThumbLoaded(url);
+  const [ready, setReady] = useState(warm);
+
   useEffect(() => { setFailed(false); }, [src]);
-  if (!src || failed) return <CoverArt seed={seed} size={size} radius={radius} style={style} />;
+
+  // Gambar yang sudah ada di cache browser sering sudah `complete` sebelum onLoad terpasang.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!url) return;
+    if (isThumbLoaded(url) || (el && el.complete && el.naturalWidth > 0)) {
+      markThumbLoaded(url);
+      setReady(true);
+    } else {
+      setReady(false);
+    }
+  }, [url]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && priority) el.setAttribute("fetchpriority", "high");
+  }, [priority, url]);
+
+  if (!url || failed) return <CoverArt seed={seed} size={size} radius={radius} style={style} />;
   return (
     <img
-      src={sizedThumb(src, size)} alt={alt} width={size} height={size} loading={priority ? "eager" : "lazy"} decoding="async"
-      style={{ borderRadius: radius, objectFit: "cover", display: "block", background: "var(--bg-elev-2)", ...style }}
+      ref={ref}
+      src={url} alt={alt} width={size} height={size}
+      loading={priority || warm ? "eager" : "lazy"} decoding="async"
+      style={{
+        borderRadius: radius, objectFit: "cover", display: "block", background: "var(--bg-elev-2)",
+        opacity: ready ? 1 : 0, transition: "opacity .28s ease",
+        ...style,
+      }}
+      onLoad={() => { markThumbLoaded(url); setReady(true); }}
       onError={() => setFailed(true)}
     />
   );

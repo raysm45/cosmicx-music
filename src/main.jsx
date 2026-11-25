@@ -12,8 +12,11 @@ import "./styles/explore-showcase.css";
 import "./styles/audio-fx.css";
 import { applyLiquidGlass, readCachedLiquidGlass } from "./lib/perf.js";
 import { captureImpersonateToken } from "./lib/impersonate.js";
+import { warmExploreFeed } from "./lib/exploreCache.js";
 
 applyLiquidGlass(readCachedLiquidGlass());
+// Mulai mengunduh thumbnail feed Explore dari cache sebelum React selesai boot.
+warmExploreFeed();
 
 captureImpersonateToken();
 
